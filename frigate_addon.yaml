@@ -1,0 +1,220 @@
+  doh_per_11_004:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-11/PER_11_004.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_11_006:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-11/PER_11_006.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_11_008:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-11/PER_11_008.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_11_009:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-11/PER_11_009.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_12_005:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-12/PER_12_005.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_12_008:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-12/PER_12_008.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_13_009:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-13/PER_13_009.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_13_010:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-13/PER_13_010.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_13_011:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-13/PER_13_011.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_13_015:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-13/PER_13_015.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_15_001:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-15/PER_15_001.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_15_002:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-15/PER_15_002.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_15_007:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-15/PER_15_007.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_15_011:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-15/PER_15_011.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_15_012:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-15/PER_15_012.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_15_013:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-15/PER_15_013.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_17_003:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-17/PER_17_003.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_17_005:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-17/PER_17_005.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_17_009:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-17/PER_17_009.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_17_012:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-17/PER_17_012.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_17_015:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-17/PER_17_015.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True
+  doh_per_17_017:
+    ffmpeg:
+      inputs:
+        - path: https://streaming2.highwaytraffic.go.th/PER-17/PER_17_017.stream/playlist.m3u8
+          roles:
+            - record
+    detect:
+      enabled: False
+    record:
+      enabled: True

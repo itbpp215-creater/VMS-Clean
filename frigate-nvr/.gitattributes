@@ -1,0 +1,3 @@
+# nginx sources environment hooks with Alpine /bin/sh, so this hook must retain
+# Unix line endings even when the repository is checked out on Windows.
+*.envsh text eol=lf

@@ -1,0 +1,10 @@
+# แม่แบบบัญชีทะเบียนต้องสงสัย — คัดลอกไปที่ config/lpr/suspect_plates.txt (machine-local, ไม่ขึ้น git)
+#   cp lpr-service/suspect_plates.example.txt config/lpr/suspect_plates.txt
+#
+# รูปแบบ: หนึ่งทะเบียนต่อบรรทัด (ไม่ต้องใส่จังหวัด) — "#" คือ comment
+# ระบบ normalize ให้เอง (ตัดช่องว่าง/ขีด) เช่น "กข 123" กับ "กข123" ถือว่าตรงกัน
+# ไฟล์นี้ reload อัตโนมัติทุก ~60 วินาที — แก้แล้วไม่ต้อง restart container
+#
+# ตัวอย่าง:
+# กข123
+# ญล4331

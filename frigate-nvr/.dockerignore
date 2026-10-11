@@ -1,0 +1,8 @@
+# Keep the build context tiny: only the Dockerfile, branding assets, and patches.
+# Excludes config/ (db, secrets) and storage/ (recordings) entirely.
+*
+!Dockerfile
+!branding
+!branding/**
+!patches
+!patches/**

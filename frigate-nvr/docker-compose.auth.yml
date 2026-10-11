@@ -1,0 +1,141 @@
+﻿services:
+  auth-service:
+    container_name: auth-service
+    image: auth-service:local
+    build:
+      context: ./auth-service
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - security
+    volumes:
+      - auth-db:/data
+      - ./auth-service/auth.py:/app/auth.py:ro
+    environment:
+      AUTH_AUDIT_SHARED_SECRET: ${AUTH_AUDIT_SHARED_SECRET:?AUTH_AUDIT_SHARED_SECRET is required}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-720}
+      AUTH_TRUSTED_PROXY_HOST: dashboard
+
+  watchlist-api:
+    container_name: watchlist-api
+    image: watchlist-api:local
+    build:
+      context: ./watchlist-api
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - security
+      - lpr-data
+      - media
+    volumes:
+      - ./config/lpr:/data
+      - ./lpr-data:/lpr-data
+      - ./config/dashboard-settings:/settings-data:ro
+      - ./watchlist-api/api.py:/app/api.py:ro
+      - ./watchlist-api/lpr_learning.py:/app/lpr_learning.py:ro
+    environment:
+      WATCHLIST_PROXY_SHARED_SECRET: ${WATCHLIST_PROXY_SHARED_SECRET:?WATCHLIST_PROXY_SHARED_SECRET is required}
+      WATCHLIST_FEDERATION_SHARED_SECRET: ${WATCHLIST_FEDERATION_SHARED_SECRET:?WATCHLIST_FEDERATION_SHARED_SECRET is required}
+      WATCHLIST_SERVICE_SHARED_SECRET: ${WATCHLIST_SERVICE_SHARED_SECRET:?WATCHLIST_SERVICE_SHARED_SECRET is required}
+      AUTH_AUDIT_SHARED_SECRET: ${AUTH_AUDIT_SHARED_SECRET:?AUTH_AUDIT_SHARED_SECRET is required}
+      WATCHLIST_ALLOWED_ORIGINS: ${WATCHLIST_ALLOWED_ORIGINS:-}
+      LPR_SUPERADMIN_USERNAME: ${LPR_SUPERADMIN_USERNAME:-arm215}
+
+  nas-bot:
+    container_name: nas-bot-service
+    image: nas-bot-service:local
+    build:
+      context: ./nas-bot-service
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    network_mode: "container:tailscale-service"
+    environment:
+      NAS_STORAGE_PATH: ${NAS_STORAGE_PATH:-/data/nas-storage}
+      NAS_DATA_DIR: /data
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET:-}
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      I2_BRIDGE_ROOT: /i2-bridge
+      I2_IMPORT_MAX_BYTES: ${I2_IMPORT_MAX_BYTES:-1073741824}
+      I2_IMPORT_MAX_ITEMS: ${I2_IMPORT_MAX_ITEMS:-250000}
+      I2_LAYOUT_MAX_NODES: ${I2_LAYOUT_MAX_NODES:-250000}
+      I2_BRIDGE_JOB_TIMEOUT_HOURS: ${I2_BRIDGE_JOB_TIMEOUT_HOURS:-24}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/bpp-vms-master}
+      NAS_HOST: ${NAS_HOST:-192.168.1.100}
+      NAS_SHARE: ${NAS_SHARE:-BPP215}
+      NAS_USERNAME: ${NAS_USERNAME:-Bpp215}
+      NAS_PASSWORD: ${NAS_PASSWORD:-ChangeMePassword123}
+      NAS_SYNC_ENABLED: ${NAS_SYNC_ENABLED:-true}
+      NAS_SYNC_DEBOUNCE_SEC: ${NAS_SYNC_DEBOUNCE_SEC:-8}
+      NAS_VIDEO_ARCHIVE_ENABLED: ${NAS_VIDEO_ARCHIVE_ENABLED:-true}
+      NAS_VIDEO_ARCHIVE_INTERVAL_MIN: ${NAS_VIDEO_ARCHIVE_INTERVAL_MIN:-15}
+      LOCAL_RECORDINGS_PATH: /media/recordings
+      LOCAL_EXPORTS_PATH: /media/exports
+    volumes:
+      - ./nas-bot-service:/app
+      - nas-storage:/data/nas-storage
+      - nas-bot-data:/data
+      - ./storage/recordings:/media/recordings
+      - ./storage/exports:/media/exports
+      - ./config/lpr:/lpr-config:ro
+      - ./config/dashboard-settings:/settings-data:ro
+      - ./runtime/i2-bridge:/i2-bridge
+
+  chat-service:
+    container_name: chat-service
+    image: chat-service:local
+    build:
+      context: ./chat-service
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edge
+    volumes:
+      - ./chat-service:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5007/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  edge:
+    external: true
+    name: frigate-nvr_edge
+  media:
+    external: true
+    name: frigate-nvr_media
+  security:
+    external: true
+    name: frigate-nvr_security
+  lpr-data:
+    external: true
+    name: frigate-nvr_lpr-data
+
+volumes:
+  auth-db:
+    external: true
+    name: frigate-nvr_auth-db
+  nas-storage:
+    external: true
+    name: frigate-nvr_nas-storage
+  nas-bot-data:
+    external: true
+    name: frigate-nvr_nas-bot-data

@@ -1,0 +1,51 @@
+# Generate the nginx Federation source ACL before the official envsubst hook runs.
+# Input is BPP_FEDERATION_ALLOW_CIDR as one or more comma-separated IPv4/IPv6
+# CIDRs. Output is an nginx snippet; the only side effect is replacing that
+# container-local snippet atomically on each dashboard start.
+
+# Keep an unset or explicitly empty value fail-closed on loopback, matching the
+# Compose and .env.example defaults without granting any external source access.
+bpp_federation_acl_raw="${BPP_FEDERATION_ALLOW_CIDR:-127.0.0.1/32}"
+bpp_federation_acl_dir="/etc/nginx/snippets"
+bpp_federation_acl_target="${bpp_federation_acl_dir}/bpp-federation-allow.conf"
+
+# Build the replacement beside its target so the final rename is atomic and
+# nginx can never observe a partially written allowlist.
+mkdir -p "${bpp_federation_acl_dir}"
+bpp_federation_acl_temp="$(mktemp "${bpp_federation_acl_target}.XXXXXX")"
+
+# Split only on commas, trim surrounding whitespace, and accept only literal
+# IPv4/IPv6 CIDRs. This rejects nginx syntax and shell metacharacters before any
+# environment-derived text is written into the configuration snippet.
+if ! printf '%s\n' "${bpp_federation_acl_raw}" | awk '
+    NR != 1 {
+        exit 2
+    }
+    {
+        cidr_count = split($0, cidrs, ",")
+        for (cidr_index = 1; cidr_index <= cidr_count; cidr_index += 1) {
+            cidr = cidrs[cidr_index]
+            gsub(/^[[:space:]]+/, "", cidr)
+            gsub(/[[:space:]]+$/, "", cidr)
+            if (cidr == "" || cidr !~ /^[0-9A-Fa-f:.]+\/[0-9][0-9]*$/) {
+                exit 2
+            }
+            printf "allow %s;\n", cidr
+        }
+    }
+' > "${bpp_federation_acl_temp}"; then
+    # Remove partial output and stop dashboard startup without echoing the
+    # configured network values into logs.
+    rm -f "${bpp_federation_acl_temp}"
+    echo >&2 "ERROR: BPP_FEDERATION_ALLOW_CIDR must contain only comma-separated IPv4/IPv6 CIDRs"
+    exit 1
+fi
+
+# Publish the validated snippet with read-only configuration permissions after
+# generation succeeds; nginx performs the final semantic address validation.
+chmod 0644 "${bpp_federation_acl_temp}"
+mv -f "${bpp_federation_acl_temp}" "${bpp_federation_acl_target}"
+
+# Avoid leaking helper state into later sourced entrypoint hooks.
+unset bpp_federation_acl_raw bpp_federation_acl_dir
+unset bpp_federation_acl_target bpp_federation_acl_temp

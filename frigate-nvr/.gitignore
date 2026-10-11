@@ -1,0 +1,96 @@
+# ===== ความลับ / ค่าเฉพาะเครื่อง — ห้าม commit =====
+.env
+.env.*
+!.env.example
+
+# ===== ข้อมูล runtime ของ Frigate (อยู่ใน config/ แต่ไม่ track) =====
+# หมายเหตุ: ตั้งใจ track เฉพาะ config/config.yml — ที่เหลือใน config/ ไม่เอา
+config/*.db
+config/*.db-shm
+config/*.db-wal
+config/.jwt_secret
+config/.exports
+config/.timeline
+config/.vacuum
+config/.search_stats.json
+config/model_cache/
+# Active-learning model generations are machine-local checkpoints.  Retain the
+# directory contract without committing binary model or pointer state.
+lpr-model-store/*
+!lpr-model-store/.gitkeep
+config/dashboard-settings/
+config/go2rtc_homekit.yml
+config/*.bak
+config/*.bak.*
+
+# Auth database, rotated JWT key, one-time bootstrap output, and TLS private
+# material are machine-local security state. Never add them to source control.
+config/auth/
+config/certs/
+config/dump.sql
+config/*.dumped
+config/*.hanging
+config/*.test
+config/.config-api.lock
+config/backups/
+
+# ===== วิดีโอที่บันทึก (ใหญ่มาก) =====
+storage/
+
+# ===== Windows i2 Bridge queue/results — runtime case data, never commit =====
+runtime/i2-bridge/
+
+# ===== ไฟล์สำรอง / เบ็ดเตล็ด =====
+docker-compose.yml.bak
+*.log
+logs.txt
+test_restore.txt
+verify*.txt
+web/assets/*.js.test
+web/assets/*_test.js
+cameras_config.yml
+frigate_config.json
+fix_ai_logic.js
+fix_config.py
+fix_*.ps1
+patch_app.js
+patch_fetch.js
+
+# ===== ค่าเฉพาะเครื่อง dev (Windows ไม่มี GPU) — ห้าม commit เด็ดขาด =====
+# ถ้าติดไป production จะตัด NVIDIA GPU ของ frigate ทำให้ decode พังทุกกล้อง
+docker-compose.override.yml
+
+# ===== ต้นแบบดีไซน์จาก Claude Design (ไฟล์ใหญ่ ยังไม่ตัดสินใจ track) =====
+design-handoff/
+
+# ===== staging ไอคอน/ดีไซน์เฉพาะเครื่อง (มี zip ใหญ่) — โลโก้ต้นทางอยู่ที่ branding/BPP215.png =====
+icon/
+
+# ===== GitHub Actions self-hosted runner (ถ้าติดตั้งในโฟลเดอร์นี้) =====
+actions-runner/
+
+# ===== LPR (อ่านป้ายทะเบียน) — ของเฉพาะเครื่อง ห้าม commit =====
+# LicensePlateRECOG/ = โค้ดต้นแบบ+โมเดล .pt ที่ทีมส่งมา (main.py มี webhook token
+# กับ credential กล้องจริงฝังอยู่ — ห้ามขึ้น git เด็ดขาด; โค้ดที่ track คือ lpr-service/)
+LicensePlateRECOG/
+# บัญชีทะเบียนต้องสงสัย (ข้อมูลปฏิบัติการเฉพาะเครื่อง)
+config/lpr/
+!config/lpr/blocked_webhook_cameras.json
+# รูป/ผลการอ่านป้ายย้อนหลังของ lpr-service
+lpr-data/
+
+# ===== python cache =====
+__pycache__/
+*.pyc
+.test-deps/
+
+# ===== browser test dependencies / reports =====
+node_modules/
+playwright-report/
+test-results/
+
+# ===== Claude Code local settings (เฉพาะเครื่อง) =====
+.claude/settings.local.json
+
+# ACME/Let's Encrypt state (มี private key ของบัญชี ACME + cert) — ห้าม commit
+config/acme/

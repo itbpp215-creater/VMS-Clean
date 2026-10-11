@@ -1,0 +1,5 @@
+# Demand-Driven Camera Provisioning
+
+Frigate's `config.yml` previously listed all 86 registered cameras at all times, costing ~95% CPU even when most were `enabled: false`, because go2rtc still maintained 550+ stream table entries and Frigate allocated internal bookkeeping per camera definition. We decided to **remove cameras from `config.yml` entirely when no online user references them**, re-provisioning from persisted Camera Template Snapshots on demand. The alternative — keeping all 86 cameras and toggling `enabled`/`detect`/`record` flags via the Frigate Feature API — was rejected because disabled cameras still consume non-trivial baseline resources (ffmpeg process spawn, shm allocation, stream negotiation) and the goal was true zero-workload when no operators are connected.
+
+This means the first user logging in after a full deprovision will experience a cold-start delay (10–25 s Frigate restart), but go2rtc stream definitions remain intact so **live WebRTC video is available immediately** while recording and AI detection come online after the restart.

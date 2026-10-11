@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>คู่มือการดึงภาพ NVR ข้ามหน่วยงาน (Federation Network)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-panel: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #334155;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Sarabun', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        .logo-area {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 15px;
+        }
+        .logo-area h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #38bdf8;
+        }
+        .logo-area p {
+            margin: 5px 0 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 15px 20px;
+            text-align: left;
+            font-size: 1rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+        }
+        .nav-btn:hover {
+            background-color: rgba(255,255,255,0.05);
+            color: var(--text-main);
+        }
+        .nav-btn.active {
+            background-color: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border-left-color: #3b82f6;
+        }
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+        .section-container {
+            display: none;
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .section-container.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Typography & Components */
+        h1 { font-size: 2rem; margin-top: 0; color: #fff; border-bottom: 2px solid var(--border); padding-bottom: 15px; }
+        h2 { font-size: 1.5rem; color: #e2e8f0; margin-top: 30px; }
+        h3 { font-size: 1.2rem; color: #bae6fd; margin-top: 25px; }
+        p { line-height: 1.7; font-size: 1.05rem; }
+        
+        .step-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .step-num {
+            position: absolute;
+            top: -15px;
+            left: -15px;
+            width: 36px;
+            height: 36px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* Troubleshooting Box */
+        .ts-box {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid var(--warning);
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 30px;
+        }
+        .ts-box h4 {
+            color: var(--warning);
+            margin-top: 0;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Wizard Navigation */
+        .wizard-nav {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-prev {
+            background-color: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+        .btn-prev:hover { background-color: rgba(255,255,255,0.1); }
+        .btn-next {
+            background-color: var(--primary);
+            color: white;
+        }
+        .btn-next:hover { background-color: var(--primary-hover); }
+        
+        .code-block {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #a78bfa;
+            border: 1px solid #333;
+        }
+
+        .scenario-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        .bg-success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .bg-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .bg-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+                overflow: auto;
+            }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                box-shadow: none;
+                padding: 12px 0;
+            }
+            .logo-area {
+                padding: 0 16px 12px;
+                margin-bottom: 8px;
+            }
+            .logo-area h2 {
+                font-size: 1.1rem;
+            }
+            .nav-btn {
+                padding: 10px 16px;
+                font-size: 0.95rem;
+            }
+            .content-area {
+                overflow-y: visible;
+            }
+            .section-container {
+                padding: 20px 16px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            h2 {
+                font-size: 1.25rem;
+            }
+            p {
+                font-size: 0.95rem;
+            }
+            .step-card {
+                padding: 16px;
+            }
+            .code-block {
+                font-size: 0.85rem;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="logo-area">
+            <h2>BPP-VMS Network Guide</h2>
+            <p>คู่มือเชื่อมต่อ NVR ข้ามกองร้อย</p>
+        </div>
+        <button class="nav-btn active" onclick="showSection('intro')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>เริ่มต้น: เข้าใจโครงสร้าง</button>
+        <button class="nav-btn" onclick="showSection('case1')">กรณี 1: มี Public IP</button>
+        <button class="nav-btn" onclick="showSection('case2')">กรณี 2: ไม่มี Public IP (NAT/4G)</button>
+        <button class="nav-btn" onclick="showSection('case3')">กรณี 3: ไม่มี Internet เลย</button>
+        <button class="nav-btn" onclick="showSection('addnode')">ตั้งค่าในระบบ (Add Node)</button>
+    </div>
+
+    <div class="content-area">
+        
+        <!-- Intro -->
+        <div id="intro" class="section-container active">
+            <h1>หลักการเชื่อมต่อภาพข้ามหน่วยงาน (Federation)</h1>
+            <p>การดึงภาพจาก NVR ของกองร้อยอื่นมาแสดงผลที่ส่วนกลาง (หรือข้ามกองร้อย) จำเป็นต้องอาศัย <b>เส้นทางเครือข่าย (Network Route)</b> ที่หากันเจอเสียก่อน ระบบ BPP-VMS ออกแบบมาให้รองรับทุกสภาพแวดล้อมเครือข่าย แต่แอดมินเครือข่ายจำเป็นต้องจัดเตรียมเส้นทางให้เหมาะสมกับแต่ละกรณี</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 30px;">
+                <div style="background: rgba(16,185,129,0.1); border: 1px solid #10b981; padding: 20px; border-radius: 8px;">
+                    <h3 style="color:#34d399; margin-top:0;">กรณีที่ 1: มี Public IP</h3>
+                    <p style="font-size: 0.95rem;">หน่วยงานปลายทางใช้อินเทอร์เน็ตบ้าน/องค์กร ที่สามารถขอทำ Forward Port จากเร้าเตอร์หลักได้โดยตรง</p>
+                    <p style="color:#94a3b8; font-size: 0.85rem;">ความยาก: ⭐</p>
+                </div>
+                <div style="background: rgba(245,158,11,0.1); border: 1px solid #f59e0b; padding: 20px; border-radius: 8px;">
+                    <h3 style="color:#fbbf24; margin-top:0;">กรณีที่ 2: ไม่มี Public IP</h3>
+                    <p style="font-size: 0.95rem;">ใช้อินเทอร์เน็ตซิม (4G/5G) หรือเน็ตหอพักที่ติด NAT ไม่สามารถทะลวงจากภายนอกเข้าไปหาเครื่อง NVR ได้</p>
+                    <p style="color:#94a3b8; font-size: 0.85rem;">ความยาก: ⭐⭐⭐</p>
+                </div>
+                <div style="background: rgba(239,68,68,0.1); border: 1px solid #ef4444; padding: 20px; border-radius: 8px;">
+                    <h3 style="color:#f87171; margin-top:0;">กรณีที่ 3: ไม่มี Internet</h3>
+                    <p style="font-size: 0.95rem;">เป็นโครงข่ายปิดของทหาร/ตำรวจ (Air-gapped) หรืออยู่กลางป่าเขาที่ไม่มีสัญญาณอินเทอร์เน็ตเลย</p>
+                    <p style="color:#94a3b8; font-size: 0.85rem;">ความยาก: ⭐⭐⭐⭐⭐</p>
+                </div>
+            </div>
+
+            <div class="wizard-nav" style="justify-content: flex-end;">
+                <button class="btn btn-next" onclick="showSection('case1')">เริ่มต้นศึกษา กรณีที่ 1 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+            </div>
+        </div>
+
+        <!-- Case 1 -->
+        <div id="case1" class="section-container">
+            <h1>กรณีที่ 1: ปลายทางมี Public IP <span class="scenario-badge bg-success">ง่ายที่สุด</span></h1>
+            <p>สถานการณ์นี้คือ หน่วยงานปลายทางที่ติดตั้ง NVR ใช้อินเทอร์เน็ตองค์กร หรืออินเทอร์เน็ตบ้าน (เช่น 3BB, TRUE, NT) ที่ได้รับ Public IP (อาจจะแบบ Fix หรือ Dynamic ก็ได้)</p>
+            
+            <div class="step-card">
+                <div class="step-num">1</div>
+                <h3>ตรวจสอบ Public IP ฝั่งปลายทาง</h3>
+                <p>เปิดเบราว์เซอร์ที่เครื่องปลายทางแล้วเข้าเว็บ <code>whatismyip.com</code> หากเลข IP ที่ได้ ตรงกับเลข WAN IP ใน Router แปลว่าคุณได้ Public IP แท้</p>
+                <p><i>*หาก IP เป็นแบบไดนามิก (เปลี่ยนทุกครั้งที่เร้าเตอร์รีสตาร์ท) แนะนำให้สมัครและตั้งค่า DDNS (เช่น No-IP, DynDNS) ในเร้าเตอร์ไว้</i></p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-num">2</div>
+                <h3>ทำ Port Forwarding ที่ Router ปลายทาง</h3>
+                <p>เข้าไปตั้งค่าใน Router ของหน่วยงานปลายทาง ให้ส่งต่อพอร์ต (Port Forward) เข้ามาหา IP ภายในของเครื่อง BPP-VMS NVR (เช่น 192.168.1.100)</p>
+                <ul>
+                    <li><b>พอร์ตที่ต้อง Forward:</b> <code>80</code> และ <code>443</code> (สำหรับ API และหน้าเว็บ)</li>
+                    <li><b>พอร์ตที่ต้อง Forward:</b> <code>8555</code> (โปรโตคอล TCP และ UDP สำหรับดึงภาพสด WebRTC)</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <div class="step-num">3</div>
+                <h3>ทดสอบการเชื่อมต่อจากส่วนกลาง</h3>
+                <p>ที่เครื่องส่วนกลาง ให้ลองเปิดเบราว์เซอร์แล้วพิมพ์: <code>https://&lt;Public-IP-ของปลายทาง&gt;</code> หากขึ้นหน้า Login ของระบบ VMS แสดงว่าสำเร็จ</p>
+            </div>
+
+            <div class="ts-box">
+                <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:5px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>วิธีแก้ปัญหา (Troubleshooting)</h4>
+                <ul>
+                    <li><b>เข้าหน้าเว็บไม่ได้:</b> โทรหาผู้ให้บริการเน็ต (ISP) แจ้งว่าขอปลดบล็อกพอร์ต (NAT) สำหรับดูกล้องวงจรปิด บางค่ายจะแจก Private IP (ขึ้นต้นด้วย 100.x.x.x) มาให้โดยปริยาย</li>
+                    <li><b>เข้าเว็บได้แต่ภาพกล้องดำ/ไม่มา:</b> ลืม Forward พอร์ต <code>8555</code> (UDP) ทำให้วิดีโอถูกบล็อกโดยไฟร์วอลล์เร้าเตอร์</li>
+                </ul>
+            </div>
+
+            <div class="wizard-nav">
+                <button class="btn btn-prev" onclick="showSection('intro')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>กลับหน้าแรก</button>
+                <button class="btn btn-next" onclick="showSection('case2')">ต่อไป: กรณีไม่มี Public IP <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+            </div>
+        </div>
+
+        <!-- Case 2 -->
+        <div id="case2" class="section-container">
+            <h1>กรณีที่ 2: ปลายทางไม่มี Public IP <span class="scenario-badge bg-warning">ต้องใช้ VPN</span></h1>
+            <p>สถานการณ์นี้คือ หน่วยงานปลายทางใช้เน็ตซิม (4G/5G Router) หรืออินเทอร์เน็ตที่ติด NAT (Carrier-grade NAT) จากผู้ให้บริการ ซึ่งคนข้างนอกไม่สามารถทะลุเข้ามาได้เลย ต้องให้ฝั่งปลายทาง "มุด" ออกมาหาแทน</p>
+            
+            <div class="step-card">
+                <div class="step-num">1</div>
+                <h3>ติดตั้ง SD-WAN / Virtual LAN (แนะนำ ZeroTier หรือ Tailscale)</h3>
+                <p>เนื่องจาก Forward Port ไม่ได้ เราต้องสร้าง "เครือข่ายจำลองวงเดียวกัน" ขึ้นมา</p>
+                <p><b>Tailscale:</b> ลงทะเบียนที่ tailscale.com และติดตั้งโปรแกรม Tailscale ลงบนทั้งเครื่อง NVR ส่วนกลาง และเครื่อง NVR ปลายทางทุุกเครื่อง ล็อกอินด้วยบัญชีเดียวกัน</p>
+                <div class="code-block">curl -fsSL https://tailscale.com/install.sh | sh<br>sudo tailscale up</div>
+            </div>
+
+            <div class="step-card">
+                <div class="step-num">2</div>
+                <h3>ดึง IP เสมือน (VPN IP)</h3>
+                <p>เมื่อเชื่อมต่อสำเร็จ แต่ละเครื่องจะได้ IP ใหม่ที่อยู่ในวงเดียวกัน (เช่น <code>100.x.x.x</code> สำหรับ Tailscale) คุณจะใช้ IP นี้ในการสื่อสารเสมือนว่าเครื่องตั้งอยู่ติดกันเลย</p>
+            </div>
+
+            <div class="ts-box">
+                <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:5px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>วิธีแก้ปัญหา (Troubleshooting)</h4>
+                <ul>
+                    <li><b>Ping หา IP VPN ไม่เจอ:</b> ฝั่งปลายทางเน็ตอาจจะหลุด หรือ Tailscale service หยุดทำงาน ให้ลองสั่ง <code>sudo systemctl restart tailscaled</code></li>
+                    <li><b>ภาพสะดุดมาก:</b> การใช้ VPN แบบนี้คือการวิ่งผ่าน Relay server (ถ้ายิงตรง P2P ไม่ทะลุ NAT) ทำให้มี Latency สูง เป็นข้อจำกัดของเน็ตซิม ให้อดทน หรือลด Bitrate กล้องฝั่งปลายทางลง</li>
+                </ul>
+            </div>
+
+            <div class="wizard-nav">
+                <button class="btn btn-prev" onclick="showSection('case1')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>ย้อนกลับ</button>
+                <button class="btn btn-next" onclick="showSection('case3')">ต่อไป: กรณีไม่มีอินเทอร์เน็ต <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+            </div>
+        </div>
+
+        <!-- Case 3 -->
+        <div id="case3" class="section-container">
+            <h1>กรณีที่ 3: ไม่ได้เชื่อมต่ออินเทอร์เน็ตเลย <span class="scenario-badge bg-danger">Network ระดับฮาร์ดแวร์</span></h1>
+            <p>สถานการณ์สุดวิสัย เช่น หน่วยงานอยู่กลางป่า (จุดตรวจชายแดน) หรือเป็นโครงข่าย Intranet ภายในของทหาร/ตำรวจ ที่ไม่อนุญาตให้ออกอินเทอร์เน็ตเด็ดขาดเพื่อความปลอดภัยขั้นสูงสุด</p>
+            
+            <div class="step-card">
+                <div class="step-num">1</div>
+                <h3>การเชื่อมต่อทางกายภาพ (Physical Link)</h3>
+                <p>คุณต้องเชื่อมต่อระบบ LAN ของทั้งสองหน่วยงานเข้าหากันทางกายภาพ เลือกวิธีใดวิธีหนึ่ง:</p>
+                <ul>
+                    <li><b>1. ยิงสัญญาณวิทยุ (Wireless Point-to-Point):</b> ใช้เสาจานยิงสัญญาณ (เช่น Ubiquiti airMAX) ยิงข้ามเขาระยะ 5-20 กิโลเมตร ให้อารมณ์เหมือนลากสาย LAN กลางอากาศ</li>
+                    <li><b>2. ลากสาย Fiber Optic:</b> ลากสายส่วนตัวหากระยะทางไม่ไกลเกินไป</li>
+                    <li><b>3. ใช้ Leased Line / MPLS ของหน่วยงานรัฐ:</b> ติดต่อศูนย์สารสนเทศตำรวจ/ทหาร เพื่อขอใช้ช่องสัญญาณ Intranet ที่มีอยู่แล้ว ร้องขอให้เขาสร้าง VLAN Route วง IP ของทั้งสองฝั่งเข้าหากัน</li>
+                </ul>
+            </div>
+
+            <div class="step-card">
+                <div class="step-num">2</div>
+                <h3>ตั้งค่า Static Route ที่เร้าเตอร์</h3>
+                <p>หากใช้เครือข่าย MPLS (วิธีที่ 3) แอดมินเครือข่ายต้องทำ Static Route เพื่อให้วง LAN ฝั่งส่วนกลาง รู้จักวิธีวิ่งไปหา วง LAN ฝั่งจุดตรวจชายแดน</p>
+                <p>ตัวอย่าง: ส่วนกลาง <code>192.168.1.x</code> ปลายทาง <code>192.168.2.x</code></p>
+            </div>
+
+            <div class="ts-box">
+                <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:5px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>วิธีแก้ปัญหา (Troubleshooting)</h4>
+                <ul>
+                    <li><b>Ping หา IP ปลายทางไม่เจอ:</b> ส่วนมากเกิดจากติดไฟร์วอลล์บนเร้าเตอร์ระดับองค์กร (Core Switch) ต้องประสานงานฝ่าย IT ของหน่วยงานเพื่ออนุญาตพอร์ต TCP 443 และ UDP 8555 วิ่งข้าม VLAN</li>
+                    <li><b>ถ้าใช้เสายิง Wireless แล้วสัญญาณขาดช่วงฝนตก:</b> ต้นไม้หรือสภาพอากาศอาจบังระยะคลื่น (Line of Sight) ต้องตั้งเสาให้สูงขึ้นหรือปรับช่องสัญญาณ (Channel) ให้กวนกันน้อยที่สุด</li>
+                </ul>
+            </div>
+
+            <div class="wizard-nav">
+                <button class="btn btn-prev" onclick="showSection('case2')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>ย้อนกลับ</button>
+                <button class="btn btn-next" onclick="showSection('addnode')">ขั้นตอนสุดท้าย: เพิ่มเข้าสู่ระบบ <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+            </div>
+        </div>
+
+        <!-- Add Node -->
+        <div id="addnode" class="section-container">
+            <h1>ขั้นตอนสุดท้าย: การตั้งค่าดึงภาพใน VMS</h1>
+            <p>เมื่อคุณจัดการเครือข่าย (Network) เรียบร้อยจนเครื่องส่วนกลางสามารถเข้าถึง IP ของเครื่องปลายทางได้แล้ว (ไม่ว่าจะเป็น Public IP, Tailscale IP, หรือ IP ภายใน) ให้ทำตามสเต็ปนี้ที่เครื่องส่วนกลาง</p>
+            
+            <div class="step-card">
+                <div class="step-num">1</div>
+                <h3>เพิ่มข้อมูล Node ปลายทาง</h3>
+                <p>1. ที่หน้า Dashboard ส่วนกลาง กดที่รูปเฟือง <b>"การตั้งค่าระบบ"</b></p>
+                <p>2. เลื่อนลงไปที่หัวข้อ <b>"รายชื่อหน่วยงานในเครือข่าย (Federation Nodes)"</b> (หรืออาจต้องแก้ไฟล์ nodes.json โดยตรง ขึ้นอยู่กับเวอร์ชัน)</p>
+                <p>3. กดปุ่ม <b>"เพิ่มหน่วยงาน"</b> และกรอกข้อมูล:</p>
+                <ul>
+                    <li><b>ชื่อหน่วยงาน:</b> เช่น <code>กองร้อย ตชด. 324</code></li>
+                    <li><b>URL:</b> ใส่ IP ที่คุณหามาได้ เช่น <code>https://100.123.45.67</code> หรือ <code>https://192.168.2.10</code></li>
+                </ul>
+                <p>4. <b>สำคัญ:</b> ตรวจสอบรหัสผ่าน <code>WATCHLIST_FEDERATION_SHARED_SECRET</code> ในไฟล์ <code>.env</code> ของทั้งสองเครื่อง <b>ต้องตรงกันเป๊ะ</b> (เช่น `MySecretKey123!`) มิฉะนั้นระบบจะปฏิเสธการเชื่อมต่อ</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-num">2</div>
+                <h3>ดึงกล้องมาแสดงผล</h3>
+                <p>1. กลับมาที่แท็บ <b>"กล้องในระบบ (NVR)"</b> และกดปุ่ม <b>"เพิ่มกล้องใหม่"</b></p>
+                <p>2. ที่มุมขวา เลือก Dropdown <b>[- หน่วยงานอื่น -]</b> คุณจะเห็น "กองร้อย ตชด. 324" โผล่ขึ้นมา</p>
+                <p>3. เลือกหน่วยงานนั้น ระบบจะทำการโหลดรายชื่อกล้องจากฝั่งนู้นมาแสดง เลือกกล้องที่ต้องการแล้วกด <b>"ดึงข้อมูล"</b></p>
+                <p>4. กดปุ่มบันทึก เป็นอันเสร็จสิ้น! ภาพจะมาแสดงที่หน้าจอรวมทันที</p>
+            </div>
+
+            <div class="wizard-nav" style="justify-content: flex-start;">
+                <button class="btn btn-prev" onclick="showSection('case3')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>ย้อนกลับ</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function showSection(id) {
+            // ซ่อนทุกหน้า
+            document.querySelectorAll('.section-container').forEach(el => {
+                el.classList.remove('active');
+            });
+            // เอาแถบสีฟ้าออกจากปุ่มซ้ายมือ
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // โชว์หน้าใหม่
+            document.getElementById(id).classList.add('active');
+            
+            // ไฮไลต์ปุ่มที่ตรงกับ id
+            const btns = document.querySelectorAll('.nav-btn');
+            for(let i=0; i<btns.length; i++) {
+                if(btns[i].getAttribute('onclick').includes(id)) {
+                    btns[i].classList.add('active');
+                    break;
+                }
+            }
+            
+            // เลื่อนกลับขึ้นบนสุด
+            document.querySelector('.content-area').scrollTop = 0;
+        }
+    </script>
+</body>
+</html>

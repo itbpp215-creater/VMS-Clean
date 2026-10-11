@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>คู่มือการตั้งค่าเครือข่ายข้ามหน่วยงาน</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-panel: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --border: #334155;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Sarabun', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .wizard-container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 600px;
+        }
+        .wizard-header {
+            background: rgba(0,0,0,0.2);
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            position: relative;
+        }
+        .wizard-header h2 {
+            margin: 0;
+            color: #38bdf8;
+            font-size: 1.5rem;
+        }
+        .btn-home {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 5px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-home:hover { background: rgba(255,255,255,0.1); color: white; }
+        
+        .wizard-body {
+            padding: 40px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        /* Views */
+        .step-view {
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+        .step-view.active {
+            display: block;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Choice Buttons */
+        .choice-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .choice-card {
+            background: rgba(255,255,255,0.03);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .choice-card:hover {
+            transform: translateY(-3px);
+            background: rgba(255,255,255,0.06);
+        }
+        .choice-card.c-success:hover { border-color: var(--success); }
+        .choice-card.c-warning:hover { border-color: var(--warning); }
+        .choice-card.c-danger:hover { border-color: var(--danger); }
+        
+        .choice-card h3 { margin: 0 0 10px 0; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .c-success h3 { color: #34d399; }
+        .c-warning h3 { color: #fbbf24; }
+        .c-danger h3 { color: #f87171; }
+        .choice-card p { margin: 0; color: var(--text-muted); font-size: 1rem; line-height: 1.6; }
+
+        /* Step Content */
+        .step-indicator {
+            color: #60a5fa;
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .step-view h1 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            color: white;
+            margin-bottom: 25px;
+        }
+        .step-view p, .step-view li {
+            font-size: 1.1rem;
+            line-height: 1.7;
+            color: #e2e8f0;
+        }
+        .code-block {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #a78bfa;
+            border: 1px solid #333;
+            margin: 20px 0;
+        }
+        .ts-box {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid var(--warning);
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 30px;
+        }
+        .ts-box h4 {
+            color: var(--warning);
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+        }
+
+        /* Navigation Buttons */
+        .wizard-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-prev { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-prev:hover { background: rgba(255,255,255,0.1); }
+        .btn-next { background: var(--primary); color: white; }
+        .btn-next:hover { background: var(--primary-hover); }
+    </style>
+</head>
+<body>
+
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <button class="btn-home" onclick="goHome()">🏠 หน้าแรก</button>
+            <h2>คู่มือการตั้งค่าเครือข่ายข้ามหน่วยงาน (Federation)</h2>
+        </div>
+        
+        <div class="wizard-body">
+            
+            <!-- HOME: เลือกกรณี -->
+            <div id="home" class="step-view active">
+                <h1 style="text-align: center; margin-bottom: 10px;">เลือกรูปแบบเครือข่ายของหน่วยงานปลายทาง</h1>
+                <p style="text-align: center; color: var(--text-muted); margin-bottom: 40px;">คลิกเลือกสถานการณ์ของหน่วยงานที่คุณต้องการดึงภาพกล้องมาแสดงผล</p>
+                
+                <div class="choice-grid">
+                    <div class="choice-card c-success" onclick="goTo('c1-s1')">
+                        <h3>🟢 กรณีที่ 1: มี Public IP</h3>
+                        <p>หน่วยงานปลายทางใช้อินเทอร์เน็ตองค์กร/บ้าน สามารถขอทำ Forward Port ที่เร้าเตอร์หลักได้</p>
+                    </div>
+                    <div class="choice-card c-warning" onclick="goTo('c2-s1')">
+                        <h3>🟠 กรณีที่ 2: ไม่มี Public IP (ติด NAT)</h3>
+                        <p>ใช้อินเทอร์เน็ตซิม (4G/5G) หรือเน็ตองค์กรที่ถูกบล็อกพอร์ต ไม่สามารถทะลวงจากภายนอกเข้าหาเครื่อง NVR ได้</p>
+                    </div>
+                    <div class="choice-card c-danger" onclick="goTo('c3-s1')">
+                        <h3>🔴 กรณีที่ 3: ไม่มี Internet เลย</h3>
+                        <p>เป็นเครือข่ายปิด (Air-gapped) ของตำรวจ/ทหาร หรืออยู่กลางป่าที่ไม่มีสัญญาณใดๆ</p>
+                    </div>
+                    <div class="choice-card" style="border-color: #8b5cf6;" onclick="goTo('c4-s1')" onmouseover="this.style.background='rgba(139,92,246,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                        <h3 style="color: #a78bfa;">🟣 กรณีพิเศษ: กล้องใส่ซิม (4G/LTE Camera)</h3>
+                        <p>กล้องวงจรปิดแบบใส่ซิมในตัว (Hikvision, Dahua, TP-Link, Reolink ฯลฯ) ที่ไม่มี NVR คั่นกลาง</p>
+                    </div>
+                    <div class="choice-card" style="border-color: #38bdf8;" onclick="goTo('rtsp-guide')" onmouseover="this.style.background='rgba(56,189,248,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                        <h3 style="color: #38bdf8;">🔍 วิธีหาลิงก์ RTSP ของ NVR</h3>
+                        <p>สูตร URL ดึงภาพของ Hikvision, Dahua, Uniview, XMeye และวิธีค้นหาสำหรับยี่ห้ออื่นๆ</p>
+                    </div>
+                    <div class="choice-card" style="border-color: #10b981;" onclick="goTo('sync-guide-1')" onmouseover="this.style.background='rgba(16,185,129,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                        <h3 style="color: #10b981;">🤝 วิธีการซิงค์กล้องข้ามกองร้อย (Software)</h3>
+                        <p>คู่มือการตั้งค่าหน้าต่าง Dashboard เพื่อดึงภาพจากกองร้อยต่างๆ เข้าสู่จอส่วนกลาง</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== CASE 1 ============================== -->
+            <div id="c1-s1" class="step-view">
+                <span class="step-indicator">กรณีที่ 1: มี Public IP (ขั้นตอน 1/3)</span>
+                <h1>ตรวจสอบ Public IP ฝั่งปลายทาง</h1>
+                <p>1. เปิดเบราว์เซอร์ที่เครื่อง NVR ของหน่วยงานปลายทาง แล้วเข้าเว็บ <code>whatismyip.com</code></p>
+                <p>2. ตรวจสอบเลข IP ที่ปรากฏบนเว็บ นำไปเทียบกับ <b>WAN IP</b> ภายในเร้าเตอร์ หากเลขตรงกันแปลว่าคุณได้ Public IP แท้</p>
+                <div class="ts-box">
+                    <h4>💡 ข้อแนะนำ</h4>
+                    <p>หาก IP ของคุณเป็นแบบไดนามิก (เปลี่ยนใหม่ทุกครั้งที่เร้าเตอร์ดับ) แนะนำให้สมัครและตั้งค่า <b>DDNS</b> (เช่น No-IP, DynDNS) ไว้ในเร้าเตอร์ เพื่อให้เรียกผ่านชื่อโดเมนแทนตัวเลข IP</p>
+                </div>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goHome()">⬅️ กลับไปเลือกกรณี</button>
+                    <button class="btn btn-next" onclick="goTo('c1-s2')">ขั้นตอนต่อไป ➡️</button>
+                </div>
+            </div>
+
+            <div id="c1-s2" class="step-view">
+                <span class="step-indicator">กรณีที่ 1: มี Public IP (ขั้นตอน 2/3)</span>
+                <h1>ทำ Port Forwarding ที่ Router ปลายทาง</h1>
+                <p>เข้าไปตั้งค่าใน Router ของหน่วยงานปลายทาง (เมนู NAT หรือ Port Forwarding) ให้ส่งต่อพอร์ตเข้ามาหา <b>IP ภายในของเครื่อง BPP-VMS</b> (เช่น 192.168.1.100)</p>
+                <ul>
+                    <li>พอร์ตที่ต้อง Forward: <code>80</code> และ <code>443</code> (โปรโตคอล TCP สำหรับให้ส่วนกลางยิง API เข้ามาได้)</li>
+                    <li>พอร์ตที่ต้อง Forward: <code>8555</code> (โปรโตคอล TCP และ UDP สำหรับให้ส่วนกลางดึงภาพสดแบบ WebRTC)</li>
+                </ul>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('c1-s1')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="goTo('c1-s3')">ขั้นตอนต่อไป ➡️</button>
+                </div>
+            </div>
+
+            <div id="c1-s3" class="step-view">
+                <span class="step-indicator">กรณีที่ 1: มี Public IP (ขั้นตอน 3/3)</span>
+                <h1>ทดสอบการเชื่อมต่อ</h1>
+                <p>ที่เครื่องส่วนกลาง (หรือมือถือของคุณ) ให้ลองเปิดเบราว์เซอร์แล้วพิมพ์ <code>https://&lt;Public-IP-ของปลายทาง&gt;</code> หรือ <code>https://&lt;ชื่อ-DDNS&gt;</code></p>
+                <p>หากขึ้นหน้า Login ของระบบ BPP-VMS แสดงว่า Forward Port สำเร็จแล้ว!</p>
+                <div class="ts-box">
+                    <h4>🛠️ แก้ปัญหา (Troubleshooting)</h4>
+                    <p>- <b>เข้าหน้าเว็บไม่ได้เลย:</b> ผู้ให้บริการเน็ต (ISP) อาจบล็อกพอร์ตไว้ (แจก Private IP เริ่มด้วย 100.x) ให้โทรแจ้ง ISP ว่าขอปลด NAT สำหรับดูกล้องวงจรปิด<br>
+                    - <b>เข้าเว็บได้ แต่ดึงภาพไม่ได้:</b> อาจลืม Forward พอร์ต 8555 แบบ UDP</p>
+                </div>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('c1-s2')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="goTo('final-addnode')">นำเข้าระบบ ➡️</button>
+                </div>
+            </div>
+
+            <!-- ============================== CASE 2 (MikroTik VPN) ============================== -->
+            <div id="c2-s1" class="step-view">
+                <span class="step-indicator">กรณีที่ 2: ไม่มี Public IP (ขั้นตอน 1/3)</span>
+                <h1>ใช้ MikroTik สร้าง VPN Tunnel (SD-WAN)</h1>
+                <p>เนื่องจากอินเทอร์เน็ตซิม (4G/5G) หรือเน็ตองค์กร/หอพักมักจะติด NAT ทำให้เรา <b>"Forward Port เข้ามาตรงๆ ไม่ได้"</b> เราจึงต้องให้ฝั่งปลายทาง "มุด" (Dial-out) ออกมาหาส่วนกลางแทน</p>
+                <p><b>ทำไมถึงแนะนำ MikroTik?</b><br>
+                MikroTik เป็นฮาร์ดแวร์เร้าเตอร์ที่ราคาประหยัด เสถียร และรองรับการทำ VPN หลายรูปแบบ (เช่น WireGuard, L2TP/IPsec, SSTP, OVPN, ZeroTier) เมื่อตั้งค่าให้ MikroTik ปลายทางเชื่อมต่อ VPN มายังส่วนกลางสำเร็จ มันจะสร้าง "ท่อจำลอง" (Tunnel) ที่ทำให้ส่วนกลางสามารถวิ่งทะลุกลับเข้าไปหากล้อง/NVR ที่เสียบสาย LAN อยู่หลัง MikroTik ได้ทันที</p>
+                
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goHome()">⬅️ กลับไปเลือกกรณี</button>
+                    <button class="btn btn-next" onclick="goTo('c2-s2')">ขั้นตอนต่อไป ➡️</button>
+                </div>
+            </div>
+
+            <div id="c2-s2" class="step-view">
+                <span class="step-indicator">กรณีที่ 2: ไม่มี Public IP (ขั้นตอน 2/3)</span>
+                <h1>กฎเหล็ก: "ห้ามตั้ง IP LAN ซ้ำกันเด็ดขาด"</h1>
+                <p>ในการทำ VPN แบบ Site-to-Site วง LAN ภายในของแต่ละกองร้อย <b>จะต้องเป็นคนละวงกัน (Non-overlapping Subnet)</b> เสมอ</p>
+                <div class="ts-box" style="border-left-color: #ef4444; background: rgba(239, 68, 68, 0.1); margin-top: 15px;">
+                    <h4 style="color: #ef4444;">🚨 ทำไมถึงห้ามตั้ง IP ซ้ำกัน?</h4>
+                    <p style="margin-bottom: 0;">สมมติว่า กองร้อย A ใช้วง <code>192.168.1.x</code> และ กองร้อย B ก็ใช้ <code>192.168.1.x</code><br>เมื่อเซิร์ฟเวอร์ส่วนกลางต้องการดึงภาพจาก NVR ที่ IP <code>192.168.1.100</code> <b>เร้าเตอร์ส่วนกลางจะไม่รู้เลยว่าจะต้องส่งข้อมูลลงไปที่ท่อ VPN ของกองร้อย A หรือ กองร้อย B</b> เพราะเลขมันซ้ำกัน ทำให้ระบบ Routing รวนและดึงภาพไม่ได้เลย</p>
+                </div>
+                <p style="margin-top: 20px;"><b>วิธีแก้: แอดมินต้องแบ่งวง IP ให้ชัดเจนตั้งแต่ตอนออกแบบระบบ เช่น:</b></p>
+                <ul>
+                    <li>ส่วนกลาง: ใช้ IP วง <code>10.0.0.x</code></li>
+                    <li>กองร้อยที่ 1: ใช้ IP วง <code>192.168.11.x</code></li>
+                    <li>กองร้อยที่ 2: ใช้ IP วง <code>192.168.12.x</code></li>
+                </ul>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('c2-s1')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="goTo('c2-s3')">ขั้นตอนต่อไป ➡️</button>
+                </div>
+            </div>
+
+            <div id="c2-s3" class="step-view">
+                <span class="step-indicator">กรณีที่ 2: ไม่มี Public IP (ขั้นตอน 3/3)</span>
+                <h1>การตั้งค่า Route ข้าม Network</h1>
+                <p>เมื่อเชื่อมต่อ VPN สำเร็จ และวง LAN ไม่ซ้ำกันแล้ว ขั้นตอนสุดท้ายคือการชี้เป้าหมาย (Routing):</p>
+                <ol>
+                    <li style="margin-bottom:10px;">ที่ <b>MikroTik ส่วนกลาง</b>: ให้เพิ่ม Static Route เพื่อบอกว่า "ถ้าเซิร์ฟเวอร์ VMS จะเรียกหา <code>192.168.11.x</code> ให้วิ่งผ่านท่อ VPN (Interface) ของกองร้อย 1"</li>
+                    <li style="margin-bottom:10px;">ที่ <b>MikroTik กองร้อย 1</b>: เอาสาย LAN จากเครื่อง NVR มาเสียบเข้าที่พอร์ต LAN ของ MikroTik (NVR จะได้ IP เช่น <code>192.168.11.100</code>)</li>
+                </ol>
+                <p>จากนั้นที่เครื่อง VMS ส่วนกลาง คุณก็สามารถไปที่หน้า "เพิ่มกล้อง" แล้วกรอก IP <code>192.168.11.100</code> ได้โดยตรงเลย!</p>
+                <div class="ts-box">
+                    <h4>🛠️ แก้ปัญหา (Troubleshooting)</h4>
+                    <p>- <b>Ping VPN เจอ แต่ Ping ทะลุไปหา NVR ไม่เจอ:</b> ฝั่ง MikroTik กองร้อย 1 อาจยังไม่ได้ตั้ง Default Gateway ของ NVR ให้ชี้กลับมาที่ MikroTik หรือส่วนกลางอาจจะลืมทำ Route กลับ</p>
+                </div>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('c2-s2')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="goTo('final-addnode')">ขั้นตอนการเพิ่มในระบบ ➡️</button>
+                </div>
+            </div>
+
+            <!-- ============================== CASE 3 ============================== -->
+            <div id="c3-s1" class="step-view">
+                <span class="step-indicator">กรณีที่ 3: ไม่มี Internet เลย (ขั้นตอน 1/2)</span>
+                <h1>เชื่อมต่อระดับฮาร์ดแวร์ (Physical Link)</h1>
+                <p>เมื่อไม่มีอินเทอร์เน็ตสาธารณะ คุณต้องนำเครือข่ายของทั้งสองฝ่ายมาชนกันโดยตรงผ่านระบบปิด เลือกวิธีใดวิธีหนึ่งต่อไปนี้:</p>
+                <ul>
+                    <li><b>1. ใช้ Hardware VPN Router (แนะนำ):</b> ใช้อุปกรณ์ระดับองค์กร (เช่น Mikrotik, Peplink, Cisco, Teltonika) ที่รองรับ SD-WAN หรือเสียบซิม Private APN ของหน่วยงานรัฐ แล้วลากสาย LAN จาก Router ตัวนี้ไปเสียบเข้าที่หลังเครื่อง NVR โดยตรง</li>
+                    <li><b>2. ยิงสัญญาณวิทยุ (Wireless P2P):</b> ใช้จานยิงสัญญาณ (เช่น Ubiquiti airMAX) ยิงข้ามเขาหรือระยะไกล 5-20 กิโลเมตร ทำหน้าที่เหมือนลากสาย LAN กลางอากาศ</li>
+                    <li><b>3. ลากสาย Fiber Optic:</b> ลากสายส่วนตัว หากระยะทางไม่ไกลและสามารถเดินสายได้</li>
+                    <li><b>4. ใช้ Intranet ของหน่วยงานรัฐ:</b> ติดต่อศูนย์สารสนเทศเพื่อขอใช้ช่องสัญญาณ MPLS ที่มีอยู่แล้ว ร้องขอให้เขาสร้าง VLAN โยง IP ของทั้งสองฝั่งเข้าหากัน</li>
+                </ul>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goHome()">⬅️ กลับไปเลือกกรณี</button>
+                    <button class="btn btn-next" onclick="goTo('c3-s2')">ขั้นตอนต่อไป ➡️</button>
+                </div>
+            </div>
+
+            <div id="c3-s2" class="step-view">
+                <span class="step-indicator">กรณีที่ 3: ไม่มี Internet เลย (ขั้นตอน 2/2)</span>
+                <h1>ตั้งค่า Static Route ที่เราเตอร์</h1>
+                <p>หากใช้เครือข่าย MPLS (วิธีที่ 3) หรือเราเตอร์แยก แอดมินเครือข่ายต้องทำ Static Route บนตัวอุปกรณ์ เพื่อให้ระบบ LAN ฝั่งส่วนกลาง รู้จักวิธีวิ่งผ่านเกตเวย์ไปหา วง LAN ของจุดตรวจ</p>
+                <div class="ts-box">
+                    <h4>🛠️ แก้ปัญหา (Troubleshooting)</h4>
+                    <p>- <b>Ping หากันไม่เจอ:</b> มักเกิดจากการติด Firewall บน Core Switch ขององค์กร ต้องประสานงานฝ่าย IT ให้เปิดอนุญาตพอร์ต TCP 443 และ UDP 8555 วิ่งข้าม VLAN<br>
+                    - <b>ฝนตกแล้วภาพขาดหาย (สำหรับเสา Wireless):</b> ต้นไม้หรือสภาพอากาศอาจบังระยะยิงคลื่น (Line of Sight) ต้องตั้งเสาให้พ้นสิ่งกีดขวาง</p>
+                </div>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('c3-s1')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="goTo('final-addnode')">นำเข้าระบบ ➡️</button>
+                </div>
+            </div>
+
+            <!-- ============================== CASE 4 (SIM CAMERA) ============================== -->
+            <div id="c4-s1" class="step-view">
+                <span class="step-indicator">กรณีพิเศษ: กล้องใส่ซิม (ขั้นตอน 1/2)</span>
+                <h1>เลือกวิธีการดึงภาพจากกล้อง 4G</h1>
+                <p>กล้องวงจรปิดใส่ซิมทุกยี่ห้อ (เช่น Hikvision, Dahua, Uniview, TP-Link VIGI, Milesight, Reolink, Vstarcam) มักจะเจอปัญหา <b>"ติด NAT ของค่ายมือถือ"</b> ทำให้ไม่สามารถเรียกดูภาพตรงๆ ผ่าน Public IP ได้ คุณต้องแก้ปัญหาด้วย 3 วิธีนี้:</p>
+                <ul>
+                    <li style="margin-bottom: 10px;"><b>วิธีที่ 1 (ดีที่สุดสำหรับ VMS): ใช้ซิม Private APN</b><br>ติดต่อค่ายมือถือ (เช่น AIS, TRUE) เพื่อขอจดทะเบียนซิมแบบ Private APN สำหรับองค์กร กล้องจะได้ IP ภายในวงแลนใหญ่ (เช่น <code>10.x.x.x</code>) ซึ่งเซิร์ฟเวอร์ส่วนกลางสามารถ Ping หากล้องและดึงภาพได้ทันที</li>
+                    <li style="margin-bottom: 10px;"><b>วิธีที่ 2: ใช้ Router 4G VPN แทนซิมในกล้อง</b><br>หากกล้องมีช่องเสียบสาย LAN ให้ถอดซิมออกจากกล้อง แล้วไปใส่ใน Router 4G ระดับองค์กรแทน จากนั้นติดตั้ง <b>Tailscale / ZeroTier</b> ลงบน Router ตัวนั้น แล้วลากสาย LAN เข้ากล้อง (ทำเหมือน "กรณีที่ 2")</li>
+                    <li style="margin-bottom: 10px;"><b>วิธีที่ 3: ใช้ Server ดึงภาพผ่าน P2P (ยาก)</b><br>แบรนด์ระดับ Pro (เช่น Hikvision ผ่าน ISUP/EHome, Dahua ผ่าน Auto-Register) สามารถตั้งให้กล้อง "ยิง" ภาพเข้ามาหาเซิร์ฟเวอร์ส่วนกลางเองได้ แต่ต้องมีซอฟต์แวร์ของยี่ห้อนั้นๆ มารับภาพแล้วแปลงเป็น RTSP อีกทอดหนึ่ง</li>
+                </ul>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goHome()">⬅️ กลับไปเลือกกรณี</button>
+                    <button class="btn btn-next" onclick="goTo('c4-s2')">ขั้นตอนต่อไป ➡️</button>
+                </div>
+            </div>
+
+            <div id="c4-s2" class="step-view">
+                <span class="step-indicator">กรณีพิเศษ: กล้องใส่ซิม (ขั้นตอน 2/2)</span>
+                <h1>การตั้งค่าดึงภาพเข้าระบบ (RTSP)</h1>
+                <p>เมื่อคุณใช้วิธี ซิม Private APN (วิธีที่ 1) หรือ Router 4G VPN (วิธีที่ 2) จนสามารถเรียก IP ของกล้องได้แล้ว ให้ทำตามนี้:</p>
+                <p>ไปที่เมนู <b>"กล้องในระบบ (NVR)"</b> > <b>"เพิ่มกล้องใหม่"</b> จากนั้นกรอกลิงก์ <b>RTSP URL</b> ตามยี่ห้อกล้องของคุณ:</p>
+                <div class="code-block" style="font-size: 0.95rem; line-height: 1.8;">
+                    <b>Hikvision:</b> rtsp://admin:รหัสผ่าน@&lt;IP-กล้อง&gt;:554/Streaming/Channels/101<br>
+                    <b>Dahua:</b> rtsp://admin:รหัสผ่าน@&lt;IP-กล้อง&gt;:554/cam/realmonitor?channel=1&subtype=0<br>
+                    <b>TP-Link VIGI:</b> rtsp://admin:รหัสผ่าน@&lt;IP-กล้อง&gt;:554/stream1<br>
+                    <b>Uniview (UNV):</b> rtsp://admin:รหัสผ่าน@&lt;IP-กล้อง&gt;:554/unicast/c1/s0/live<br>
+                    <b>Reolink:</b> rtsp://admin:รหัสผ่าน@&lt;IP-กล้อง&gt;:554/h264Preview_01_main<br>
+                    <b>Milesight:</b> rtsp://admin:รหัสผ่าน@&lt;IP-กล้อง&gt;:554/main
+                </div>
+                <div class="ts-box" style="border-left-color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                    <h4 style="color: #ef4444;">⚠️ คำเตือนเรื่องกล้องตามบ้าน (Home Use)</h4>
+                    <p>กล้องแบรนด์เล็กหรือรุ่นสำหรับใช้ตามบ้าน (เช่น <b>Vstarcam, Watashi รุ่นเล็กสุด, Xiaomi, Tapo</b>) มักจะถูกล็อกระบบปิด และ <b>ไม่รองรับมาตรฐาน RTSP/ONVIF</b> ทำให้ไม่สามารถเชื่อมต่อเข้ากับระบบ VMS กลางแบบนี้ได้ทุกกรณีครับ แนะนำให้ใช้แบรนด์ระดับ Professional ขึ้นไปครับ</p>
+                </div>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('c4-s1')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="if(window.bppToast) window.bppToast('ยินดีด้วย! คุณพร้อมดึงภาพกล้อง 4G แล้ว 🎉'); else alert('ยินดีด้วย! คุณพร้อมดึงภาพกล้อง 4G แล้ว 🎉');" style="background: var(--success);">เสร็จสิ้น 🎉</button>
+                </div>
+            </div>
+
+            <!-- ============================== RTSP GUIDE ============================== -->
+            <div id="rtsp-guide" class="step-view">
+                <span class="step-indicator">คู่มือเสริม: สำหรับ Admin</span>
+                <h1>วิธีหาลิงก์ RTSP ของเครื่องบันทึก (NVR)</h1>
+                <p>NVR แต่ละยี่ห้อจะมีรูปแบบการดึงภาพผ่าน RTSP ที่ต่างกันออกไป โดยปกติคุณสามารถ <b>เปลี่ยนเลขแชนเนล (กล้องตัวที่ 1, 2, 3...)</b> เพื่อดึงภาพกล้องแต่ละตัวออกมาได้ นี่คือรูปแบบมาตรฐานของยี่ห้อยอดฮิต:</p>
+                
+                <div class="code-block" style="font-size: 0.95rem; line-height: 1.8;">
+                    <b>Hikvision / HiLook / OEM (รุ่นพี่):</b><br>
+                    rtsp://admin:รหัสผ่าน@&lt;IP-NVR&gt;:554/Streaming/Channels/<b>1</b>01 (กล้องตัวที่ 1)<br>
+                    rtsp://admin:รหัสผ่าน@&lt;IP-NVR&gt;:554/Streaming/Channels/<b>2</b>01 (กล้องตัวที่ 2)<br><br>
+                    
+                    <b>Dahua / Watashi (รุ่นส่วนใหญ่):</b><br>
+                    rtsp://admin:รหัสผ่าน@&lt;IP-NVR&gt;:554/cam/realmonitor?channel=<b>1</b>&subtype=0<br>
+                    rtsp://admin:รหัสผ่าน@&lt;IP-NVR&gt;:554/cam/realmonitor?channel=<b>2</b>&subtype=0<br><br>
+
+                    <b>Uniview (UNV):</b><br>
+                    rtsp://admin:รหัสผ่าน@&lt;IP-NVR&gt;:554/unicast/c<b>1</b>/s0/live (กล้อง 1)<br><br>
+
+                    <b>XMeye / ICSee / ยี่ห้อจีนทั่วไป (Port อาจเป็น 554 หรือ 34567):</b><br>
+                    rtsp://admin:รหัสผ่าน@&lt;IP-NVR&gt;:554/user=admin&password=รหัสผ่าน&channel=<b>1</b>&stream=0.sdp<br>
+                </div>
+
+                <div class="ts-box" style="border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.1);">
+                    <h4 style="color: #3b82f6;">🔍 ทำอย่างไรถ้ายี่ห้อไม่ตรง หรือลองแล้วภาพไม่มา?</h4>
+                    <p style="margin-bottom:10px;"><b>วิธีที่ 1: ใช้โปรแกรม ONVIF Device Manager (ODM) (แนะนำ)</b><br>ดาวน์โหลดโปรแกรมลงในคอมพิวเตอร์ที่ต่อกับวงแลนเดียวกับ NVR โปรแกรมจะสแกนหาเครื่อง NVR อัตโนมัติ เมื่อคลิกเข้าไปที่ Live Video ด้านล่างของโปรแกรมจะ <b>บอกลิงก์ RTSP ที่ถูกต้องแป๊ะๆ ให้คุณก๊อปปี้ไปใช้ได้เลย</b></p>
+                    <p style="margin-bottom:10px;"><b>วิธีที่ 2: ค้นหาจากคลังข้อมูลโลก iSpy</b><br>เข้าไปที่เว็บไซต์ <code>ispyconnect.com/cameras</code> แล้วพิมพ์ยี่ห้อ NVR ของคุณ เว็บจะแสดงรูปแบบ RTSP URL ที่เป็นไปได้ทั้งหมดของยี่ห้อนั้นให้คุณก๊อปไปเปลี่ยน IP และรหัสผ่านทดสอบดูด้วยโปรแกรม VLC Media Player ครับ</p>
+                    <p><b>วิธีที่ 3: เช็คจากโปรแกรม VLC</b><br>เมื่อได้ลิงก์ RTSP มาแล้ว แนะนำให้เอาไปเปิดทดสอบในโปรแกรม <b>VLC Media Player</b> บนคอมพิวเตอร์ก่อนนำไปใส่ใน VMS ถ้ารูปขึ้นใน VLC ก็แปลว่าลิงก์ใช้งานได้ 100% ครับ</p>
+                </div>
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goHome()">⬅️ กลับหน้าแรก</button>
+                    <button class="btn btn-next" onclick="goTo('final-addnode')">ดูขั้นตอนการเพิ่มเข้า VMS ➡️</button>
+                </div>
+            </div>
+
+            <!-- ============================== FEDERATION SYNC GUIDE ============================== -->
+            <div id="sync-guide-1" class="step-view">
+                <span class="step-indicator">การซิงค์ข้อมูลกองร้อย (ขั้นตอน 1/3)</span>
+                <h1>ตั้งค่ารหัสลับ (Shared Secret)</h1>
+                <p>ก่อนที่เซิร์ฟเวอร์ส่วนกลางจะดึงข้อมูลกล้องจากเซิร์ฟเวอร์กองร้อยได้ <b>ทั้งสองฝั่งจะต้องมีรหัสผ่านยืนยันตัวตนที่ตรงกันเป๊ะ</b> เพื่อป้องกันไม่ให้คนนอกแอบมาดึงภาพของเราไปดู</p>
+                
+                <ol>
+                    <li style="margin-bottom:10px;">เข้าไปที่เครื่องเซิร์ฟเวอร์ของทั้งส่วนกลางและกองร้อย เปิดไฟล์ <code>.env</code> ขึ้นมา</li>
+                    <li style="margin-bottom:10px;">มองหาตัวแปรที่ชื่อว่า <code>WATCHLIST_FEDERATION_SHARED_SECRET</code></li>
+                    <li style="margin-bottom:10px;">ตั้งค่ารหัสผ่านให้ตรงกัน เช่น:<br>
+                    <div class="code-block" style="padding:10px; margin-top:5px;">WATCHLIST_FEDERATION_SHARED_SECRET=MySuperSecretKeyBPP123!</div></li>
+                    <li>รีสตาร์ทระบบ VMS ทั้งสองฝั่งเพื่อให้รหัสผ่านใหม่มีผล</li>
+                </ol>
+
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goHome()">⬅️ กลับหน้าแรก</button>
+                    <button class="btn btn-next" onclick="goTo('sync-guide-2')">ขั้นตอนที่ 2 ➡️</button>
+                </div>
+            </div>
+
+            <div id="sync-guide-2" class="step-view">
+                <span class="step-indicator">การซิงค์ข้อมูลกองร้อย (ขั้นตอน 2/3)</span>
+                <h1>ลงทะเบียนรายชื่อกองร้อย (Add Node)</h1>
+                <p>ที่หน้าจอ VMS ของ <b>"เซิร์ฟเวอร์ส่วนกลาง"</b> คุณจะต้องเพิ่มรายชื่อกองร้อยทั้งหมดลงในสมุดโทรศัพท์ (Nodes) ของระบบเสียก่อน</p>
+                
+                <ol>
+                    <li style="margin-bottom:10px;">คลิกที่ไอคอน <b>การตั้งค่าระบบ (รูปฟันเฟือง ⚙️)</b> ที่มุมขวาบนของหน้า Dashboard</li>
+                    <li style="margin-bottom:10px;">เลื่อนหาหัวข้อ <b>"รายชื่อหน่วยงานในเครือข่าย (Federation Nodes)"</b></li>
+                    <li style="margin-bottom:10px;">กดปุ่มเพิ่มหน่วยงาน และกรอกข้อมูลดังนี้:
+                        <ul>
+                            <li><b>ชื่อหน่วยงาน:</b> ตั้งให้จำง่าย เช่น <code>กองร้อย 324</code>, <code>จุดตรวจ A</code></li>
+                            <li><b>URL / IP Address:</b> กรอกเลข IP หรือชื่อโดเมนของเครื่อง NVR ปลายทาง (ที่ทำเครือข่ายทะลุถึงกันแล้วจากคู่มือเน็ตเวิร์ก) เช่น <code>https://192.168.11.100</code></li>
+                        </ul>
+                    </li>
+                    <li>กดปุ่มบันทึก</li>
+                </ol>
+
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('sync-guide-1')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="goTo('sync-guide-3')">ขั้นตอนที่ 3 ➡️</button>
+                </div>
+            </div>
+
+            <div id="sync-guide-3" class="step-view">
+                <span class="step-indicator">การซิงค์ข้อมูลกองร้อย (ขั้นตอน 3/3)</span>
+                <h1>ดึงกล้องข้ามเครือข่ายเข้าส่วนกลาง</h1>
+                <p>เมื่อลงทะเบียนรายชื่อกองร้อยเสร็จแล้ว การดึงกล้องมาดูจะกลายเป็นเรื่องง่ายมาก เพราะระบบจะวิ่งไปโหลดรายชื่อกล้องจากกองร้อยนั้นมาให้เลือกคลิกเลย</p>
+                
+                <ol>
+                    <li style="margin-bottom:10px;">ไปที่แท็บ <b>"กล้องในระบบ (NVR)"</b> บนหน้าต่างตั้งค่า</li>
+                    <li style="margin-bottom:10px;">คลิกปุ่ม <b>"เพิ่มกล้องใหม่"</b> ที่มุมขวาบน</li>
+                    <li style="margin-bottom:10px;">ที่กล่อง Dropdown <code>[- หน่วยงานอื่น -]</code> ให้คลิกเลือกชื่อกองร้อยที่คุณเพิ่งเพิ่มเข้าไป</li>
+                    <li style="margin-bottom:10px;">รอระบบโหลดสักครู่ (ระบบกำลังเอา Shared Secret ไปคุยกับปลายทาง) จากนั้นจะมีกล่อง Dropdown ที่สองโผล่ขึ้นมา ให้เลือก <b>กล้องที่คุณต้องการดึงภาพ</b> แล้วกดปุ่ม "ดึงข้อมูล"</li>
+                    <li style="margin-bottom:10px;">ระบบจะกรอก <b>RTSP URL ให้อัตโนมัติ</b> ทะลุเครือข่ายข้ามกองร้อยมาให้ทันที</li>
+                </ol>
+
+                <div class="ts-box" style="border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.1);">
+                    <h4 style="color: #f59e0b;">⚠️ ข้อควรระวังขั้นเด็ดขาด</h4>
+                    <p>ระบบจะ <b>เอาติ๊กถูกออก</b> จากช่อง "เปิดระบบ AI (Detect)" และ "บันทึกวิดีโอ (Record)" ให้อัตโนมัติ <b>กรุณาอย่าติ๊กกลับเข้าไปเด็ดขาด</b> ให้ใช้สำหรับการดูภาพสดอย่างเดียว มิฉะนั้นระบบส่วนกลางจะสูบภาพเต็มความละเอียดจากกองร้อยตลอด 24 ชั่วโมงจนอินเทอร์เน็ตพังทั้งสองฝั่งครับ</p>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn-prev" onclick="goTo('sync-guide-2')">⬅️ ย้อนกลับ</button>
+                    <button class="btn btn-next" onclick="if(window.bppToast) window.bppToast('ยินดีด้วย! คุณรู้วิธีซิงค์ข้อมูลข้ามกองร้อยแล้ว 🎉'); else alert('ยินดีด้วย! คุณรู้วิธีซิงค์ข้อมูลข้ามกองร้อยแล้ว 🎉');" style="background: var(--success);">เสร็จสิ้น 🎉</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function hideAll() {
+            document.querySelectorAll('.step-view').forEach(el => {
+                el.classList.remove('active');
+            });
+        }
+        function goTo(id) {
+            hideAll();
+            document.getElementById(id).classList.add('active');
+        }
+        function goHome() {
+            hideAll();
+            document.getElementById('home').classList.add('active');
+        }
+    </script>
+</body>
+</html>

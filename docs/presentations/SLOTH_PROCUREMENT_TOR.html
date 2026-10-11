@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เอกสารข้อกำหนดคุณลักษณะเฉพาะ (TOR) — จัดหาอุปกรณ์ระบบ Sloth Home ร้อย ตชด.215</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07111e;
+      --card-bg: #0d1e33;
+      --card-border: #1a365d;
+      --accent-cyan: #00d2ff;
+      --accent-teal: #00f2fe;
+      --accent-gold: #ffb703;
+      --accent-red: #ef476f;
+      --accent-green: #06d6a0;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --font-body: 'Noto Sans Thai', 'Sarabun', sans-serif;
+      --font-doc: 'Sarabun', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+
+    /* Screen View Container */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 30px 20px;
+    }
+
+    /* Top Action Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(13, 30, 51, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px 24px;
+      margin-bottom: 30px;
+      position: sticky;
+      top: 15px;
+      z-index: 100;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #00d2ff, #0077b6);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 15px rgba(0, 210, 255, 0.4);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .brand-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      border: none;
+    }
+
+    .btn-print {
+      background: linear-gradient(135deg, #00d2ff, #0077b6);
+      color: #031122;
+      box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+    }
+
+    .btn-print:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 210, 255, 0.5);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--accent-cyan);
+    }
+
+    /* Hero Header */
+    .hero-header {
+      background: linear-gradient(180deg, rgba(13, 30, 51, 0.7) 0%, rgba(7, 17, 30, 0.95) 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-header::before {
+      content: "";
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(0, 210, 255, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tag-cyan { background: rgba(0, 210, 255, 0.15); color: var(--accent-cyan); border: 1px solid rgba(0, 210, 255, 0.3); }
+    .tag-gold { background: rgba(255, 183, 3, 0.15); color: var(--accent-gold); border: 1px solid rgba(255, 183, 3, 0.3); }
+    .tag-red { background: rgba(239, 71, 111, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 71, 111, 0.3); }
+
+    .hero-title {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      color: #b0c4de;
+      font-size: 1.05rem;
+      max-width: 850px;
+      margin-bottom: 24px;
+    }
+
+    /* Live Audit Grid */
+    .audit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .audit-card {
+      background: rgba(7, 17, 30, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .audit-card.danger {
+      border-color: rgba(239, 71, 111, 0.4);
+      background: rgba(239, 71, 111, 0.05);
+    }
+
+    .audit-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .audit-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .audit-status {
+      font-size: 0.8rem;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-alert { color: var(--accent-red); font-weight: 600; }
+    .status-ok { color: var(--accent-green); }
+
+    /* Tier Selector Tabs */
+    .section-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 40px 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 4px;
+      height: 24px;
+      background: var(--accent-cyan);
+      border-radius: 2px;
+    }
+
+    .tier-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    @media (max-width: 900px) {
+      .tier-cards { grid-template-columns: 1fr; }
+    }
+
+    .tier-card {
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .tier-card:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-4px);
+    }
+
+    .tier-card.active {
+      border-color: var(--accent-cyan);
+      background: linear-gradient(180deg, rgba(0, 210, 255, 0.08) 0%, var(--card-bg) 100%);
+      box-shadow: 0 0 25px rgba(0, 210, 255, 0.2);
+    }
+
+    .tier-card.featured::after {
+      content: "แนะนำสำหรับความมั่นคง";
+      position: absolute;
+      top: -12px;
+      right: 20px;
+      background: var(--accent-gold);
+      color: #000;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .tier-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .tier-target {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      min-height: 40px;
+    }
+
+    .tier-price {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      margin-bottom: 16px;
+    }
+
+    .tier-price span {
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    /* Specs Table */
+    .specs-table-wrapper {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+
+    table.specs-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    table.specs-table th {
+      background: rgba(7, 17, 30, 0.8);
+      padding: 16px 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    table.specs-table td {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(26, 54, 93, 0.6);
+      font-size: 0.95rem;
+      vertical-align: top;
+    }
+
+    table.specs-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .item-title {
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .item-spec {
+      font-size: 0.85rem;
+      color: #a0aec0;
+      line-height: 1.5;
+    }
+
+    .badge-p1 {
+      background: rgba(239, 71, 111, 0.2);
+      color: var(--accent-red);
+      border: 1px solid rgba(239, 71, 111, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-p2 {
+      background: rgba(255, 183, 3, 0.2);
+      color: var(--accent-gold);
+      border: 1px solid rgba(255, 183, 3, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-p3 {
+      background: rgba(6, 214, 160, 0.2);
+      color: var(--accent-green);
+      border: 1px solid rgba(6, 214, 160, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .price-col {
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .total-banner {
+      background: linear-gradient(135deg, rgba(0, 210, 255, 0.1) 0%, rgba(13, 30, 51, 0.9) 100%);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 14px;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    .total-label {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .total-amount {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+    }
+
+    /* Official Signature Block */
+    .sign-block {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 30px;
+      margin-top: 30px;
+      display: flex;
+      justify-content: flex-end;
+      text-align: center;
+    }
+
+    .sign-content {
+      width: 320px;
+    }
+
+    .sign-line {
+      margin-bottom: 12px;
+      color: var(--text-muted);
+    }
+
+    .sign-name {
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 4px;
+    }
+
+    .sign-role {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       PRINT-READY STYLES (A4 Official Document Format)
+       ============================================================ */
+    @media print {
+      body {
+        background: #fff !important;
+        color: #000 !important;
+        font-family: var(--font-doc) !important;
+        padding: 0 !important;
+      }
+
+      .top-bar, .action-buttons, .tier-cards, .audit-grid {
+        display: none !important;
+      }
+
+      .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      .hero-header {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        margin-bottom: 20px !important;
+      }
+
+      .hero-title {
+        color: #000 !important;
+        -webkit-text-fill-color: #000 !important;
+        font-size: 1.5rem !important;
+        text-align: center !important;
+        margin-bottom: 8px !important;
+      }
+
+      .hero-desc {
+        color: #333 !important;
+        font-size: 0.95rem !important;
+        text-align: center !important;
+        margin-bottom: 20px !important;
+      }
+
+      .tag-row {
+        justify-content: center !important;
+      }
+
+      .tag {
+        border: 1px solid #666 !important;
+        color: #000 !important;
+        background: transparent !important;
+      }
+
+      .specs-table-wrapper {
+        border: 1px solid #000 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+      }
+
+      table.specs-table {
+        font-size: 0.9rem !important;
+      }
+
+      table.specs-table th {
+        background: #f0f0f0 !important;
+        color: #000 !important;
+        border-bottom: 1.5px solid #000 !important;
+        padding: 8px 10px !important;
+      }
+
+      table.specs-table td {
+        color: #000 !important;
+        border-bottom: 1px solid #ddd !important;
+        padding: 8px 10px !important;
+      }
+
+      .item-title {
+        color: #000 !important;
+        font-size: 0.95rem !important;
+      }
+
+      .item-spec {
+        color: #444 !important;
+        font-size: 0.85rem !important;
+      }
+
+      .badge-p1, .badge-p2, .badge-p3 {
+        background: transparent !important;
+        color: #000 !important;
+        border: 1px solid #000 !important;
+      }
+
+      .price-col {
+        color: #000 !important;
+      }
+
+      .total-banner {
+        background: #f8f8f8 !important;
+        border: 1.5px solid #000 !important;
+        color: #000 !important;
+        border-radius: 0 !important;
+        margin-top: 15px !important;
+        padding: 12px 20px !important;
+      }
+
+      .total-amount {
+        color: #000 !important;
+        font-size: 1.5rem !important;
+      }
+
+      .sign-block {
+        border: none !important;
+        background: transparent !important;
+        margin-top: 40px !important;
+        page-break-inside: avoid;
+      }
+
+      .sign-name, .sign-role, .sign-line {
+        color: #000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Top Sticky Bar -->
+    <div class="top-bar">
+      <div class="brand-badge">
+        <div class="brand-logo">🦥</div>
+        <div>
+          <div class="brand-title">SLOTH HOME • ร้อย ตชด.๒๑๕</div>
+          <div class="brand-sub">ระบบเฝ้าระวังและสนับสนุนการปฏิบัติงานด้วยเทคโนโลยีอัจฉริยะ (BPP-VMS)</div>
+        </div>
+      </div>
+      <div class="action-buttons">
+        <button class="btn btn-print" onclick="window.print()">
+          🖨️ พิมพ์เอกสารเสนอความต้องการ (Print / PDF)
+        </button>
+      </div>
+    </div>
+
+    <!-- Hero Header -->
+    <div class="hero-header">
+      <div class="tag-row">
+        <span class="tag tag-cyan">เอกสารราชการเสนอผู้บังคับบัญชา</span>
+        <span class="tag tag-gold">TOR ข้อกำหนดคุณลักษณะเฉพาะ</span>
+        <span class="tag tag-red">ความเร่งด่วน: ปลดล็อกคอขวดระบบ 24/7</span>
+      </div>
+      <h1 class="hero-title">เอกสารเสนอความต้องการจัดหาอุปกรณ์เพิ่มประสิทธิภาพ<br>และยกระดับห้องปฏิบัติการระบบ Sloth (War Room)</h1>
+      <p class="hero-desc">
+        กองร้อยตำรวจตระเวนชายแดนที่ ๒๑๕ ดำเนินการตรวจสอบสภาพฮาร์ดแวร์จริง พบว่าหน่วยความจำถูกใช้งานไปแล้วกว่า 96% และขาดพื้นที่เก็บบันทึกย้อนหลัง 30 วัน จึงจัดทำเอกสารความต้องการอุปกรณ์ฮาร์ดแวร์เพื่อปลดล็อกขีดความสามารถในการเฝ้าระวังแนวชายแดน 24 ชั่วโมงต่อเนื่อง
+      </p>
+
+      <!-- Live Audit Cards -->
+      <div class="audit-grid">
+        <div class="audit-card danger">
+          <div class="audit-label">หน่วยความจำ (RAM) ระบบจริง</div>
+          <div class="audit-val" style="color: var(--accent-red);">16 GB (ใช้ 96%)</div>
+          <div class="audit-status status-alert">⚠️ เหลือว่างวิกฤต ~575 MB เสี่ยง OOM</div>
+        </div>
+        <div class="audit-card">
+          <div class="audit-label">การ์ดจอประมวลผล (GPU)</div>
+          <div class="audit-val">RTX 5060 Ti 16GB</div>
+          <div class="audit-status status-ok">✅ พร้อมรันโมเดล YOLO11 & Thai LPR</div>
+        </div>
+        <div class="audit-card danger">
+          <div class="audit-label">ระบบสำรองไฟ (UPS 1,200W)</div>
+          <div class="audit-val">ไม่มีสาย Data Link</div>
+          <div class="audit-status status-alert">⚠️ เซิร์ฟเวอร์ไม่ทราบเมื่อไฟดับ</div>
+        </div>
+        <div class="audit-card">
+          <div class="audit-label">พื้นที่จัดเก็บวิดีโอ (Storage)</div>
+          <div class="audit-val">1 TB Drive (ใกล้เต็ม)</div>
+          <div class="audit-status status-alert">⚠️ ขาด Surveillance HDD 8TB+</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier Selection Section -->
+    <div class="section-title">กรอบงบประมาณและทางเลือกในการจัดหา (Procurement Tiers)</div>
+    <div class="tier-cards">
+      
+      <!-- Tier 1 -->
+      <div class="tier-card active" onclick="selectTier(1)">
+        <div class="tier-name">ทางเลือกที่ 1: งบเร่งด่วนเฉพาะหน้า</div>
+        <div class="tier-target">ปลดล็อก RAM 96% + เพิ่มฮาร์ดดิสก์ 8TB + ป้องกัน Database เสียหายจากไฟดับ</div>
+        <div class="tier-price">13,700 <span>บาท</span></div>
+        <div class="badge-p1">🔴 ความจำเป็นเร่งด่วนสูงสุด</div>
+      </div>
+
+      <!-- Tier 2 -->
+      <div class="tier-card featured" onclick="selectTier(2)">
+        <div class="tier-name">ทางเลือกที่ 2: ห้อง War Room มาตรฐาน</div>
+        <div class="tier-target">รวมทางเลือกที่ 1 + จอแสดงผล 65-75" + ตู้ Server Rack + สวิตช์ Managed PoE+ 24 ช่อง</div>
+        <div class="tier-price">63,500 <span>บาท</span></div>
+        <div class="badge-p2">🟡 ยกระดับศูนย์สั่งการสมบูรณ์แบบ</div>
+      </div>
+
+      <!-- Tier 3 -->
+      <div class="tier-card" onclick="selectTier(3)">
+        <div class="tier-name">ทางเลือกที่ 3: ความมั่นคงชายแดนเต็มรูปแบบ</div>
+        <div class="tier-target">รวมทางเลือกที่ 2 + กล้อง Highway LPR สู้แสงไฟหน้ารถ 2 ตัว + การ์ดแลนเซิร์ฟเวอร์</div>
+        <div class="tier-price">123,000 <span>บาท</span></div>
+        <div class="badge-p3">🟢 ประสิทธิภาพ 100% ครบวงจร</div>
+      </div>
+
+    </div>
+
+    <!-- Specifications Table -->
+    <div class="section-title">ตารางรายการคุณลักษณะเฉพาะและประมาณการราคา (TOR Specifications)</div>
+    <div class="specs-table-wrapper">
+      <table class="specs-table">
+        <thead>
+          <tr>
+            <th style="width: 8%;">ลำดับ</th>
+            <th style="width: 48%;">รายการและคุณลักษณะเฉพาะ (Specification)</th>
+            <th style="width: 14%; text-align: center;">ระดับความสำคัญ</th>
+            <th style="width: 10%; text-align: center;">จำนวน</th>
+            <th style="width: 20%; text-align: right;">ประมาณการราคา (บาท)</th>
+          </tr>
+        </thead>
+        <tbody id="specsTableBody">
+          <!-- Populated by JavaScript based on active tier -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Total Summary Banner -->
+    <div class="total-banner">
+      <div>
+        <div class="total-label" id="summaryTierTitle">รวมประมาณการงบประมาณทั้งสิ้น (ทางเลือกที่ 1)</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">ราคารวมภาษีมูลค่าเพิ่มและอุปกรณ์ส่วนควบเรียบร้อยแล้ว</div>
+      </div>
+      <div class="total-amount" id="summaryTotalAmount">13,700 บาท</div>
+    </div>
+
+    <!-- Official Signature Block -->
+    <div class="sign-block">
+      <div class="sign-content">
+        <div class="sign-line">ลงชื่อ..............................................................ผู้เสนอความต้องการ</div>
+        <div class="sign-name">( พันตำรวจตรี วิชัย สิทธิ )</div>
+        <div class="sign-role">สารวัตร/ผู้บังคับกองร้อยตำรวจตระเวนชายแดนที่ ๒๑๕</div>
+        <div class="sign-role" style="margin-top: 6px;">หัวหน้าโครงการ Sloth Home ร้อย ตชด.๒๑๕</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const itemsData = [
+      {
+        id: "1.1",
+        title: "หน่วยความจำเซิร์ฟเวอร์ DDR5 RAM 32GB (16GB x 2)",
+        spec: "DDR5 Bus 5600+ MHz พร้อมฮีตซิงก์ระบายความร้อน ทำงาน 24/7 เพื่อขยาย RAM จาก 16GB เป็น 32GB ปลดล็อกคอขวดระบบที่ถูกใช้ 96%",
+        priority: "P1",
+        qty: "1 ชุด",
+        price: 3500,
+        tier: 1
+      },
+      {
+        id: "1.2",
+        title: "ฮาร์ดดิสก์สำหรับกล้องวงจรปิด Surveillance HDD 8TB",
+        spec: "WD Purple Pro หรือ Seagate SkyHawk AI ขนาด 8TB SATA-III 7,200 RPM บัฟเฟอร์ 256MB มีเทคโนโลยี AllFrame AI สำหรับบันทึกภาพ 24/7 ย้อนหลัง 30-60 วัน",
+        priority: "P1",
+        qty: "1 หน่วย",
+        price: 7200,
+        tier: 1
+      },
+      {
+        id: "1.3",
+        title: "ชุดสายเชื่อมโยงข้อมูลสำรองไฟฟ้า (UPS Data Link Kit) & เซ็นเซอร์ห้อง",
+        spec: "สายสัญญาณ USB-B to USB-A ชิลด์ป้องกันสัญญาณรบกวนสำหรับ UPS 1,200W + เซ็นเซอร์วัดอุณหภูมิ/ความชื้นห้องควบคุม แจ้งเตือนไฟดับเข้า Telegram Bot",
+        priority: "P1",
+        qty: "1 ชุด",
+        price: 1200,
+        tier: 1
+      },
+      {
+        id: "1.4",
+        title: "รางปลั๊กไฟมาตรฐาน PDU พร้อมระบบป้องกันไฟกระชาก (Surge Protection)",
+        spec: "PDU Rackmount ขนาด 6-8 ช่อง รองรับกระแสไฟ 16A ป้องกันไฟกระชากและฟ้าผ่าตามแนวชายแดน",
+        priority: "P1",
+        qty: "1 หน่วย",
+        price: 1800,
+        tier: 1
+      },
+      {
+        id: "2.1",
+        title: "จอแสดงผลภาพรวมศูนย์สั่งการ War Room Display 65\" - 75\" 4K UHD",
+        spec: "Commercial Display / QLED Smart TV 4K UHD ขนาด 65-75 นิ้ว รองรับการเปิดต่อเนื่อง 16-24 ชม. พร้อมขาแขวนผนัง VESA และสาย HDMI 4K",
+        priority: "P2",
+        qty: "1 เครื่อง",
+        price: 24000,
+        tier: 2
+      },
+      {
+        id: "2.2",
+        title: "เครื่องลูกข่ายประมวลผลจอแสดงผล (War Room Kiosk Mini PC)",
+        spec: "Intel N100/N97 หรือ Core i3, RAM 16GB, SSD NVMe 256GB พอร์ต Dual 4K HDMI สำหรับแขวนหลังจอใหญ่รัน Dashboard แบบ Fullscreen อิสระ",
+        priority: "P2",
+        qty: "1 เครื่อง",
+        price: 6500,
+        tier: 2
+      },
+      {
+        id: "2.3",
+        title: "ตู้แร็คมาตรฐาน 19 นิ้ว พร้อมระบบระบายอากาศ (Rack 9U - 12U)",
+        spec: "ตู้ Rack ขนาด 9U-12U ลึก 60cm กระจกนิรภัยหรือตะแกรงระบายอากาศ พัดลม 2 ตัว ถาดวางอุปกรณ์ และกุญแจล็อค ป้องกันสายหลุดและบุคคลภายนอกสัมผัส",
+        priority: "P2",
+        qty: "1 ตู้",
+        price: 6800,
+        tier: 2
+      },
+      {
+        id: "2.4",
+        title: "อุปกรณ์กระจายสัญญาณเครือข่าย Managed PoE+ Switch 24-Port Gigabit",
+        spec: "Gigabit Switch 24 ช่อง PoE+ จ่ายไฟรวม 250W+ Uplink SFP 2 ช่อง จัดการผ่านเว็บ/SNMP ได้ พร้อมระบบ Watchdog รีบูตกล้องอัตโนมัติ",
+        priority: "P2",
+        qty: "1 เครื่อง",
+        price: 12500,
+        tier: 2
+      },
+      {
+        id: "3.1",
+        title: "กล้องตรวจจับและอ่านป้ายทะเบียนความเร็วสูง (Highway ANPR/LPR Camera)",
+        spec: "ความละเอียด 4MP เลนส์มอเตอร์ซูม 8-32mm ชัตเตอร์ 1/10,000s เทคโนโลยีสู้แสงไฟหน้ารถ (HLC / True WDR 120dB) และมี Edge AI ในตัว สำหรับจุดสกัดหลัก",
+        priority: "P3",
+        qty: "2 หน่วย",
+        price: 50000,
+        tier: 3
+      },
+      {
+        id: "3.2",
+        title: "การ์ดเชื่อมต่อเครือข่ายเซิร์ฟเวอร์ความเร็วสูง (Dual-Port / 2.5GbE PCIe NIC)",
+        spec: "การ์ด PCIe เพิ่มพอร์ต LAN เพื่อแยกวงเน็ตกล้องวงจรปิด (Camera VLAN) ออกจากอินเทอร์เน็ตสาธารณะ ป้องกันปัญหาแบนด์วิดท์ชนกัน",
+        priority: "P3",
+        qty: "1 หน่วย",
+        price: 1500,
+        tier: 3
+      },
+      {
+        id: "3.3",
+        title: "ค่าวัสดุอุปกรณ์ติดตั้ง สายสัญญาณ และอุปกรณ์ส่วนควบภาคสนาม",
+        spec: "สายสัญญาณ Outdoor CAT6 Shielded, ท่อร้อยสาย, กล่องพักสายกันน้ำ, และอุปกรณ์ติดตั้งจุดตรวจยุทธศาสตร์",
+        priority: "P3",
+        qty: "1 งาน",
+        price: 8000,
+        tier: 3
+      }
+    ];
+
+    let currentTier = 1;
+
+    function renderTable(tier) {
+      const tbody = document.getElementById('specsTableBody');
+      tbody.innerHTML = '';
+
+      let filteredItems = itemsData.filter(item => item.tier <= tier);
+      let total = 0;
+
+      filteredItems.forEach((item, index) => {
+        total += item.price;
+        const tr = document.createElement('tr');
+
+        let badgeHtml = '';
+        if (item.priority === 'P1') badgeHtml = '<span class="badge-p1">🔴 เร่งด่วน P1</span>';
+        else if (item.priority === 'P2') badgeHtml = '<span class="badge-p2">🟡 สำคัญ P2</span>';
+        else badgeHtml = '<span class="badge-p3">🟢 เสริมยุทธวิธี P3</span>';
+
+        tr.innerHTML = `
+          <td style="font-weight:700; text-align:center;">${index + 1}</td>
+          <td>
+            <div class="item-title">${item.title}</div>
+            <div class="item-spec">${item.spec}</div>
+          </td>
+          <td style="text-align:center;">${badgeHtml}</td>
+          <td style="text-align:center; font-weight:600;">${item.qty}</td>
+          <td class="price-col">${item.price.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const tierNames = [
+        "ทางเลือกที่ 1: งบเร่งด่วนเฉพาะหน้า (Quick-Win Stability)",
+        "ทางเลือกที่ 2: ห้อง War Room มาตรฐาน (Standard Operations)",
+        "ทางเลือกที่ 3: ความมั่นคงชายแดนเต็มรูปแบบ (Full Tactical Border Security)"
+      ];
+
+      document.getElementById('summaryTierTitle').innerText = `รวมประมาณการงบประมาณทั้งสิ้น (${tierNames[tier - 1]})`;
+      document.getElementById('summaryTotalAmount').innerText = `${total.toLocaleString()} บาท`;
+    }
+
+    function selectTier(tier) {
+      currentTier = tier;
+      const cards = document.querySelectorAll('.tier-card');
+      cards.forEach((c, idx) => {
+        if (idx + 1 === tier) c.classList.add('active');
+        else c.classList.remove('active');
+      });
+      renderTable(tier);
+    }
+
+    // Initialize with Tier 1
+    renderTable(1);
+  </script>
+</body>
+</html>

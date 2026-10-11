@@ -1,0 +1,2163 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sloth BPP 215 — NVR</title>
+<!-- Runtime errors stay in developer tools; no unused third-party parser is
+     loaded into this privileged administrative page. -->
+<link rel="icon" type="image/png" href="assets/BPP215.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0a0c">
+<!-- Cache versions change with the same-page LPR status filters and card badges. -->
+<link rel="stylesheet" href="assets/app.css?v=153">
+  <!-- Phase 4 Analytics: Leaflet.js + Leaflet.heat + Chart.js (all served locally, CSP-safe) -->
+  <link rel="stylesheet" href="assets/leaflet.min.css">
+  <script src="assets/leaflet.min.js"></script>
+  <script src="assets/leaflet-heat.js"></script>
+  <script src="assets/chart.umd.min.js"></script>
+  <style>
+
+
+    .nvr-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255,255,255,0.05);
+      padding: 12px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-weight: 500;
+      color: #fff;
+      margin-bottom: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: background 0.2s;
+    }
+    .nvr-group-header:hover {
+      background: rgba(255,255,255,0.08);
+    }
+    .nvr-group-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nvr-group-badge {
+      background: #a855f7;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .nvr-group-icon {
+      transition: transform 0.3s;
+    }
+    .nvr-group-icon.open {
+      transform: rotate(180deg);
+    }
+    .nvr-group-content {
+      padding-left: 10px;
+      margin-bottom: 15px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      border-left: 2px solid rgba(168,85,247,0.3);
+    }
+    .nvr-group-content.open {
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Chrome Autofill Honeypot: Trap password managers so they don't break the search bar -->
+  <div style="width: 0; height: 0; overflow: hidden; position: absolute; top: -9999px;">
+    <input type="text" name="bpp_fake_user" tabindex="-1" aria-hidden="true">
+    <input type="password" name="bpp_fake_pass" tabindex="-1" aria-hidden="true">
+  </div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="frame">
+
+    <!-- ========== TOP BAR ========== -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo-tile">
+          <div class="brand-logo-bg"></div>
+          <img src="assets/BPP215.png" alt="BPP 215" class="brand-logo-img" id="mainLogo">
+        </div>
+        <div class="brand-text">
+          <span class="brand-name" id="brandName">Sloth</span>
+          <span class="brand-sub" id="brandSub">BPP 215</span>
+        </div>
+      </div>
+
+      <div class="vdivider"></div>
+
+      <div class="layout-switch" id="layoutSwitch" role="group" aria-label="เลือกรูปแบบตาราง"></div>
+
+      <button id="btnMobileMenu" class="mobile-menu-btn" aria-label="Toggle Menu" title="เมนู">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+
+      <div class="topbar-break"></div>
+
+      <div class="layout-edit" role="group" aria-label="จัดเรียงช่อง">
+        <button id="btnEditLayout" class="layout-edit-btn" title="จัดเรียงช่อง — ลากสลับตำแหน่ง" aria-pressed="false" aria-label="แก้ไขการจัดเรียงช่อง">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"></path><path d="M9 5l3-3 3 3"></path><path d="M15 19l-3 3-3-3"></path><path d="M19 9l3 3-3 3"></path><path d="M2 12h20"></path><path d="M12 2v20"></path></svg>
+          <span class="layout-edit-label">จัดเรียง</span>
+        </button>
+        <!-- CLAUDE.md Section 10: Reset personal grid to master system grid -->
+        <button id="btnResetLayout" class="layout-edit-btn" title="คืนค่าผังกล้องมาตรฐานระบบสำหรับหน้าจอของคุณ" aria-label="คืนค่าผังกล้องมาตรฐานระบบ" style="display:none;margin-left:4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <span class="layout-edit-label">คืนค่าผังระบบ</span>
+        </button>
+        <button id="btnLayoutSave" class="layout-save-btn" hidden>บันทึก</button>
+        <button id="btnLayoutCancel" class="layout-cancel-btn" hidden>ยกเลิก</button>
+      </div>
+
+      <label class="search" id="topbarSearchLabel">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa0bd" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input id="searchInput" type="search" name="bpp_search_ignore" placeholder="ค้นหากล้อง / ช่อง / ตำแหน่ง" aria-label="ค้นหากล้อง" autocomplete="new-password" spellcheck="false">
+        <button id="btnSearchClear" class="search-clear-btn" type="button" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" hidden>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </label>
+
+      <!-- Live NVR remains local to this authenticated gateway. Federation peers
+           exchange only minimized Watchlist data through the server-side worker. -->
+
+      <div class="icon-actions">
+        <button id="btnEvents" class="icon-btn" title="เหตุการณ์" aria-label="เหตุการณ์" aria-pressed="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          <span id="eventBadge" class="event-badge" hidden></span>
+        </button>
+        <button id="btnReconnect" class="icon-btn" title="เชื่อมต่อใหม่" aria-label="เชื่อมต่อใหม่">
+          <svg id="reconnectIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>
+        </button>
+        <button id="btnEventMgr" class="icon-btn" title="คลังวิดีโอเหตุการณ์" aria-label="คลังวิดีโอเหตุการณ์">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"></rect><line x1="7" y1="21" x2="17" y2="21"></line><polygon points="10 8.5 15 11 10 13.5 10 8.5" fill="currentColor" stroke="none"></polygon></svg>
+        </button>
+        <button id="btnPlayback" class="icon-btn" title="ดูย้อนหลัง (Playback)" aria-label="ดูย้อนหลัง">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><polyline points="12 7 12 12 15.5 14"></polyline></svg>
+        </button>
+        <!-- ปุ่มจัดการทะเบียนเฝ้าระวัง — เปิด modal CRUD ทะเบียนต้องสงสัย -->
+        <button id="btnWatchlist" class="icon-btn" title="ทะเบียนเฝ้าระวัง" aria-label="ทะเบียนเฝ้าระวัง" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>
+        </button>
+        <!-- ปุ่ม Sloth AI & NAS Bot Chat (เปิดแชทสั่งการ/ค้นหาคดี) -->
+        <button id="btnBotChat" class="icon-btn" title="Sloth AI & NAS Assistant (แชทสั่งการ/ค้นหาคดี)" aria-label="แชทสั่งการ" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </button>
+        <!-- ปุ่ม Phase 4: Data Analytics Dashboard (วิเคราะห์ข้อมูลสถิติ/Heatmap) -->
+        <button id="btnAnalytics" class="icon-btn" title="วิเคราะห์ข้อมูลสถิติและแผนที่ความเสี่ยง (Analytics Dashboard)" aria-label="วิเคราะห์ข้อมูล" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+            <line x1="8" y1="2" x2="8" y2="18"/>
+            <line x1="16" y1="6" x2="16" y2="22"/>
+          </svg>
+        </button>
+        <!-- ปุ่ม Phase 5: คลังบันทึกจับกุมและแฟ้มบุคคล (Arrest Dossier Vault) -->
+        <button id="btnArrestVault" class="icon-btn" title="คลังบันทึกจับกุมและแฟ้มบุคคล (Arrest Vault)" aria-label="คลังบันทึกจับกุมและแฟ้มบุคคล" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            <polyline points="12 11 12 17 9 14"></polyline>
+            <polyline points="12 17 15 14"></polyline>
+          </svg>
+        </button>
+        <!-- ปุ่ม Phase 5: ผังเชื่อมโยงความสัมพันธ์เครือข่าย i2 (i2 Link Analysis Graph) -->
+        <button id="btnI2Graph" class="icon-btn" title="ผังเชื่อมโยงความสัมพันธ์เครือข่าย i2 (i2 Link Analysis Graph)" aria-label="ผังเชื่อมโยง i2" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+        </button>
+        <!-- Incident 2.45: Settings button visible to all roles — tab-level guards inside openSettings() control per-role access -->
+        <button id="btnSettings" class="icon-btn" title="ตั้งค่าระบบ" aria-label="ตั้งค่าระบบ" aria-pressed="false" hidden>
+
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+        <!-- ปุ่มโปรไฟล์และจัดการสิทธิ์ (ทุกคนเข้าดูข้อมูลตนเอง/เปลี่ยนรหัสผ่านได้, แอดมินจัดการสิทธิ์ได้) -->
+        <button id="btnUsers" class="icon-btn" title="ข้อมูลบัญชี โปรไฟล์ และจัดการสิทธิ์" aria-label="ข้อมูลบัญชีและจัดการสิทธิ์">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </button>
+        <!-- ปุ่มเปิดคู่มือปฏิบัติการระบบ และ n8n Bot Masterclass -->
+        <a id="btnHelpGuide" href="user_guide.html" target="_blank" rel="noopener noreferrer" class="icon-btn" title="คู่มือปฏิบัติการระบบ & n8n Bot Masterclass" aria-label="คู่มือการใช้งานระบบ" style="text-decoration:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+        </a>
+        <!-- Audit Log button removed; moved inside User Management modal -->
+        <!--
+        <button id="btnAudit" class="icon-btn admin-only" title="ประวัติการใช้งาน (Audit Logs)" aria-label="ประวัติการใช้งาน" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        </button>
+        -->
+        <button id="btnLogout" class="icon-btn" title="ออกจากระบบ" aria-label="ออกจากระบบ">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fb5b78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
+      </div>
+
+
+      <!-- Window controls removed -->
+    </header>
+
+    <!-- ========== CAMERA GRID + EVENTS RAIL ========== -->
+    <div class="mid">
+      <main id="grid" class="grid" aria-label="ตารางกล้อง"></main>
+
+      <aside id="eventsRail" class="events-rail" aria-label="เหตุการณ์ล่าสุด">
+        <div class="events-head">
+          <span class="glow-dot" aria-hidden="true"></span>
+          <span class="events-title">เหตุการณ์</span>
+          <span id="evTotal" class="events-total">0 รายการ</span>
+          <div class="rail-pick-wrap">
+            <button id="btnRailClasses" class="events-hide" aria-expanded="false" aria-haspopup="menu" title="เลือก Class ที่จะแจ้งเตือน/แสดงในแถบเหตุการณ์">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82V9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9"></path></svg>
+            </button>
+            <div id="railClassPop" class="pb-evclass-pop rail-class-pop" hidden></div>
+          </div>
+          <button id="btnHideEvents" class="events-hide" aria-label="ซ่อนแถบเหตุการณ์" title="ซ่อน">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>
+          </button>
+        </div>
+        <div id="evFilters" class="events-filters" role="group" aria-label="กรองเหตุการณ์"></div>
+        <div id="evList" class="events-list"></div>
+      </aside>
+
+      <button id="railTab" class="rail-tab" aria-label="แสดงแถบเหตุการณ์" title="เหตุการณ์" hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>
+        <span id="railTabBadge" class="event-badge rail-tab-badge" hidden></span>
+      </button>
+    </div>
+
+    <!-- ========== BOTTOM BAR ========== -->
+    <footer class="bottombar">
+      <div class="brand">
+        <div class="footer-logo-tile">
+          <div class="footer-logo-bg"></div>
+          <img src="assets/things-logo.png" alt="Things Analytic" class="footer-logo-img">
+        </div>
+        <div class="footer-brand-text">
+          <div class="footer-brand-name">Things Analytic Co., Ltd.</div>
+          <div class="footer-brand-sub">Ai CCTV Surveillance Platform</div>
+        </div>
+      </div>
+
+      <div class="vdivider short"></div>
+
+      <div class="status-counts">
+        <span class="sc"><span class="dot green"></span><span class="sc-label">ออนไลน์</span><b id="statLive" class="sc-num green-t">0</b></span>
+        <span class="sc"><span class="dot amber"></span><span class="sc-label">เชื่อมต่อ</span><b id="statConnecting" class="sc-num amber-t">0</b></span>
+        <span class="sc"><span class="dot red"></span><span class="sc-label">ออฟไลน์</span><b id="statOffline" class="sc-num red-t">0</b></span>
+      </div>
+
+      <div class="clockbox">
+        <span class="recall"><span class="dot green small"></span>REC ALL</span>
+        <span id="dateStr" class="date-str"></span>
+        <span id="clock" class="clock">--:--:--</span>
+      </div>
+    </footer>
+
+    <!-- ========== FULLSCREEN CAMERA VIEWER ========== -->
+    <div id="camViewer" class="cam-viewer" hidden>
+      <video id="cvVideo" playsinline muted autoplay></video>
+      <div id="cvDemoBg" class="cv-demo-bg" hidden></div>
+      <div class="cv-top">
+        <span id="cvChip" class="ch-chip">CH01</span>
+        <span id="cvName" class="cv-name"></span>
+        <span class="cv-main-badge" title="กำลังแสดงสตรีมหลัก (mainstream)">MAIN</span>
+        <button id="btnCvAudio" type="button" class="zoom-btn cv-audio-btn" title="เปิดเสียง (คลิกเพื่อฟังเสียงสด)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+        </button>
+        <button id="btnCvSnap" type="button" class="zoom-btn" title="บันทึกภาพนิ่งลง Downloads">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </button>
+        <button id="btnCvRec" type="button" class="zoom-btn cv-rec-btn" title="อัดวิดีโอจอนี้ลง Downloads (กดซ้ำเพื่อหยุด)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="6"></circle></svg>
+        </button>
+        <span id="cvStatus" class="cv-status"><span class="dot small"></span><span id="cvStatusText"></span></span>
+        <button id="btnCloseViewer" class="modal-close small" aria-label="ปิด (Esc)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div id="cvCenter" class="cv-center" hidden><div class="spinner"></div><div id="cvCenterText">กำลังเชื่อมต่อสตรีมหลัก…</div></div>
+    </div>
+
+    <!-- ========== SETTINGS MODAL ========== -->
+    <div id="settingsOverlay" class="overlay" hidden>
+      <div class="modal settings-modal" role="dialog" aria-modal="true" aria-label="ตั้งค่ากล้อง">
+        <div class="modal-head">
+          <div class="modal-head-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </div>
+          <div class="modal-head-text">
+            <div class="modal-title">ตั้งค่ากล้อง</div>
+            <div class="modal-sub">กำหนดชื่อและสตรีมของแต่ละช่อง — ระบบจะปรับค่า Sloth BPP 215 ให้อัตโนมัติ</div>
+          </div>
+          <span id="nvrStatusChip" class="nvr-chip"><span class="dot green small"></span><span id="nvrStatusText">Sloth BPP 215 เชื่อมต่อแล้ว</span></span>
+          <button id="btnCloseSettings" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+                <div class="modal-body" style="padding-top:0; flex-direction:column; padding-bottom:0;">
+          <div class="settings-tabs-bar" style="display:flex; border-bottom:1px solid #3b4261; margin-bottom:0; flex:none; overflow-x:auto;">
+            <button id="btnTabNvr" type="button" style="flex:1; padding:15px; background:transparent; color:#fff; border:none; border-bottom:2px solid #a855f7; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; white-space:nowrap;">กล้องในระบบ (NVR)</button>
+            <button id="btnTabDash" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; white-space:nowrap;">หน้าจอกล้อง (Dashboard)</button>
+            <button id="btnTabLprLearning" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; white-space:nowrap;">การเรียนรู้ป้ายทะเบียน</button>
+            <button id="btnTabMyAlerts" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              การแจ้งเตือนส่วนตัว
+            </button>
+          </div>
+
+          <div id="tabNvr" class="settings-tab-pane" style="display:block; flex:1; min-height:0; overflow:auto; padding: 15px 20px;">
+            <div id="camListView">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; background:rgba(255,255,255,0.03); padding:10px 15px; border-radius:8px; border:1px solid rgba(255,255,255,0.05); flex-wrap:wrap; gap:8px;">
+                <span style="font-weight:500; color:#fff; font-size:14px; font-family:var(--font-ui);">รายการกล้องทั้งหมดใน NVR</span>
+                <div style="display:flex; gap:8px; align-items:center; margin-left:auto;">
+                  <button id="btnScanNvr" class="btn-primary admin-only" type="button" style="padding:6px 14px; font-size:12.5px; font-family:var(--font-ui); display:inline-flex; align-items:center; gap:6px; background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); border:none; box-shadow: 0 2px 10px rgba(124, 58, 237, 0.3); cursor:pointer;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                    ค้นหากล้อง NVR อัตโนมัติ (Wizard)
+                  </button>
+                  <button id="btnShowAddCam" class="btn-ghost" style="padding:6px 14px; font-size:12.5px; font-family:var(--font-ui); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    เพิ่มกล้องใหม่ (กรอกเอง)
+                  </button>
+                </div>
+              </div>
+
+              <!-- EDGE LPR & SMART CAMERA WEBHOOK BANNER -->
+              <div id="edgeLprWebhookBanner" style="background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(99,102,241,0.08) 100%); border: 1px solid rgba(168,85,247,0.3); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 8px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:6px; background:rgba(168,85,247,0.25); color:#c084fc;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                    </span>
+                    <div>
+                      <div style="font-weight:600; color:#f1f5f9; font-size:13.5px; font-family:var(--font-ui);">Edge LPR & Smart Camera Webhook URL</div>
+                      <div style="font-size:11.5px; color:#cbd5e1;">ลิงก์สำหรับใส่ในกล้อง Dahua ITC / VIGI LPR เพื่อส่งป้ายทะเบียนและภาพถ่ายเขาระบบอัตโนมัติ (ไม่กินสเปกเซิร์ฟเวอร์)</div>
+                    </div>
+                  </div>
+                  <button id="btnOpenSetupGuide" type="button" class="btn-ghost" style="padding:5px 12px; font-size:12px; color:#c084fc; border-color:rgba(168,85,247,0.4); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    📖 วิธีนำไปใส่ในกล้อง / คู่มือตั้งค่า
+                  </button>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input id="inpEdgeWebhookUrl" type="text" readonly class="inp mono" style="background:rgba(10,8,22,0.7); border-color:rgba(168,85,247,0.25); color:#a78bfa; font-size:12px; padding:6px 10px; flex:1;" value="" title="คลิกปุ่มคัดลอกเพื่อคัดลอก URL นี้">
+                  <button id="btnCopyWebhookUrl" type="button" class="btn-primary" style="padding:6px 14px; font-size:12px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; cursor:pointer;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    คัดลอก URL
+                  </button>
+                </div>
+              </div>
+
+              <div id="camerasList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;"></div>
+
+              <div style="background:rgba(255,255,255,0.02); padding:15px; border-radius:8px; border:1px solid rgba(255,255,255,0.05); margin-bottom:15px;">
+                <div class="field-label" style="font-size:14px; margin-bottom:10px; color:#c7d0f8;">ตั้งค่าเครือข่ายสำหรับดูภาพสด (WebRTC IP)</div>
+                <div style="font-size:12px; color:#888; margin-bottom:12px;">หากภาพสดหน้า Dashboard ไม่ขึ้น หรือเพิ่งเปลี่ยนวง LAN/Wi-Fi ให้ระบุ IP เครื่องเซิร์ฟเวอร์ปัจจุบันที่นี่</div>
+                <div class="webrtc-ctrl-row" style="display:flex; gap:10px;">
+                  <input id="inpWebRtcIp" class="inp" placeholder="เช่น 192.168.1.100" autocomplete="off" style="flex:1;">
+                  <button id="btnAutoWebRtcIp" class="btn-ghost" style="flex:none; padding:8px 16px;">ดึง IP อัตโนมัติ</button>
+                  <button id="btnSaveWebRtcIp" class="btn-primary" style="flex:none; padding:8px 16px;">บันทึกและรีสตาร์ท</button>
+                </div>
+              </div>
+            </div>
+          
+          <!-- ADD/EDIT VIEW -->
+          <div id="camEditView" hidden style="padding-bottom: 20px;">
+            <div style="margin-bottom:15px; font-weight:600; display:flex; justify-content:space-between; align-items:center;" id="camEditHeader">
+              <span id="camEditTitle">เพิ่มกล้องใหม่</span>
+            </div>
+            <label class="field"><span class="field-label">ประเภทกล้อง (Preset)</span>
+              <select id="selCamPreset" class="inp" style="background:rgba(15,12,30,0.8); border-color:rgba(168,85,247,0.3); color:#e2e8f0; font-size:13px;">
+                <option value="general">กล้องวงจรปิดทั่วไป (General CCTV) — ใช้ Server AI (YOLOv8 ตรวจจับคน/ยานพาหนะ)</option>
+                <option value="vigi_ai">TP-Link VIGI (Smart AI) — มี AI ในตัวกล้อง (ปิด Server AI เพื่อประหยัด CPU 100%)</option>
+                <option value="lpr_edge">กล้องตรวจจับป้ายทะเบียนเฉพาะทาง (Dahua ITC / VIGI LPR) — ส่งผลผ่าน Webhook (ปิด Server AI 100%)</option>
+              </select>
+            </label>
+            <div id="presetHintBox" style="display:none; font-size:12px; border-radius:6px; padding:8px 12px; margin-bottom:12px; line-height:1.5;"></div>
+            <label class="field"><span class="field-label">ชื่อกล้อง (ภาษาอังกฤษ/ตัวเลข/ขีดล่าง ห้ามเว้นวรรค)</span>
+              <input id="inpCamName" class="inp" type="text" placeholder="เช่น cam_muni_01">
+            </label>
+            <label class="field"><span class="field-label">ชื่อแสดงผล (ภาษาไทย) สำหรับหน้าเว็บ</span>
+              <input id="inpCamDisplayName" class="inp" type="text" placeholder="เช่น ประตูทางเข้าหลัก">
+            </label>
+            <label class="field"><span class="field-label">กลุ่มของกล้อง (เช่น หน้าโรงงาน, อาคาร A)</span>
+              <input id="inpCamGroup" class="inp" type="text" placeholder="ปล่อยว่างไว้ได้หากไม่ต้องการจัดกลุ่ม">
+            </label>
+            <div class="cam-edit-rtsp-row" style="display:flex; gap:10px;">
+              <label class="field" style="flex:1"><span class="field-label">RTSP URL (Main Stream) - สำหรับ AI และ Record</span>
+                <input id="inpCamMain" class="inp mono" type="text" placeholder="rtsp://{FRIGATE_CAMERA_USER}:{FRIGATE_CAMERA_PASS}@ip:554/stream">
+                <div style="font-size:11px;color:#94a3b8;margin-top:4px;font-weight:normal;">* ถ้าเป็นกล้อง VIGI / โดรน / บอดี้แคมที่ยิงภาพเข้า NVR (RTMP Push) ให้ใส่: <b>rtmp://bpp215.duckdns.org:1935/ชื่อกล้อง</b></div>
+              </label>
+              <label class="field" style="flex:1"><span class="field-label">RTSP URL (Sub Stream) - ความละเอียดต่ำ</span>
+                <input id="inpCamSub" class="inp mono" type="text" placeholder="rtsp://... (ปล่อยว่างได้)">
+              </label>
+            </div>
+            <p class="obj-note">ห้ามใส่ชื่อผู้ใช้หรือรหัสผ่านจริงใน URL ให้เพิ่มค่า FRIGATE_* ใน secret environment แล้วอ้างด้วย placeholder เท่านั้น</p>
+            <div class="cam-edit-opt-row" style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+               <div style="flex:1;">
+                 <label class="field-label" style="display:block; margin-bottom:5px;">การใช้งาน</label>
+                 <label style="display:inline-flex; align-items:center; gap:5px; margin-right:15px; cursor:pointer;">
+                   <input type="checkbox" id="inpCamDetect"> เปิดระบบ AI (Detect)
+                 </label>
+                 <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+                   <input type="checkbox" id="inpCamRecord" checked> บันทึกวิดีโอ (Record)
+                 </label>
+               </div>
+               <div style="flex:1;">
+                  <label class="field-label" style="display:block; margin-bottom:5px;">ความละเอียด AI (เฉพาะ Main ถ้าไม่มี Sub)</label>
+                  <div style="display:flex; gap:5px;">
+                    <input id="inpCamWidth" class="inp mono" type="number" placeholder="Width" value="1920"> x 
+                    <input id="inpCamHeight" class="inp mono" type="number" placeholder="Height" value="1080">
+                  </div>
+               </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+              <button id="btnCancelCamEdit" class="btn-ghost">ยกเลิก</button>
+              <button id="btnConfirmCamEdit" class="btn-primary">ตกลง</button>
+            </div>
+          </div>
+          </div> <!-- close tabNvr -->
+
+          <div id="tabDash" class="settings-tab-pane" style="display:none; flex:1; min-height:0; overflow:hidden; flex-direction:column;">
+
+          <!-- CHANNEL SETTINGS BANNER (ADR-0021) -->
+          <div class="master-grid-banner">
+            <div class="master-grid-info">
+              <span class="master-grid-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+              </span>
+              <div>
+                <div class="master-grid-title" style="display:flex; align-items:center; gap:8px;">
+                  <span id="txtGridBannerTitle">ผังหน้าจอของคุณ (Personal Screen Grid)</span>
+                  <span class="master-grid-tag" id="tagGridBanner">ผังหน้าจอ</span>
+                  <div id="impersonateDropdownWrap" class="admin-only custom-dropdown-container" style="display:none; position:relative; margin-left:10px;">
+                    <button type="button" id="btnImpersonateToggle" style="background:var(--bg-panel); color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px 12px; font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer; min-width:140px; justify-content:space-between; box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+                      <span id="txtImpersonateSelected">-- หน้าจอของคุณ --</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <div id="impersonateDropdownMenu" class="custom-dropdown-menu" style="display:none; position:absolute; top:100%; right:0; margin-top:4px; z-index:1000; background:var(--bg-panel); border:1px solid var(--border-color); border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.5); max-height:300px; overflow-y:auto; min-width:100%;">
+                      <!-- Options populated via JS -->
+                    </div>
+                  </div>
+                </div>
+                <div class="master-grid-sub" id="txtGridBannerSub">
+                  กำหนดค่า 16 ช่องที่กำลังแสดงบนหน้าจอของคุณ รวมถึงเปิด/ปิดการตรวจจับ AI และ LPR ประจำช่อง
+                </div>
+              </div>
+            </div>
+            <div id="bannerActions">
+              <label id="lblPropagateMaster" class="admin-only" style="display:none; align-items:center; gap:7px; cursor:pointer; background:rgba(168,85,247,0.12); padding:6px 12px; border-radius:6px; border:1px solid rgba(168,85,247,0.3); font-size:12px; color:#f1f5f9; user-select:none;">
+                <input type="checkbox" id="chkPropagateMaster" style="accent-color:#a855f7; width:15px; height:15px; cursor:pointer;">
+                <span style="font-weight:600; color:#c084fc;">อัปเดตผังแม่แบบระบบด้วย (Master Grid)</span>
+              </label>
+              <label id="lblBroadcastGrid" class="admin-only" style="display:none; align-items:center; gap:7px; cursor:pointer; background:rgba(245,158,11,0.12); padding:6px 12px; border-radius:6px; border:1px solid rgba(245,158,11,0.4); font-size:12px; color:#f1f5f9; user-select:none;" title="ผังนี้จะถูกนำไปทับผังของทุกบัญชีที่มีผังอยู่แล้ว และอัปเดตผังแม่แบบระบบ — มีกล่องยืนยันก่อนบันทึก">
+                <input type="checkbox" id="chkBroadcastGrid" style="accent-color:#f59e0b; width:15px; height:15px; cursor:pointer;">
+                <span style="font-weight:600; color:#fbbf24;">บังคับใช้กับทุกบัญชี (Broadcast)</span>
+              </label>
+              <button id="btnLoadMasterToDraft" type="button" class="btn-copy-to-master admin-only" style="display:none;" title="ดึงผังแม่แบบระบบส่วนกลางเข้ามาดูหรือแก้ไข">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>โหลดผังแม่แบบระบบ</span>
+              </button>
+              <button id="btnCopyCurrentToMaster" type="button" class="btn-copy-to-master admin-only" style="display:none;" title="นำผังหน้าจอสดของคุณขณะนี้มาใส่ในหน้านี้">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>ดึงผังหน้าจอสดมาใส่</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- BATCH CONTROLS TOOLBAR (Tab 2) -->
+          <div id="quickBatchBar" style="
+            display: flex;
+            gap: 8px;
+            padding: 10px 14px;
+            flex-wrap: wrap;
+            flex: none;
+            background: linear-gradient(135deg, rgba(168,85,247,0.06) 0%, rgba(99,102,241,0.06) 100%);
+            border-bottom: 1px solid rgba(168,85,247,0.15);
+            align-items: center;
+          ">
+            <span style="font-size:11px; color:#a78bfa; font-weight:600; font-family:var(--font-ui); letter-spacing:0.05em; text-transform:uppercase; margin-right:4px; display:inline-flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>ควบคุมด่วน</span>
+            <button id="btnClearDashboard" type="button" class="ch-enable-btn off" style="padding:6px 14px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18"/><path d="M8 6V4h8v2"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+              </svg>
+              เคลียร์แดชบอร์ด
+            </button>
+            <!-- ADR-0024: Account Kill-Switch (impersonating a single account) -->
+            <span id="ksAccountGroup" style="display:none; align-items:center; gap:6px; flex-wrap:wrap; padding-left:8px; border-left:1px solid rgba(168,85,247,0.3);">
+              <span id="ksAccountLabel" style="font-size:11px; color:#c084fc; font-weight:600;">บัญชีนี้:</span>
+              <button id="btnAcctStreamOff" type="button" class="ch-enable-btn off" style="padding:6px 12px;">ปิดกล้องบัญชีนี้</button>
+              <button id="btnAcctAiOff" type="button" class="ch-enable-btn off" style="padding:6px 12px;">ปิด AI บัญชีนี้</button>
+              <button id="btnAcctStreamOn" type="button" class="ch-enable-btn" style="padding:6px 12px;">เปิดกล้องบัญชีนี้</button>
+            </span>
+            <!-- ADR-0024: Global Kill-Switch (every account except the issuing Superadmin) -->
+            <span id="ksGlobalGroup" style="display:none; align-items:center; gap:6px; flex-wrap:wrap; padding-left:8px; border-left:1px solid rgba(245,158,11,0.4);">
+              <span style="font-size:11px; color:#fbbf24; font-weight:600;">ทุกบัญชี:</span>
+              <button id="btnAllStreamOff" type="button" class="ch-enable-btn off" style="padding:6px 12px;">ปิดกล้องทุกบัญชี</button>
+              <button id="btnAllAiOff" type="button" class="ch-enable-btn off" style="padding:6px 12px;">ปิด AI ทุกบัญชี</button>
+              <button id="btnAllStreamOn" type="button" class="ch-enable-btn" style="padding:6px 12px;">เปิดกล้องทุกบัญชี</button>
+            </span>
+          </div>
+
+          <div class="ch-section-head" id="chSectionHead" style="display:flex; align-items:center; justify-content:space-between; padding:10px 4px 6px; font-size:13px; font-weight:600; color:#e2e8f0; font-family:var(--font-ui);">
+            <span style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
+              แชนแนลกล้อง (CH01 - CH16)
+            </span>
+            <span id="chCurrentHint" style="font-size:11.5px; color:#c084fc; font-weight:500;">เลือกช่องที่ต้องการตั้งค่า</span>
+          </div>
+
+          <div class="ch-wrap" style="display:flex; flex:1; min-height:0; overflow:hidden;">
+          <div id="chList" class="ch-list"></div>
+
+          <div class="ch-form">
+            <div class="ch-form-head">
+              <span id="selChLabel" class="ch-chip">CH01</span>
+              <span id="selChName" class="ch-form-name"></span>
+              <span id="selChStatus" class="ch-form-status"><span class="dot small"></span><span></span></span>
+              <button id="btnSysStream" type="button" class="ch-enable-btn sys-stream-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>สตรีมระบบ: เปิด</button>
+              <button id="btnChEnabled" type="button" class="ch-enable-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>เปิดใช้งานอยู่</button>
+              <button id="btnChDetect" type="button" class="ch-enable-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg> AI เปิด</button>
+              <!-- เปิด/ปิดระบบอ่านป้ายทะเบียน (LPR) รายกล้อง — เขียนไฟล์ runtime ให้
+                   lpr-service hot-reload เอง มีผลใน ≤60 วิ ไม่ต้อง restart -->
+              <button id="btnChLpr" type="button" class="ch-enable-btn lpr-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="9" x2="10" y2="9"></line><line x1="6" y1="13" x2="14" y2="13"></line></svg> LPR ปิด</button>
+              <!-- ตีกรอบโซนจับป้ายทะเบียนบนภาพจริงของกล้อง (เปิด modal) -->
+              <button id="btnChLprZone" type="button" class="ch-enable-btn lpr-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>โซนป้าย</button>
+              <!-- ปุ่มพิกัด GPS — กระโดดไปยังตำแหน่งกล้องบนแผนที่ Heatmap ทันที -->
+              <button id="btnChGps" type="button" class="ch-enable-btn gps-btn" title="คลิกเพื่อเด้งไปยังพิกัดกล้องนี้บนแผนที่ Heatmap" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>พิกัด 📍</button>
+            </div>
+
+            <label class="field">
+              <span class="field-label">ชื่อแสดงผลของกล้อง</span>
+              <input id="inpName" class="inp" placeholder="เช่น ประตูหน้า">
+              <small class="field-hint">ใช้ชื่อเดียวกันทุกช่องที่ผูกกับกล้องนี้; รหัส NVR ด้านล่างจะไม่ถูกเปลี่ยน</small>
+            </label>
+
+            <div class="field">
+              <span class="field-label">เลือกกล้องจาก NVR สำหรับช่องนี้</span>
+              <div class="field-row">
+                <div class="custom-dropdown-container" id="inpCamSelectWrap" style="width:100%; position:relative;">
+                  <button type="button" id="btnOpenCamPicker" class="inp" style="width:100%; text-align: left; display:flex; justify-content: space-between; align-items: center; background:var(--bg-lighter); cursor:pointer;">
+                    <span id="txtSelectedCam">-- ไม่เลือก (ว่าง) --</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                  <div id="camSelectDropdown" class="custom-dropdown-menu" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1000; background:var(--bg-lighter); border:1px solid var(--border-color); border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.5); max-height:400px; display:flex; flex-direction:column;">
+                    <div style="padding:8px; border-bottom:1px solid var(--border-color);">
+                      <input type="text" id="inpCamSearch" class="inp" placeholder="ค้นหากล้อง, ไอดี, หรือจังหวัด..." style="width: 100%;">
+                    </div>
+                    <div id="camSelectAccordion" style="overflow-y:auto; flex:1; padding:4px;">
+                      <!-- Accordion groups injected here -->
+                    </div>
+                  </div>
+                </div>
+                <!-- fallback hidden input to hold value -->
+                <input type="hidden" id="inpCamSelect">
+                <button id="btnTestMain" class="test-btn" style="display:none;">ทดสอบ</button>
+              </div>
+            </div>
+
+            
+
+            <div class="field">
+              <div class="obj-head">
+                <span class="field-label" style="margin-bottom:0;">วัตถุที่ให้กล้องนี้ตรวจจับด้วย AI (YOLO11)</span>
+                <div class="obj-quick">
+                  <button type="button" id="btnObjSecurity" class="obj-chip-btn">ชุดแนะนำ</button>
+                  <button type="button" id="btnObjClear" class="obj-chip-btn">ล้างทั้งหมด</button>
+                </div>
+              </div>
+              <div id="objGrid" class="obj-grid" role="group" aria-label="เลือกวัตถุที่ตรวจจับ"></div>
+              <div class="field-hint" id="objHint">เลือกชนิดวัตถุได้สูงสุด 10 ชนิดต่อกล้อง (เหลี่ยมม่วง = เลือกอยู่) — เมื่อกดบันทึก ระบบจะปรับให้มีผลทันที (ไม่ต้องรีสตาร์ท) จากนั้นเหตุการณ์ที่ AI ตรวจจับได้จะขึ้นในแถบเหตุการณ์</div>
+            </div>
+
+            <div class="conn-box">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="conn-icon"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              <div class="conn-body">
+                <b>การเชื่อมต่อ Sloth BPP 215</b>
+                <label class="field"><span class="field-label">WebRTC Base (ผ่าน /nvr/ proxy ของ dashboard)</span>
+                  <input id="inpBase" class="inp mono" placeholder="เช่น http://<ip-เครื่อง-nvr>:8080/nvr/live/webrtc" spellcheck="false">
+                </label>
+                <label class="field"><span class="field-label">Events API</span>
+                  <input id="inpApi" class="inp mono" placeholder="เช่น http://<ip-เครื่อง-nvr>:8080/nvr" spellcheck="false">
+                </label>
+                <label class="demo-toggle">
+                  <input id="inpDemo" type="checkbox">
+                  <span>โหมดสาธิต (Demo) — แสดงข้อมูลจำลอง ไม่ต้องต่อเซิร์ฟเวอร์</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="conn-box">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="conn-icon"><path d="M22 12H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path><line x1="6" y1="16" x2="6.01" y2="16"></line><line x1="10" y1="16" x2="10.01" y2="16"></line></svg>
+              <div class="conn-body">
+                <b>พื้นที่จัดเก็บวิดีโอ</b>
+                <label class="field"><span class="field-label">เพดานพื้นที่ว่างขั้นต่ำของดิสก์ (%)</span>
+                  <input id="inpStorageMin" class="inp mono" type="number" min="5" max="90" step="1" inputmode="numeric" placeholder="15" spellcheck="false">
+                </label>
+                <div class="field-hint" id="storageHint">ระบบจะลบวิดีโอเก่าสุดอัตโนมัติเมื่อพื้นที่ว่างต่ำกว่าค่านี้ (5–90) — มีผลภายใน ~5 นาทีหลังบันทึก</div>
+              </div>
+            </div>
+          </div><!-- close ch-form -->
+          </div><!-- close flex wrapper (chList + ch-form) -->
+          </div><!-- close tabDash -->
+
+          <div id="tabLprLearning" class="settings-tab-pane" style="display:none; flex:1; min-height:0; overflow:auto; padding:18px 20px; flex-direction:column; gap:14px;">
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <b>สถานะชุดข้อมูลที่ผู้ดูแลยืนยัน</b>
+                <div id="lprLearningSummary" class="field-hint" style="margin-top:8px;">กำลังโหลดสถานะ…</div>
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                  <button id="btnRefreshLprLearning" type="button" class="btn-ghost">รีเฟรชสถานะ</button>
+                  <button id="btnTriggerLprTrainNow" type="button" class="btn-primary" style="padding:6px 14px; font-size:12px;">สั่งเทรนโมเดลทันที</button>
+                </div>
+              </div>
+            </div>
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <b>เกณฑ์เริ่มฝึกอัตโนมัติ</b>
+                <div class="field-hint" style="margin:6px 0 10px;">นับเฉพาะตัวอย่างที่คนยืนยันและยังไม่เคยใช้ฝึก เมื่อครบเกณฑ์ระบบจะทดสอบก่อนนำโมเดลขึ้นใช้อัตโนมัติ</div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input id="inpLprMinSamples" class="inp mono" type="number" min="50" max="100000" step="50" style="max-width:180px;">
+                  <button id="btnSaveLprMinSamples" type="button" class="btn-primary">บันทึกเกณฑ์</button>
+                </div>
+                <div id="lprLearningPermission" class="field-hint" style="margin-top:7px;"></div>
+              </div>
+            </div>
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <b>รุ่นโมเดลและการย้อนกลับ</b>
+                <div id="lprModelVersions" class="field-hint" style="margin-top:8px; display:flex; flex-direction:column; gap:7px;">ยังไม่มีรุ่นที่ฝึกจากข้อมูลยืนยัน</div>
+              </div>
+            </div>
+          </div><!-- close tabLprLearning -->
+
+          <div id="tabMyAlerts" class="settings-tab-pane" style="display:none; flex:1; min-height:0; overflow:auto; padding:18px 20px; flex-direction:column; gap:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(168,85,247,0.14), rgba(56,189,248,0.08)); padding:10px 14px; border-radius:10px; border:1px solid rgba(168,85,247,0.3); flex-wrap:wrap; gap:8px;">
+              <div>
+                <b style="color:#e2e8f0; font-size:13.5px; display:inline-flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg> การตั้งค่าการแจ้งเตือนส่วนบุคคล</b>
+                <div class="field-hint" style="margin-top:2px;">ปรับแต่งการแจ้งเตือนเฉพาะบัญชีของคุณ และกดบันทึกที่แถบล่างเพื่อมีผลทันที</div>
+              </div>
+            </div>
+
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <b style="display:inline-flex; align-items:center; gap:8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    สถานะการเชื่อมต่อ Telegram
+                  </b>
+                  <div style="display:inline-flex; align-items:center; gap:8px;">
+                    <span id="stMyTelegramPair" style="font-size:12px; font-weight:600; padding:3px 10px; border-radius:12px; background:rgba(255,255,255,0.06); color:#cbd5e1;">กำลังตรวจสอบ…</span>
+                    <button id="btnReqPairCode" type="button" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); padding:3px 9px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg> ขอรหัสผูก Telegram
+                    </button>
+                  </div>
+                </div>
+                <div id="hintMyTelegram" class="field-hint" style="margin-top:8px;">ผูกบัญชีเพื่อรับการแจ้งเตือนและสั่งการผ่านบอท @Sloth_bpp215bot ใน Telegram</div>
+                <!-- Box Popup Displaying Pairing Code -->
+                <div id="boxPairCodeDisplay" style="display:none; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:12px; margin-top:10px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:12px; color:#c084fc; font-weight:600;">รหัสยืนยันการผูก Telegram:</span>
+                    <button id="btnClosePairCodeBox" type="button" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:2px; display:inline-flex; align-items:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                  </div>
+                  <div style="text-align:center; margin:10px 0;">
+                    <div id="valPairCode" style="font-size:28px; font-weight:800; letter-spacing:4px; color:#a855f7; font-family:monospace;">------</div>
+                    <div style="font-size:12px; color:#94a3b8; margin-top:4px;">
+                      ส่งรหัสนี้ไปที่บอท Telegram <b>@Sloth_bpp215bot</b> (เช่น พิมพ์ <code id="txtPairSample" style="color:#38bdf8;">123456</code>)
+                    </div>
+                  </div>
+                  <div id="stPairWaiting" style="font-size:11px; color:#fbbf24; text-align:center; display:inline-flex; align-items:center; justify-content:center; gap:4px; width:100%;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>กำลังรอการยืนยันจาก Telegram (รหัสหมดอายุใน 10 นาที)…</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="flex:1 1 200px;">
+                    <b style="display:inline-flex; align-items:center; gap:8px;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                      เปิดการแจ้งเตือนเฉพาะฉัน (Personal Alert)
+                    </b>
+                    <div class="field-hint" style="margin-top:4px;">สวิตช์เปิด/ปิดการรับแจ้งเตือนเข้า Telegram เฉพาะบัญชีส่วนตัวของคุณ (ค่าเริ่มต้นปิดอยู่)</div>
+                  </div>
+                  <label class="switch" style="flex:none;">
+                    <input id="chkMyMasterAlert" type="checkbox">
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+                
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                  <div style="flex:1 1 200px;">
+                    <b style="display:inline-flex; align-items:center; gap:8px;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      กำหนดเวลาแจ้งเตือน (Scheduled Alert)
+                    </b>
+                    <div class="field-hint" style="margin-top:4px;">กำหนดช่วงเวลาที่จะให้ส่งการแจ้งเตือน (นอกเวลาที่กำหนดจะไม่ส่งข้อความ)</div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <input type="time" id="inpMyScheduleStart" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
+                    <span style="color:#94a3b8; font-size:13px;">ถึง</span>
+                    <input type="time" id="inpMyScheduleEnd" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
+                    <label class="switch" style="margin-left: 10px;">
+                      <input id="chkMyScheduleAlert" type="checkbox">
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="boxAdminBroadcast" class="conn-box" style="margin:0;" hidden>
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="flex:1 1 200px;">
+                    <b style="color:#a855f7; display:inline-flex; align-items:center; gap:8px;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                      เปิดการแจ้งเตือนผู้ใช้ทุกคน (Broadcast to All Users)
+                    </b>
+                    <div class="field-hint" style="margin-top:4px;">(สิทธิ์ Super Admin) สวิตช์เปิด/ปิดโหมดกระจายแจ้งเตือนไปยังผู้ใช้ทุกคนที่ผูกบัญชีไว้</div>
+                  </div>
+                  <label class="switch" style="flex:none;">
+                    <input id="chkAdminBroadcast" type="checkbox">
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+
+                <!-- Super Admin Per-Account Alert Controls (Collapsible Accordion) -->
+                <div style="margin-top:16px; padding-top:14px; border-top:1px dashed rgba(255,255,255,0.1);">
+                  <button id="btnToggleAdminUsersList" type="button" class="admin-users-accordion-btn">
+                    <span class="admin-users-accordion-title">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> จัดการเปิด/ปิดแจ้งเตือนรายบัญชีผู้ใช้
+                      <span id="badgeAdminUserCount" style="font-size:11px; background:rgba(168,85,247,0.2); color:#c084fc; padding:1px 7px; border-radius:10px; font-weight:500; border:1px solid rgba(168,85,247,0.3);">13 บัญชี</span>
+                    </span>
+                    <span class="admin-users-accordion-sub">
+                      <span id="lblToggleAdminUsers">กดเพื่อเปิดดูรายชื่อ</span>
+                      <svg id="iconToggleAdminUsers" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s; transform:rotate(0deg);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                  </button>
+                  <div id="adminUserAlertsList" style="display:none; flex-direction:column; gap:8px; margin-top:10px;">
+                    <div class="field-hint" style="color:#94a3b8; padding:6px 0;">กำลังโหลดข้อมูลผู้ใช้…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <div class="my-alerts-header-row">
+                  <b style="display:inline-flex; align-items:center; gap:8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                    เลือกกล้องและชนิดวัตถุที่จะรับแจ้งเตือน
+                  </b>
+                  <!-- Superadmin User Target Selector -->
+                  <div id="wrapAlertTargetUser" class="my-alerts-target-user-wrap" style="display:none;">
+                    <span class="my-alerts-target-user-label">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                      กำลังตั้งค่าให้:
+                    </span>
+                    <select id="selAlertTargetUser" class="my-alerts-target-user-select">
+                      <option value="">บัญชีของฉัน</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field-hint" style="margin:6px 0 12px;">เลือกกล้องและประเภทวัตถุที่ต้องการให้บอทแจ้งเตือนเข้า Telegram</div>
+                <div id="myAlertsCamMatrix" style="display:flex; flex-direction:column; gap:12px;">
+                  <!-- Cam alert matrix dynamically rendered by app.js -->
+                </div>
+              </div>
+            </div>
+          </div><!-- close tabMyAlerts -->
+        </div><!-- close modal-body -->
+        <div class="modal-foot">
+          <span id="syncSpin" class="sync-spin" hidden></span>
+          <span id="syncMsg" class="sync-msg"></span>
+          <span class="spacer"></span>
+          <button id="btnOssNotice" class="oss-link" type="button">ประกาศซอฟต์แวร์โอเพนซอร์ส</button>
+          <button id="btnCloseSettings2" class="btn-ghost">ปิด</button>
+          <button id="btnSave" class="btn-primary"><span id="saveSpin" class="save-spin" hidden></span><span id="saveLabel">บันทึก</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== NODE SETTINGS MODAL ========== -->
+    <div id="nodesOverlay" class="overlay" hidden>
+      <div class="modal settings-modal" role="dialog" aria-modal="true" aria-label="ตั้งค่าการเชื่อมต่อหน่วยงาน">
+        <div class="modal-head">
+          <div class="modal-head-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
+          </div>
+          <div class="modal-head-text">
+            <div class="modal-title">ตั้งค่าการเชื่อมต่อหน่วยงาน (Federation)</div>
+            <div class="modal-sub">เพิ่ม IP ของหน่วยข้างเคียงเพื่อดึงภาพกล้องข้ามวง VPN</div>
+          </div>
+          <button id="btnCloseNodes" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="modal-body" style="padding: 20px; flex-direction: column;">
+          <p style="margin-top:0; color:#9aa0bd; font-size:14px;">เพิ่มหน่วยงานที่เชื่อมต่ออยู่ในวง Mikrotik VPN เดียวกัน (เช่น 10.21.4.10) <br>เพื่อให้สามารถกดเปลี่ยนไประบบของหน่วยนั้นได้ทันที</p>
+          
+          <label class="field" style="margin-bottom: 20px;">
+            <span class="field-label">รหัสผ่านเชื่อมต่อ (Federation Shared Secret)</span>
+            <input id="inpNodeSecret" class="inp mono" type="text" placeholder="รหัสความปลอดภัยสำหรับการดึงภาพข้ามกองร้อย">
+          </label>
+
+          <div id="nodesList" style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px;"></div>
+          <button id="btnAddNode" class="btn-ghost" style="width:100%; border:1px dashed #3b4261;">+ เพิ่มหน่วยงานใหม่</button>
+        </div>
+        <div class="modal-foot">
+          <button id="btnSaveNodes" class="btn-primary">บันทึกข้อมูล</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== OPEN SOURCE NOTICES MODAL (เปิดจากปุ่มใน settings) ========== -->
+    <div id="ossOverlay" class="overlay oss-overlay" hidden>
+      <div class="modal oss-modal" role="dialog" aria-modal="true" aria-label="ประกาศซอฟต์แวร์โอเพนซอร์ส">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <div class="modal-title">ประกาศซอฟต์แวร์โอเพนซอร์ส</div>
+            <div class="modal-sub">Open Source Notices — ส่วนประกอบโอเพนซอร์สที่ใช้ในผลิตภัณฑ์นี้</div>
+          </div>
+          <button id="btnCloseOss" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="modal-body oss-body">
+          <pre class="oss-license">The MIT License
+
+Copyright (c) 2026 Frigate, Inc. (Frigate&trade;)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CLIP PLAYER MODAL ========== -->
+    <div id="playerOverlay" class="overlay player-overlay" hidden>
+      <div class="modal player-modal" role="dialog" aria-modal="true" aria-label="เล่นคลิปเหตุการณ์">
+        <div class="player-head">
+          <span id="pvTypeChip" class="type-chip"><span class="type-dot"></span><span id="pvTypeLabel"></span></span>
+          <span id="pvChLabel" class="ch-chip">CH01</span>
+          <span id="pvCamName" class="player-cam-name"></span>
+          <span id="pvTimeFull" class="player-time"></span>
+          <button id="btnClosePlayer" class="modal-close small" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div id="pvStage" class="player-stage">
+          <video id="pvVideo" playsinline preload="metadata"></video>
+          <div class="player-vignette" aria-hidden="true"></div>
+          <span class="clip-badge"><span class="clip-dot"></span>CLIP</span>
+          <span id="pvConf" class="conf-badge">ความแม่นยำ —%</span>
+
+          <button id="btnCenterPlay" class="center-play" aria-label="เล่น/หยุด">
+            <svg id="pvPlaySvgBig" width="24" height="24" viewBox="0 0 24 24" fill="#e9d5ff" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+            <svg id="pvPauseSvgBig" width="22" height="22" viewBox="0 0 24 24" fill="#e9d5ff" stroke="none" style="display:none;"><rect x="5" y="4" width="5" height="16" rx="1"></rect><rect x="14" y="4" width="5" height="16" rx="1"></rect></svg>
+          </button>
+
+          <div class="player-controls">
+            <button id="btnBarPlay" class="bar-play" aria-label="เล่น/หยุด">
+              <svg id="pvPlaySvgSm" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+              <svg id="pvPauseSvgSm" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><rect x="5" y="4" width="5" height="16" rx="1"></rect><rect x="14" y="4" width="5" height="16" rx="1"></rect></svg>
+            </button>
+            <div id="pvSeek" class="seek" role="slider" aria-label="ตำแหน่งเวลาในคลิป" aria-valuenow="0" tabindex="0">
+              <div class="seek-track"><div id="pvSeekFill" class="seek-fill"></div></div>
+            </div>
+            <span id="pvTimeLabel" class="player-timelabel">0:00 / 0:00</span>
+            <div class="zoom-wrap">
+              <button id="btnPvZoomIn" type="button" class="zoom-btn" aria-expanded="false" aria-haspopup="menu" title="ซูมภาพ — เลือกระดับแล้วตีกรอบบริเวณที่ต้องการ">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+              </button>
+              <div id="pvZoomPop" class="zoom-pop" hidden></div>
+            </div>
+            <span id="pvZoomLvl" class="zoom-lvl" hidden></span>
+            <button id="btnPvZoomOut" type="button" class="zoom-btn" disabled title="ซูมออก — กลับขนาดปกติ">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </button>
+            <button id="btnPvSnap" type="button" class="zoom-btn" title="บันทึกภาพนิ่งเฟรมนี้ลง Downloads">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="player-foot">
+          <button id="btnDownload" class="dl-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="dl-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span id="dlLabel">ดาวน์โหลดลง Storage</span>
+          </button>
+          <div class="share-wrap">
+            <button id="btnShare" class="share-btn" aria-expanded="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+              แชร์คลิป
+            </button>
+            <div id="sharePop" class="share-pop" hidden>
+              <button class="share-item" data-share="copy">คัดลอกลิงก์คลิป</button>
+              <button class="share-item" data-share="email">ส่งทางอีเมล</button>
+              <button class="share-item" data-share="export">ส่งออกไฟล์ MP4</button>
+            </div>
+          </div>
+          <span id="pvFileName" class="player-filename"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== EVENT MANAGER (คลังวิดีโอเหตุการณ์) ========== -->
+    <div id="eventMgrOverlay" class="overlay emgr-overlay" hidden>
+      <div class="modal emgr-modal" role="dialog" aria-modal="true" aria-label="คลังวิดีโอเหตุการณ์">
+        <div class="emgr-head">
+          <div class="emgr-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"></rect><line x1="7" y1="21" x2="17" y2="21"></line></svg>
+            <span>คลังวิดีโอเหตุการณ์</span>
+            <div class="emgr-view-tabs" role="tablist" style="display:inline-flex; gap:6px; margin-left:8px;">
+              <button type="button" id="tabBtnEmgrDetection" class="emgr-view-tab active" data-view="detection" style="display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; background:rgba(192,132,252,0.18); color:#c084fc; border:1px solid rgba(192,132,252,0.45); transition:all .15s;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"></rect><polygon points="10 8.5 15 11 10 13.5 10 8.5" fill="currentColor"></polygon></svg>
+                <span>🎬 เหตุการณ์ตรวจจับ</span>
+              </button>
+              <button type="button" id="tabBtnEmgrNas" class="emgr-view-tab" data-view="nas" style="display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:8px; font-size:12.5px; font-weight:500; cursor:pointer; background:rgba(255,255,255,0.03); color:#9aa0bd; border:1px solid rgba(255,255,255,0.08); transition:all .15s;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><polygon points="10 11 15 14 10 17 10 11" fill="currentColor"></polygon></svg>
+                <span>🗄️ คลังวิดีโอ NAS &amp; กู้คืนไฟล์</span>
+              </button>
+            </div>
+            <span id="emgrCount" class="events-total">0 รายการ</span>
+            <div id="emgrSizeControls" class="emgr-size" role="group" aria-label="ขนาดภาพย่อ">
+              <button type="button" class="emgr-size-btn" data-size="sm" title="ภาพย่อขนาดเล็ก">เล็ก</button>
+              <button type="button" class="emgr-size-btn" data-size="md" title="ภาพย่อขนาดกลาง">กลาง</button>
+              <button type="button" class="emgr-size-btn" data-size="lg" title="ภาพย่อขนาดใหญ่">ใหญ่</button>
+              <button type="button" class="emgr-size-btn" data-size="xl" title="ภาพย่อขนาดใหญ่ ×2">ใหญ่×2</button>
+              <button type="button" class="emgr-size-btn" data-size="xxl" title="ภาพย่อขนาดใหญ่ ×3">ใหญ่×3</button>
+            </div>
+          </div>
+          <div class="emgr-actions">
+            <div id="emgrDetectionActions" class="emgr-detection-actions">
+              <select id="emgrCameraFilter" class="emgr-archive-select" aria-label="เลือกกล้องในคลังเหตุการณ์"></select>
+              <input id="emgrDateFilter" class="emgr-archive-date" type="date" aria-label="เลือกวันในคลังเหตุการณ์">
+              <button id="btnEmgrAllDates" type="button" class="btn-ghost small emgr-all-dates" title="แสดงทุกวันที่ยังเก็บอยู่">ทุกวัน</button>
+              <label class="search emgr-search">
+                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa0bd" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input id="emgrSearch" placeholder="ค้นหา — คำอธิบาย / ชนิด / กล้อง" aria-label="ค้นหาเหตุการณ์" autocomplete="off">
+                <button id="btnEmgrSearchClear" class="search-clear-btn" type="button" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" hidden>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </label>
+              <button id="btnEmgrRefresh" class="icon-btn" title="รีเฟรช" aria-label="รีเฟรช">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>
+              </button>
+            </div>
+            <button id="btnCloseEmgr" class="modal-close" aria-label="ปิด">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+        <div id="emgrFilters" class="emgr-filters" role="group" aria-label="กรองเหตุการณ์"></div>
+        <div id="emgrBody" class="emgr-body"></div>
+
+        <!-- In-Place NAS Video Archive Container -->
+        <div id="emgrNasContainer" class="emgr-nas-container" hidden style="max-width:920px; width:100%; margin:0 auto; padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:16px; flex:1;">
+          <!-- Live Status Bar -->
+          <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(168,85,247,0.2); border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap; font-size:12.5px;">
+              <div>🖥️ NAS Host: <strong id="nasHostLabel" style="color:#eef0f8;">192.168.1.100</strong></div>
+              <div>📁 Share: <strong id="nasShareLabel" style="color:#eef0f8;">BPP215</strong></div>
+              <div>⚡ รอ Auto-Sync: <strong id="nasPendingSyncCount" style="color:#c084fc;">0 ไฟล์</strong></div>
+              <div>🕒 ซิงค์ล่าสุด: <span id="nasLastSyncTime" style="color:#9aa0bd;">-</span></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span id="nasSyncStatusBadge" class="nvr-chip green" style="margin:0;">
+                <span class="dot green small"></span><span>🟢 NAS ออนไลน์</span>
+              </span>
+              <button id="btnTestNasConn" class="btn-ghost" style="padding:5px 12px; font-size:12px; cursor:pointer;">
+                🔄 ทดสอบเชื่อมต่อใหม่
+              </button>
+            </div>
+          </div>
+
+          <!-- Selection Form Card -->
+          <div style="background:rgba(10,8,22,0.6); border:1px solid rgba(168,85,247,0.25); border-radius:12px; padding:18px;">
+            <div style="font-weight:600; font-size:14px; color:#eef0f8; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+              <span>🎯 เลือกระยะเวลาและกล้องที่ต้องการดึงไฟล์ย้อนหลัง</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:16px;">
+              <!-- Camera -->
+              <div>
+                <label style="display:block; font-size:12px; color:#9aa0bd; margin-bottom:6px; font-weight:500;">กล้องวงจรปิด (Camera)</label>
+                <select id="selArchiveCamera" style="width:100%; height:38px; border-radius:8px; background:rgba(20,16,40,0.8); border:1px solid rgba(168,85,247,0.3); color:#fff; padding:0 10px; font-family:var(--font-ui); font-size:13px;"></select>
+              </div>
+
+              <!-- Date -->
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <label style="font-size:12px; color:#9aa0bd; font-weight:500;">วันที่บันทึก (Date)</label>
+                  <span id="dateStorageTag"></span>
+                </div>
+                <select id="selArchiveDate" style="width:100%; height:38px; border-radius:8px; background:rgba(20,16,40,0.8); border:1px solid rgba(168,85,247,0.3); color:#fff; padding:0 10px; font-family:var(--font-ui); font-size:13px;"></select>
+              </div>
+            </div>
+
+            <!-- Hour Range -->
+            <div style="margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="font-size:12px; color:#9aa0bd; font-weight:500;">ช่วงเวลา (Hour Range)</label>
+                <span id="availableHoursHint" style="font-size:11px; color:#a855f7;"></span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <select id="selArchiveStartHour" style="flex:1; height:38px; border-radius:8px; background:rgba(20,16,40,0.8); border:1px solid rgba(168,85,247,0.3); color:#fff; padding:0 10px; font-family:var(--font-ui); font-size:13px;"></select>
+                <span style="color:#9aa0bd; font-size:13px;">ถึง</span>
+                <select id="selArchiveEndHour" style="flex:1; height:38px; border-radius:8px; background:rgba(20,16,40,0.8); border:1px solid rgba(168,85,247,0.3); color:#fff; padding:0 10px; font-family:var(--font-ui); font-size:13px;"></select>
+              </div>
+            </div>
+
+            <!-- Mode Selection Cards -->
+            <div style="margin-bottom:18px;">
+              <label style="display:block; font-size:12px; color:#9aa0bd; margin-bottom:8px; font-weight:500;">รูปแบบการกู้คืน (Restore Mode)</label>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+                <label style="display:block; cursor:pointer; background:rgba(255,255,255,0.03); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:12px 14px; transition:border-color .15s;">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <input type="radio" name="radRestoreMode" id="radModeEvidence" value="evidence" checked style="accent-color:#a855f7;">
+                    <strong style="color:#eef0f8; font-size:13px;">🎬 รวมเป็นไฟล์หลักฐานชุดเดียว (Evidence MP4) [แนะนำ]</strong>
+                  </div>
+                  <div style="font-size:11.5px; color:#9aa0bd; padding-left:24px; line-height:1.4;">
+                    นำคลิปย่อยทุกนาทีมารวมเป็น 1 ไฟล์ MP4 เดียวกันด้วย FFmpeg Stream-Copy (รวดเร็ว คมชัด ไม่สูญเสียคุณภาพ) เหมาะสำหรับส่งพนักงานสอบสวนหรือบันทึกเก็บไว้
+                  </div>
+                </label>
+
+                <label style="display:block; cursor:pointer; background:rgba(255,255,255,0.03); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:12px 14px; transition:border-color .15s;">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <input type="radio" name="radRestoreMode" id="radModeTimeline" value="timeline" style="accent-color:#a855f7;">
+                    <strong style="color:#eef0f8; font-size:13px;">📼 กู้คืนคลิปกลับสู่ระบบ (Timeline Playback)</strong>
+                  </div>
+                  <div style="font-size:11.5px; color:#9aa0bd; padding-left:24px; line-height:1.4;">
+                    ดึงคลิปย่อยทั้งหมดจาก NAS กลับมาลง SSD ในโฟลเดอร์ recordings เพื่อให้สามารถเปิดเล่นบนแถบ Timeline ย้อนหลังของระบบได้ตามปกติ
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div style="display:flex; justify-content:flex-end;">
+              <button id="btnStartRestore" class="btn-primary" style="padding:10px 24px; font-size:13.5px; font-weight:600; display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                🚀 เริ่มการกู้คืนวิดีโอ
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress Box -->
+          <div id="restoreProgressBox" style="background:rgba(10,8,22,0.8); border:1px solid rgba(168,85,247,0.4); border-radius:10px; padding:16px;" hidden>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px;">
+              <span id="restoreProgressMsg" style="color:#cbd5e1; font-weight:500;">กำลังเริ่มต้นระบบ...</span>
+              <strong id="restoreProgressPct" style="color:#34e2a8;">0%</strong>
+            </div>
+            <div style="width:100%; height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+              <div id="restoreProgressBar" style="width:0%; height:100%; background:linear-gradient(90deg, #7c3aed, #34e2a8); transition:width .3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Results Box -->
+          <div id="restoreResultBox" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== EVENT DETAIL (แท็บ snapshot / วิดีโอ) ========== -->
+    <div id="emgrDetailOverlay" class="overlay emgr-detail-overlay" hidden>
+      <div class="modal emgr-detail-modal" role="dialog" aria-modal="true" aria-label="รายละเอียดเหตุการณ์">
+        <div class="emgr-detail-head">
+          <span id="edType" class="type-chip"><span class="type-dot"></span><span id="edTypeLabel"></span></span>
+          <span id="edCh" class="ch-chip">CH01</span>
+          <span id="edCam" class="player-cam-name"></span>
+          <span id="edTime" class="player-time"></span>
+          <button id="btnCloseDetail" class="modal-close small" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="emgr-tabs" role="tablist">
+          <button id="edTabSnapBtn" class="emgr-tab active" data-tab="snap" role="tab">ภาพ Snapshot</button>
+          <button id="edTabVideoBtn" class="emgr-tab" data-tab="video" role="tab">วิดีโอ</button>
+          <button id="edTabTrackBtn" class="emgr-tab" data-tab="track" role="tab">รายละเอียดวัตถุที่ติดตาม</button>
+        </div>
+        <div class="emgr-detail-body">
+          <div id="edPaneSnap" class="emgr-pane">
+            <div class="emgr-snap-wrap">
+              <img id="edSnapImg" class="emgr-snap-img" alt="ภาพเหตุการณ์">
+              <button id="btnEdSnapDl" class="snap-dl-btn" title="ดาวน์โหลดภาพ Snapshot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>ดาวน์โหลด</span></button>
+            </div>
+            <!-- ภาพ crop ป้ายทะเบียนจาก lpr-service (/lpr-crops/<event_id>.jpg) —
+                 event ที่ไม่มีผลอ่านจะ 404 แล้ว onerror ซ่อนแถวนี้ทั้งแถว (ดู openEmgrDetail) -->
+            <div id="edPlateRow" class="emgr-plate-row" hidden>
+              <div id="edPlateCropWrap" class="emgr-plate-crop-wrap" title="คลิกเพื่อดูภาพป้ายทะเบียนขยายใหญ่">
+                <img id="edPlateCrop" class="emgr-plate-crop" alt="ภาพป้ายทะเบียน">
+              </div>
+              <div class="emgr-plate-info">
+                <!-- Group the section label and current result so they align on
+                     wide screens and wrap as one readable block on small devices. -->
+                <div class="emgr-plate-status">
+                  <span class="emgr-plate-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>ผลการตรวจป้ายทะเบียน</span>
+                  <span id="edPlateText" class="emgr-plate-badge"></span>
+                </div>
+                <div id="edPlateCandidates" class="emgr-plate-candidates"></div>
+                <!-- A dedicated action group gives review/reject equal sizing,
+                     touch targets, and predictable responsive stacking. -->
+                <div class="emgr-plate-actions">
+                  <button id="btnEdPlateTrain" type="button" class="emgr-plate-train-btn" title="แก้ไขหรือสอนป้ายทะเบียนให้ AI"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>แก้ไข/สอน AI</button>
+                  <!-- Rejecting a candidate opens reviewed non-plate teaching;
+                       crop deletion occurs only after the administrator supplies a reason. -->
+                  <button id="btnEdPlateDelete" type="button" class="emgr-plate-del-btn" title="ระบุสาเหตุ เก็บเป็นตัวอย่างลบ และลบเฉพาะภาพ crop"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:3px;"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>ไม่ใช่ป้าย/ลบและสอน AI</button>
+                </div>
+              </div>
+            </div>
+            <div class="emgr-info">
+              <div class="emgr-info-row"><span class="emgr-info-k">ชนิดที่ตรวจจับ</span><span id="edInfoType" class="emgr-info-v"></span></div>
+              <div class="emgr-info-row"><span class="emgr-info-k">กล้อง</span><span id="edInfoCam" class="emgr-info-v"></span></div>
+              <div class="emgr-info-row"><span class="emgr-info-k">ตรวจจับเมื่อ</span><span id="edInfoTime" class="emgr-info-v"></span></div>
+              <div class="emgr-info-row"><span class="emgr-info-k">ค่าความมั่นใจ</span><span id="edInfoConf" class="emgr-info-v"></span></div>
+              <label class="field" style="margin-top:8px;">
+                <span class="field-label">คำอธิบาย (บันทึกเป็น metadata สำหรับค้นหาในอนาคต)</span>
+                <textarea id="edDesc" class="inp emgr-desc" rows="3" placeholder="เช่น: ชายสวมเสื้อแดงเดินเข้าประตูหน้า เวลากลางคืน"></textarea>
+              </label>
+              <div class="emgr-info-actions">
+                <button id="btnDeleteEmgrEvent" class="btn-danger" style="margin-right:auto; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#fca5a5; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer;" title="ลบเหตุการณ์นี้ออกจากระบบอย่างถาวร"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>ลบเหตุการณ์</button>
+                <span id="edDescMsg" class="sync-msg"></span>
+                <span class="spacer"></span>
+                <button id="btnSaveDesc" class="btn-primary"><span id="edSaveSpin" class="save-spin" hidden></span>บันทึกคำอธิบาย</button>
+              </div>
+            </div>
+          </div>
+          <div id="edPaneVideo" class="emgr-pane" hidden>
+            <div class="emgr-video-wrap">
+              <video id="edVideo" class="emgr-video" playsinline controls preload="metadata"></video>
+              <div id="edNoClip" class="emgr-noclip" hidden>เหตุการณ์นี้ไม่มีคลิปวิดีโอ</div>
+              <div id="edIncompleteWarning" class="emgr-incomplete-warning" hidden>
+                <span>วิดีโอยังประมวลผลไม่เสร็จ (กำลังรอบันทึกท่อนล่าสุด)</span>
+                <button type="button" onclick="reloadEmgrVideo()">โหลดใหม่</button>
+              </div>
+            </div>
+            <div class="emgr-video-actions">
+              <div class="zoom-wrap">
+                <button id="btnEdZoomIn" type="button" class="zoom-btn" aria-expanded="false" aria-haspopup="menu" title="ซูมภาพ — เลือกระดับแล้วตีกรอบบริเวณที่ต้องการ">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                </button>
+                <div id="edZoomPop" class="zoom-pop" hidden></div>
+              </div>
+              <span id="edZoomLvl" class="zoom-lvl" hidden></span>
+              <button id="btnEdZoomOut" type="button" class="zoom-btn" disabled title="ซูมออก — กลับขนาดปกติ">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+              </button>
+              <button id="btnEdVideoSnap" type="button" class="zoom-btn" title="บันทึกภาพนิ่งเฟรมนี้ลง Downloads">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              </button>
+              <button id="btnEdDownload" class="dl-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span id="edDlLabel">ดาวน์โหลด</span></button>
+              <div class="share-wrap">
+                <button id="btnEdShare" class="share-btn" aria-expanded="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>แชร์</button>
+                <div id="edSharePop" class="share-pop" hidden>
+                  <button class="share-item" data-edshare="copy">คัดลอกลิงก์คลิป</button>
+                  <button class="share-item" data-edshare="email">ส่งทางอีเมล</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="edPaneTrack" class="emgr-pane" hidden>
+            <div class="emgr-track-stage">
+              <img id="edTrackImg" class="emgr-track-img" alt="ภาพวัตถุที่ติดตาม">
+              <svg id="edTrackPath" class="emgr-track-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+              <span class="emgr-track-pathhint">เส้นม่วง = เส้นทางการเคลื่อนที่ · <span style="color:#34e2a8">●</span> จุดเริ่ม · <span style="color:#fb5b78">●</span> จุดสุดท้าย</span>
+            </div>
+            <div id="edTrackStats" class="emgr-track-stats"></div>
+            <div class="emgr-track-life-head">ลำดับเหตุการณ์ของวัตถุ (Object Lifecycle)</div>
+            <div id="edTrackLife" class="emgr-track-life"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== PLAYBACK (ดูย้อนหลัง) ========== -->
+    <div id="playbackOverlay" class="overlay pb-overlay" hidden>
+      <div class="modal pb-modal" role="dialog" aria-modal="true" aria-label="ดูย้อนหลัง">
+        <div class="pb-head">
+          <div class="pb-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><polyline points="12 7 12 12 15.5 14"></polyline></svg>
+            <span>ดูย้อนหลัง</span>
+          </div>
+          <select id="pbCam" class="pb-select" aria-label="เลือกกล้อง"></select>
+          <div class="pb-cal-wrap">
+            <input id="pbDate" type="hidden">
+            <button id="btnPbCal" type="button" class="pb-date" aria-expanded="false" aria-haspopup="dialog" aria-label="เลือกวันที่">—</button>
+            <div id="pbCalPop" class="pb-cal-pop" role="dialog" aria-label="ปฏิทินเลือกวันที่" hidden>
+              <div class="pb-cal-head">
+                <button id="pbCalPrev" type="button" class="pb-cal-nav" aria-label="เดือนก่อน"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <span id="pbCalTitle"></span>
+                <button id="pbCalNext" type="button" class="pb-cal-nav" aria-label="เดือนถัดไป"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+              </div>
+              <div class="pb-cal-dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+              <div id="pbCalGrid" class="pb-cal-grid"></div>
+              <div class="pb-cal-hint"><span class="pb-cal-dot"></span> วันที่มีบันทึกวิดีโอ</div>
+            </div>
+          </div>
+          <span id="pbDayInfo" class="pb-dayinfo"></span>
+          <span class="spacer"></span>
+          <div class="pb-layouts" role="group" aria-label="จำนวนจอ">
+            <button type="button" class="pb-layout-btn" data-n="1" title="1 จอ">1</button>
+            <button type="button" class="pb-layout-btn" data-n="2" title="2 จอ">2</button>
+            <button type="button" class="pb-layout-btn" data-n="4" title="4 จอ">4</button>
+          </div>
+          <button id="btnPbSync" type="button" class="pb-sync-btn" title="ซิงค์ทุกจอให้ตรงเวลาจอหลัก" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>Sync</button>
+          <button id="btnClosePb" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div id="pbGrid" class="pb-grid layout-1">
+          <div class="pb-cell pb-cell-main">
+            <video id="pbVideo" class="pb-video" playsinline preload="metadata"></video>
+            <div id="pbCenter" class="pb-center"><div class="spinner" id="pbSpin" hidden></div><div id="pbCenterText">เลือกช่วงเวลาบนไทม์ไลน์เพื่อเล่นย้อนหลัง</div></div>
+          </div>
+          <!-- จอ follower สร้าง dynamic ตาม layout (pbBuildFollowers) -->
+        </div>
+        <div class="pb-controls">
+          <button id="pbPlay" class="bar-play" aria-label="เล่น/หยุด">
+            <svg id="pbPlaySvg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+            <svg id="pbPauseSvg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><rect x="5" y="4" width="5" height="16" rx="1"></rect><rect x="14" y="4" width="5" height="16" rx="1"></rect></svg>
+          </button>
+          <span id="pbTime" class="player-timelabel">--:-- น.</span>
+          <span class="spacer"></span>
+          <div class="pb-speeds" role="group" aria-label="ความเร็ว">
+            <button class="pb-speed" data-rate="0.25">0.25×</button>
+            <button class="pb-speed" data-rate="0.5">0.5×</button>
+            <button class="pb-speed active" data-rate="1">1×</button>
+            <button class="pb-speed" data-rate="2">2×</button>
+            <button class="pb-speed" data-rate="4">4×</button>
+            <button class="pb-speed" data-rate="8">8×</button>
+            <button class="pb-speed" data-rate="10">10×</button>
+            <button class="pb-speed" data-rate="14">14×</button>
+            <button class="pb-speed" data-rate="16">16×</button>
+          </div>
+          <div class="zoom-wrap">
+            <button id="btnPbZoomIn" type="button" class="zoom-btn" aria-expanded="false" aria-haspopup="menu" title="ซูมภาพ — เลือกระดับแล้วตีกรอบบริเวณที่ต้องการในจอ">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </button>
+            <div id="pbZoomPop" class="zoom-pop" hidden></div>
+          </div>
+          <button id="btnPbZoomOut" type="button" class="zoom-btn" disabled title="ซูมออก — ทุกจอกลับขนาดปกติ">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+          </button>
+          <button id="btnPbSnap" type="button" class="zoom-btn" title="บันทึกภาพนิ่งจอหลักลง Downloads">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          </button>
+          <button id="btnPbDownload" class="dl-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>บันทึกช่วงนี้</span></button>
+        </div>
+        <div class="pb-timeline-wrap">
+          <div id="pbTlLabels" class="pb-tl-labels"></div>
+          <div id="pbTimeline" class="pb-timeline" role="slider" aria-label="ไทม์ไลน์การบันทึก" aria-valuemin="0" aria-valuemax="24" tabindex="0">
+            <div id="pbTlSegments" class="pb-tl-segments"></div>
+            <div id="pbTlEvents" class="pb-tl-events" aria-label="เหตุการณ์ที่ AI ตรวจจับ"></div>
+            <div id="pbTlWindow" class="pb-tl-window" hidden></div>
+            <div id="pbTlPlayhead" class="pb-tl-playhead" hidden></div>
+          </div>
+          <div class="pb-tl-foot">
+            <div id="pbTlHint" class="pb-tl-hint">แถบม่วง = ช่วงบันทึก / แถบสีล่าง = เหตุการณ์ AI — คลิกเพื่อเล่นจากจุดนั้น</div>
+            <span class="spacer"></span>
+            <div class="pb-evclass-wrap">
+              <button id="btnPbEvClass" type="button" class="pb-tl-btn pb-evclass-btn" aria-expanded="false" aria-haspopup="menu" title="เลือกชนิดเหตุการณ์ที่แสดงบนไทม์ไลน์ (เลือกได้หลายชนิด)">Class <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:2px;"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+              <div id="pbEvClassPop" class="pb-evclass-pop" hidden></div>
+            </div>
+            <div class="pb-tl-toolbar" role="group" aria-label="ซูมไทม์ไลน์">
+              <button id="pbPanL" type="button" class="pb-tl-btn" aria-label="เลื่อนซ้าย" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+              <span id="pbZoomInfo" class="pb-tl-zoominfo">ทั้งวัน</span>
+              <button id="pbPanR" type="button" class="pb-tl-btn" aria-label="เลื่อนขวา" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+              <button id="pbZoomOut" type="button" class="pb-tl-btn" aria-label="ซูมออก" disabled><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+              <button id="pbZoomIn" type="button" class="pb-tl-btn" aria-label="ซูมเข้า"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== LPR ZONE EDITOR — ตีกรอบโซนจับป้ายทะเบียนบนภาพสดของกล้อง ========== -->
+    <div id="lprZoneOverlay" class="overlay lz-overlay" hidden>
+      <div class="modal lz-modal" role="dialog" aria-modal="true" aria-label="กำหนดโซนจับป้ายทะเบียน">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <div class="modal-title">กำหนดโซนจับป้ายทะเบียน — <span id="lzCamName"></span></div>
+            <div class="modal-sub">ลากกรอบบริเวณที่ป้ายทะเบียนเห็นชัดที่สุดเมื่อรถวิ่งผ่าน — เมื่อรถแตะโซน ระบบจะดึงภาพความละเอียดเต็มและอ่านป้ายเฉพาะในกรอบนี้ (มีผลใน ≤60 วินาที)</div>
+          </div>
+          <button id="btnCloseLz" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="lz-stage">
+          <img id="lzImg" alt="ภาพสดจากกล้อง">
+          <!-- ชั้นรับ pointer สำหรับลากกรอบ + กรอบแดง (reuse สไตล์ .zoom-box ของ digital zoom) -->
+          <div id="lzDrawLayer" class="lz-layer"><div id="lzBox" class="zoom-box" hidden></div></div>
+          <div id="lzMsg" class="lz-msg">กำลังโหลดภาพสดจากกล้อง…</div>
+        </div>
+        <div class="modal-foot">
+          <span id="lzHint" class="sync-msg">ลากเมาส์บนภาพเพื่อตีกรอบ — กรอบเดิม (ถ้ามี) แสดงเป็นสีแดง</span>
+          <span class="spacer"></span>
+          <button id="btnLzClear" class="btn-ghost">ลบโซน</button>
+          <button id="btnLzSave" class="btn-primary">บันทึกโซน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== WATCHLIST MODAL (ทะเบียนเฝ้าระวัง CRUD) ========== -->
+    <!-- เปิดจากปุ่ม Watchlist บน Top Bar -->
+    <!-- CRUD ผ่าน /api/watchlist/ (nginx proxy → watchlist-api:5001) -->
+    <div id="watchlistOverlay" class="overlay" hidden>
+      <div class="modal wl-modal" role="dialog" aria-modal="true" aria-label="ทะเบียนเฝ้าระวัง">
+        <div class="modal-head">
+          <div class="modal-head-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fb5b78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>
+          </div>
+          <div class="modal-head-text">
+            <div class="modal-title">ทะเบียนเฝ้าระวัง</div>
+            <div class="modal-sub">จัดการรายชื่อทะเบียนรถที่ต้องสงสัย — ระบบจะแจ้งเตือน Discord/Telegram ทันทีเมื่อกล้องตรวจพบ</div>
+          </div>
+          <!-- Watchlist reads remain available to authenticated operators, while
+               mutations are admin-only in both UI and watchlist-api. -->
+          <button id="btnWlAdd" class="btn-primary admin-only" style="margin-left:auto;flex:none;" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            เพิ่มทะเบียน
+          </button>
+          <button id="btnCloseWatchlist" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <!-- แถบค้นหา + สรุปสถานะ -->
+        <div class="wl-toolbar">
+          <label class="search wl-search">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa0bd" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input id="wlSearch" placeholder="ค้นหาทะเบียน / ชื่อ / เครือข่าย" autocomplete="off">
+            <button id="btnWlSearchClear" class="search-clear-btn" type="button" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" hidden>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </label>
+          <span id="wlCount" class="events-total" style="flex:none;">0 รายการ</span>
+          <button id="btnWlRefresh" class="icon-btn" title="รีเฟรช" aria-label="รีเฟรช" style="flex:none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>
+          </button>
+        </div>
+
+        <!-- ตารางรายการทะเบียนเฝ้าระวัง -->
+        <div class="wl-table-wrap">
+          <table class="wl-table" aria-label="รายการทะเบียนเฝ้าระวัง">
+            <thead>
+              <tr>
+                <th>ทะเบียน</th>
+                <th>ชื่อผู้ครอบครอง</th>
+                <th>เครือข่าย</th>
+                <th>ระดับอันตราย</th>
+                <th>สถานะ</th>
+                <th style="width:96px;">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="wlTableBody"></tbody>
+          </table>
+          <div id="wlEmpty" class="wl-empty" hidden>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6b7099" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <p>ยังไม่มีทะเบียนเฝ้าระวัง<br><span style="font-size:12px;color:#6b7099;">กดปุ่ม "เพิ่มทะเบียน" เพื่อเริ่มต้น</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== WATCHLIST FORM MODAL (เพิ่ม/แก้ไขรายการ) ========== -->
+    <div id="wlFormOverlay" class="overlay" hidden>
+      <div class="modal wl-form-modal" role="dialog" aria-modal="true" aria-label="ฟอร์มทะเบียนเฝ้าระวัง">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <div id="wlFormTitle" class="modal-title">เพิ่มทะเบียนเฝ้าระวัง</div>
+            <div class="modal-sub">ข้อมูลทั้งหมดจะถูกเก็บในฐานข้อมูลบนเครื่องนี้ และใช้ในข้อความแจ้งเตือนอัตโนมัติ</div>
+          </div>
+          <button id="btnCloseWlForm" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="modal-body wl-form-body">
+          <input type="hidden" id="wlFormId">
+          <div style="grid-column: 1 / -1; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 8px;">
+            <div style="font-size: 13px; font-weight: 600; color: #eef0f8; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><rect x="1" y="5" width="22" height="14" rx="3"/><circle cx="7" cy="12" r="1.5"/><circle cx="17" cy="12" r="1.5"/></svg>
+                ข้อมูลป้ายทะเบียนรถ
+              </span>
+              <span style="font-size: 11px; color: #9aa0bd; font-weight: normal;">(แยกกรอก 3 ส่วนตามมาตรฐานป้ายทะเบียนไทย)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1.2fr 1.8fr; gap: 10px;">
+              <label class="field" style="margin-bottom:0;">
+                <span class="field-label">หมวดอักษร <span style="color:#fb5b78;">*</span></span>
+                <input id="wlFPlatePrefix" class="inp" placeholder="เช่น ผท, 1กข" autocomplete="off" style="text-transform: uppercase;">
+                <div class="field-hint" style="font-size: 10px;">เช่น ผท, 1กข, ฆท</div>
+              </label>
+              <label class="field" style="margin-bottom:0;">
+                <span class="field-label">หมายเลขทะเบียน <span style="color:#fb5b78;">*</span></span>
+                <input id="wlFPlateNumber" class="inp" placeholder="เช่น 1959" autocomplete="off" inputmode="numeric">
+                <div class="field-hint" style="font-size: 10px;">ตัวเลข 1-4 หลัก</div>
+              </label>
+              <label class="field" style="margin-bottom:0;">
+                <span class="field-label">จังหวัด</span>
+                <select id="wlFProvince" class="inp">
+                  <option value="">-- ไม่ระบุจังหวัด --</option>
+                </select>
+                <div class="field-hint" style="font-size: 10px;">จังหวัดตามป้าย</div>
+              </label>
+            </div>
+            <div id="wlFPlatePreview" style="margin-top: 10px; padding: 8px 12px; background: rgba(10, 8, 22, 0.6); border: 1px dashed rgba(168, 85, 247, 0.35); border-radius: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+              <div style="color: #9aa0bd;">
+                รหัสตรวจจับ (Key): <code id="wlFPreviewKey" style="color: #38bdf8; font-weight: 600;">-</code>
+              </div>
+              <div style="color: #9aa0bd;">
+                ป้ายแสดงผล: <span id="wlFPreviewDisplay" class="wl-plate-chip" style="display: inline-block; vertical-align: middle; margin-left: 4px;">-</span>
+              </div>
+            </div>
+          </div>
+          <!-- Hidden compatibility fields -->
+          <input type="hidden" id="wlFPlate">
+          <input type="hidden" id="wlFPlateDisplay">
+          <label class="field">
+            <span class="field-label">ชื่อผู้ครอบครอง</span>
+            <input id="wlFOwnerName" class="inp" placeholder="ชื่อ-นามสกุล" autocomplete="off">
+          </label>
+          <label class="field">
+            <span class="field-label">ชื่อผู้ใช้งาน</span>
+            <input id="wlFUserName" class="inp" placeholder="ถ้าต่างจากผู้ครอบครอง" autocomplete="off">
+          </label>
+          <label class="field" style="grid-column:1/-1;">
+            <span class="field-label">ที่อยู่ผู้ครอบครอง</span>
+            <input id="wlFOwnerAddr" class="inp" placeholder="บ้านเลขที่ ถนน แขวง/ตำบล เขต/อำเภอ จังหวัด" autocomplete="off">
+          </label>
+          <label class="field">
+            <span class="field-label">เบอร์โทรศัพท์</span>
+            <input id="wlFPhone" class="inp" placeholder="เช่น 081-234-5678" autocomplete="off">
+          </label>
+          <label class="field">
+            <span class="field-label">เครือข่าย / กลุ่ม</span>
+            <input id="wlFNetwork" class="inp" placeholder="เช่น กลุ่ม A / เครือข่ายยาเสพติด" autocomplete="off">
+          </label>
+          <label class="field">
+            <span class="field-label">ระดับอันตราย</span>
+            <select id="wlFDanger" class="inp">
+              <option value="low">LOW — ติดตาม</option>
+              <option value="medium" selected>MEDIUM — ระวัง</option>
+              <option value="high">HIGH — อันตราย</option>
+              <option value="critical">CRITICAL — อันตรายสูงมาก</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">สถานะ</span>
+            <select id="wlFActive" class="inp">
+              <option value="1">เปิดใช้งาน (จะแจ้งเตือนเมื่อพบ)</option>
+              <option value="0">ปิดใช้งาน (ไม่แจ้งเตือน)</option>
+            </select>
+          </label>
+          <label class="field" style="grid-column:1/-1;">
+            <span class="field-label">ประวัติอาชญากรรม</span>
+            <textarea id="wlFCriminal" class="inp" rows="3" placeholder="ระบุประวัติอาชญากรรมที่เกี่ยวข้อง คดีที่ต้องสงสัย ฯลฯ"></textarea>
+          </label>
+          <label class="field" style="grid-column:1/-1;">
+            <span class="field-label">หมายเหตุ</span>
+            <textarea id="wlFNotes" class="inp" rows="2" placeholder="ข้อมูลเพิ่มเติมอื่น ๆ"></textarea>
+          </label>
+        </div>
+        <div class="modal-foot">
+          <span id="wlFormMsg" class="sync-msg"></span>
+          <span class="spacer"></span>
+          <button id="btnWlFormClose2" class="btn-ghost">ยกเลิก</button>
+          <button id="btnWlFormSave" class="btn-primary">
+            <span id="wlFormSpin" class="save-spin" hidden></span>
+            <span id="wlFormSaveLabel">บันทึก</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== WATCHLIST BEHAVIOR STATS MODAL ========== -->
+    <div id="wlStatsOverlay" class="overlay" hidden>
+      <div class="modal wl-stats-modal" role="dialog" aria-modal="true" aria-label="วิเคราะห์พฤติกรรมรถเป้าหมาย">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <div class="modal-title">วิเคราะห์พฤติกรรม: <span id="wlStatsPlateTitle" style="color:#a855f7;"></span></div>
+            <div class="modal-sub">ประวัติการวิ่งผ่านและสรุปพฤติกรรมเพื่อการติดตาม</div>
+          </div>
+          <button id="btnCloseWlStats" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="modal-body wl-stats-body">
+          <div class="stats-grid">
+            
+            <!-- ข้อมูลเป้าหมาย -->
+            <div class="stats-card card-full">
+              <div class="stats-card-title">ข้อมูลประวัติเป้าหมาย</div>
+              <div id="wlStatsProfile">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+            
+            <!-- สถิติกล้อง (Donut) -->
+            <div class="stats-card">
+              <div class="stats-card-title">ความถี่ตามกล้อง</div>
+              <div class="stats-chart-wrap chart-center">
+                <canvas id="chartCamera"></canvas>
+              </div>
+            </div>
+
+            <!-- สถิติช่วงเวลา (Bar) -->
+            <div class="stats-card">
+              <div class="stats-card-title">ช่วงเวลาที่พบบ่อย (ชม.)</div>
+              <div class="stats-chart-wrap">
+                <canvas id="chartHour"></canvas>
+              </div>
+            </div>
+
+            <!-- สถิติวันในสัปดาห์ (Bar) -->
+            <div class="stats-card">
+              <div class="stats-card-title">วันในสัปดาห์</div>
+              <div class="stats-chart-wrap chart-tall">
+                <canvas id="chartDay"></canvas>
+              </div>
+            </div>
+
+            <!-- ประวัติล่าสุด -->
+            <div class="stats-card">
+              <div class="stats-card-title">ประวัติล่าสุด (500 รายการ)</div>
+              <div class="stats-history-wrap">
+                <table class="wl-table" aria-label="ประวัติการวิ่งผ่าน">
+                  <thead>
+                    <tr>
+                      <th>เวลาที่พบ</th>
+                      <th>กล้อง</th>
+                      <th>ความมั่นใจ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wlStatsHistoryBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== LPR PLATE ZOOM MODAL ========== -->
+    <div id="plateModalOverlay" class="overlay plate-modal-overlay" hidden>
+      <div class="modal plate-modal" role="dialog" aria-modal="true" aria-label="ภาพป้ายทะเบียนขยายใหญ่">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <h2 class="modal-title" style="display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg><span>ภาพป้ายทะเบียนขยายใหญ่</span></h2>
+            <p id="plateModalSub" class="modal-sub">ระบบตรวจจับและอ่านป้ายทะเบียนอัตโนมัติ (LPR)</p>
+          </div>
+          <button id="btnClosePlateModal" class="modal-close" aria-label="ปิด">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="modal-body plate-modal-body">
+          <div class="plate-modal-img-wrap">
+            <img id="plateModalImg" class="plate-modal-img" alt="ภาพป้ายทะเบียนขยายใหญ่">
+          </div>
+          <div class="plate-modal-footer">
+            <span class="plate-modal-tag-label">ข้อความทะเบียนที่อ่านได้:</span>
+            <span id="plateModalBadge" class="plate-modal-badge"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== LPR ACTIVE LEARNING & ANNOTATION MODAL ========== -->
+    <div id="lprTrainOverlay" class="overlay lpr-train-overlay" hidden>
+      <div class="modal lpr-train-modal" role="dialog" aria-modal="true" aria-label="ระบุและฝึกสอนป้ายทะเบียน">
+        <div class="modal-head">
+          <div class="modal-head-text">
+            <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              <span>ตรวจสอบและสอนระบบอ่านป้ายทะเบียน</span>
+            </div>
+            <div class="modal-sub">ผู้ดูแลยืนยันก่อนเท่านั้น คำตอบจึงถูกนำไปสร้างชุดข้อมูลฝึก</div>
+          </div>
+          <button id="btnCloseLprTrain" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="modal-body lpr-train-body">
+          <div class="lpr-crop-stage-wrap">
+            <div class="lpr-crop-stage-hint">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span>เลือกเฟรมวิดีโอ Mainstream แล้วลากกรอบสี่เหลี่ยมครอบป้าย (ขั้นต่ำ 64×20 px)</span>
+              <button id="btnResetLprBox" type="button" class="btn-ghost small" style="margin-left:auto; font-size:11px; padding:2px 8px;">รีเซ็ตกรอบ</button>
+            </div>
+
+            <!-- Video Timeline Scrubber for selecting best 1080p frame -->
+            <div id="lprTrainVideoControls" class="lpr-video-controls" style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.4); padding:6px 12px; border-radius:6px;">
+              <button id="btnLprPrevFrame" type="button" class="btn-ghost small" style="padding:3px 8px; font-size:11px; display:inline-flex; align-items:center; gap:3px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>ถอย 0.1s</button>
+              <input id="lprVideoSeek" type="range" min="0" max="100" step="0.1" value="0" style="flex:1; accent-color:#a855f7; cursor:pointer;">
+              <button id="btnLprNextFrame" type="button" class="btn-ghost small" style="padding:3px 8px; font-size:11px; display:inline-flex; align-items:center; gap:3px;">ถัดไป 0.1s <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg></button>
+              <span id="lprVideoTime" style="font-size:11px; color:#cbd5e1; font-family:var(--font-mono); min-width:45px; text-align:right;">0.0s</span>
+            </div>
+
+            <div id="lprCropStage" class="lpr-crop-stage">
+              <video id="lprTrainVideo" class="lpr-train-img" style="max-width:100%; max-height:420px; object-fit:contain; display:block; pointer-events:none;" preload="auto" muted playsinline crossOrigin="anonymous"></video>
+              <img id="lprTrainSnapshot" class="lpr-train-img" alt="ภาพ Snapshot สำหรับครอบป้าย" hidden crossOrigin="anonymous">
+              <canvas id="lprTrainCanvasStage" style="display:none;"></canvas>
+              <div id="lprCropBox" class="lpr-crop-box" hidden>
+                <div class="lpr-crop-handle tl"></div>
+                <div class="lpr-crop-handle tr"></div>
+                <div class="lpr-crop-handle bl"></div>
+                <div class="lpr-crop-handle br"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lpr-train-form">
+            <div class="lpr-preview-box">
+              <span class="field-label" style="font-size:11px; color:#94a3b8; margin-bottom:4px; display:block;">ภาพตัวอย่างแผ่นป้ายที่จะใช้เทรน</span>
+              <div class="lpr-preview-canvas-wrap">
+                <canvas id="lprTrainCanvas" width="160" height="80"></canvas>
+              </div>
+            </div>
+
+            <div class="lpr-inputs">
+              <label class="field">
+                <span class="field-label">ผลการตรวจสอบ</span>
+                <select id="selLprDecision" class="inp" style="background:#0f1423; color:#fff;">
+                  <option value="readable">เป็นป้ายทะเบียน — อ่านได้ครบถ้วน</option>
+                  <option value="partial">เป็นป้ายทะเบียน — อ่านได้บางส่วน</option>
+                  <option value="unreadable">เป็นป้ายทะเบียน — พบแต่อ่านไม่ได้</option>
+                  <option value="non_plate">ไม่ใช่ป้ายทะเบียน</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span class="field-label">หมวดอักษรและเลขทะเบียน (เช่น: กพ 3771, 1กข 8809)</span>
+                <input id="inpLprPlate" class="inp" type="text" placeholder="ระบุเลขทะเบียน" style="font-weight:700; font-size:15px; letter-spacing:1px;">
+              </label>
+
+              <label class="field" style="margin-top:10px;">
+                <span class="field-label">จังหวัด</span>
+                <input id="selLprProvince" class="inp" type="text" list="lprProvinceList" placeholder="พิมพ์จังหวัดตามป้าย รองรับทุกจังหวัด">
+                <datalist id="lprProvinceList"></datalist>
+              </label>
+
+              <div id="lprNonPlateReasonFields" hidden>
+                <label class="field" style="margin-top:10px;">
+                  <span class="field-label">สาเหตุที่ไม่ใช่ป้ายทะเบียน <span style="color:#fb5b78;">*</span></span>
+                  <select id="selLprNonPlateReason" class="inp" style="background:#0f1423; color:#fff;">
+                    <option value="">— เลือกสาเหตุ —</option>
+                    <option value="sign_or_text">ป้ายร้าน ป้ายประชาสัมพันธ์ หรือข้อความทั่วไป</option>
+                    <option value="logo_or_brand">โลโก้ ตราสินค้า หรือตัวอักษรบนรถ</option>
+                    <option value="clothing_or_pattern">เสื้อผ้าหรือลวดลาย</option>
+                    <option value="road_marking">เส้นหรือข้อความบนถนน</option>
+                    <option value="vehicle_part">ชิ้นส่วนหรือลายตกแต่งรถ</option>
+                    <option value="reflection_or_light">แสงสะท้อน เงา หรือไฟ</option>
+                    <option value="wrong_region">ครอบผิดตำแหน่งหรือเป็นพื้นหลัง</option>
+                    <option value="other">อื่น ๆ</option>
+                  </select>
+                </label>
+                <label id="lprNonPlateReasonDetailField" class="field" style="margin-top:10px;" hidden>
+                  <span class="field-label">รายละเอียดสาเหตุอื่น ๆ <span style="color:#fb5b78;">*</span></span>
+                  <input id="inpLprNonPlateReasonDetail" class="inp" type="text" maxlength="300" placeholder="ระบุว่าสิ่งที่ตรวจผิดคืออะไร">
+                </label>
+              </div>
+
+              <div id="lprDecisionHint" class="field-hint" style="margin-top:10px; color:#7dd3fc;">
+                ภาพนี้จะสอนทั้งตำแหน่งป้ายและตัวอักษรที่ยืนยัน
+              </div>
+
+              <div id="lprTrainMsg" class="sync-msg" style="margin-top:8px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button id="btnLprTrainCancel" class="btn-ghost" style="margin-right:auto;">ยกเลิก</button>
+          <button id="btnLprTrainSave" class="btn-primary" style="background:#9333ea; border-color:#a855f7;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>ยืนยันผลตรวจสอบ</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== BPP CAMERA SETUP GUIDE MODAL ========== -->
+    <div id="bppCameraSetupGuideModal" class="overlay" hidden style="position:fixed; inset:0; background:rgba(6,7,15,0.88); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:99999; display:none; align-items:center; justify-content:center; padding:16px;">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="คู่มือการเชื่อมต่อกล้อง" style="width: 820px; max-width: 95vw; max-height: 90vh; background:linear-gradient(180deg, rgba(24,18,48,0.98), rgba(12,9,26,0.99)); border:1px solid rgba(168,85,247,0.45); border-radius:16px; box-shadow:0 24px 60px rgba(0,0,0,0.85), 0 0 30px rgba(124,58,237,0.3); display:flex; flex-direction:column; overflow:hidden;">
+        
+        <div class="modal-head" style="padding:16px 20px; border-bottom:1px solid rgba(168,85,247,0.25); display:flex; justify-content:space-between; align-items:center; background:rgba(168,85,247,0.06);">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:36px; height:36px; border-radius:8px; background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.4); display:flex; align-items:center; justify-content:center; color:#c084fc;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            </div>
+            <div>
+              <div style="font-weight:700; color:#fff; font-size:15px; font-family:var(--font-ui, sans-serif);">คู่มือการเชื่อมต่อกล้อง Edge LPR & TP-Link VIGI</div>
+              <div style="font-size:12px; color:#cbd5e1;">การตั้งค่ากล้องภายนอก, ป้ายทะเบียน, และหน่วยงานที่ไม่มี Public IP (CGNAT)</div>
+            </div>
+          </div>
+          <button id="btnCloseCameraSetupGuide" class="modal-close" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; padding:6px; border-radius:6px; display:flex; align-items:center; justify-content:center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <!-- GUIDE TABS -->
+        <div style="display:flex; border-bottom:1px solid rgba(168,85,247,0.2); background:rgba(15,10,32,0.6); padding:0 16px; gap:8px;">
+          <button id="btnGuideTabVigi" type="button" class="guide-tab-btn active" style="padding:12px 16px; background:transparent; border:none; border-bottom:2px solid #a855f7; color:#c084fc; font-weight:600; font-size:13px; cursor:pointer; font-family:var(--font-ui);">1. กล้อง TP-Link VIGI (Standalone & NVR)</button>
+          <button id="btnGuideTabDahua" type="button" class="guide-tab-btn" style="padding:12px 16px; background:transparent; border:none; border-bottom:2px solid transparent; color:#94a3b8; font-weight:600; font-size:13px; cursor:pointer; font-family:var(--font-ui);">2. กล้อง Dahua ITC / Dedicated LPR (Webhook)</button>
+          <button id="btnGuideTabCgnat" type="button" class="guide-tab-btn" style="padding:12px 16px; background:transparent; border:none; border-bottom:2px solid transparent; color:#94a3b8; font-weight:600; font-size:13px; cursor:pointer; font-family:var(--font-ui);">3. หน่วยงานภายนอกไม่มี Public IP (CGNAT)</button>
+        </div>
+
+        <!-- GUIDE TAB CONTENT -->
+        <div class="modal-body" style="padding:20px 24px; overflow-y:auto; flex:1; line-height:1.6; font-size:13.5px; color:#e2e8f0;">
+          
+          <!-- TAB 1: VIGI -->
+          <div id="guideSectionVigi" class="guide-section">
+            <h4 style="color:#c084fc; margin:0 0 8px 0; font-size:15px; display:flex; align-items:center; gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+              รูปแบบสตรีม (RTSP Stream Syntax) ของ TP-Link VIGI
+            </h4>
+            <p style="margin-bottom:12px; color:#cbd5e1;">กล้อง TP-Link VIGI มีความปลอดภัยและเสถียรภาพสูง สามารถดึงสัญญาณภาพสดและบันทึกได้ทั้งแบบรายกล้อง และดึงทุกช่องจากเครื่อง NVR:</p>
+            
+            <div style="background:rgba(10,8,22,0.8); border:1px solid rgba(168,85,247,0.25); border-radius:8px; padding:12px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#38bdf8; margin-bottom:6px;">🔹 กล้อง VIGI Standalone (ต่อตรงรายตัว):</div>
+              <div style="font-family:var(--font-mono); font-size:12.5px; color:#f1f5f9; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px; margin-bottom:4px;">
+                Main Stream: <span style="color:#a78bfa;">rtsp://{user}:{pass}@{camera_ip}:554/stream1</span>
+              </div>
+              <div style="font-family:var(--font-mono); font-size:12.5px; color:#f1f5f9; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px;">
+                Sub Stream: <span style="color:#a78bfa;">rtsp://{user}:{pass}@{camera_ip}:554/stream2</span>
+              </div>
+              <div style="font-size:11.5px; color:#94a3b8; margin-top:6px;">* {user} และ {pass} คือรหัสผ่านที่ตั้งไว้ในโปรแกรม VIGI Security Manager หรือ VIGI App</div>
+            </div>
+
+            <div style="background:rgba(10,8,22,0.8); border:1px solid rgba(168,85,247,0.25); border-radius:8px; padding:12px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#38bdf8; margin-bottom:6px;">🔹 ดึงจากเครื่อง VIGI NVR หลายช่อง (NVR Channel Stream):</div>
+              <div style="font-size:12px; color:#cbd5e1; margin-bottom:6px;">หากหน่วยงานมีกล้อง 4, 8, หรือ 16 ตัว ต่อเข้า NVR ตัวเดียว สามารถดึงแต่ละช่องผ่าน IP ของ NVR ได้เลย:</div>
+              <div style="font-family:var(--font-mono); font-size:12.5px; color:#f1f5f9; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px; margin-bottom:4px;">
+                ช่องที่ 1: <span style="color:#a78bfa;">rtsp://{user}:{pass}@{nvr_ip}:554/ch1/stream2</span>
+              </div>
+              <div style="font-family:var(--font-mono); font-size:12.5px; color:#f1f5f9; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px; margin-bottom:4px;">
+                ช่องที่ 2: <span style="color:#a78bfa;">rtsp://{user}:{pass}@{nvr_ip}:554/ch2/stream2</span>
+              </div>
+              <div style="font-family:var(--font-mono); font-size:12.5px; color:#94a3b8; padding:4px 10px;">
+                ... จนถึงช่องสุดท้าย เช่น <span style="color:#a78bfa;">/ch16/stream2</span> (แนะนำใช้ stream2 เพื่อความลื่นไหลและไม่เปลืองแบนด์วิดท์)
+              </div>
+            </div>
+
+            <div style="background:rgba(168,85,247,0.08); border-left:3px solid #c084fc; padding:10px 14px; border-radius:0 8px 8px 0;">
+              <div style="font-weight:600; color:#c084fc; margin-bottom:4px;">💡 เทคนิค Zero Server Load (ประหยัดพลังงานเซิร์ฟเวอร์ 100%):</div>
+              <div style="font-size:12px; color:#cbd5e1;">กล้อง VIGI มี AI ตรวจจับคนและยานพาหนะในตัวอยู่แล้ว ในช่อง <b>ประเภทกล้อง (Preset)</b> ให้เลือกเป็น <b>TP-Link VIGI (Smart AI)</b> ระบบจะปิด Server AI บน Frigate ทันที ทำให้ประหยัดสเปกเครื่องเซิร์ฟเวอร์ โดยที่ฟังก์ชันบันทึกย้อนหลัง 24/7 และภาพสดบนหน้าเว็บยังทำงานได้เต็ม 100%</div>
+            </div>
+          </div>
+
+          <!-- TAB 2: DAHUA ITC & LPR WEBHOOK -->
+          <div id="guideSectionDahua" class="guide-section" style="display:none;">
+            <h4 style="color:#38bdf8; margin:0 0 8px 0; font-size:15px; display:flex; align-items:center; gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              การตั้งค่า Webhook ในกล้อง Dahua ITC / VIGI LPR
+            </h4>
+            <p style="margin-bottom:12px; color:#cbd5e1;">ระบบ BPP-VMS รองรับการรับข้อมูลป้ายทะเบียนและภาพถ่ายจากกล้อง LPR โดยตรง ผ่านระบบ Webhook ที่มีความรวดเร็วสูง (&lt; 50ms):</p>
+            
+            <div style="background:rgba(10,8,22,0.8); border:1px solid rgba(56,189,248,0.3); border-radius:8px; padding:14px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#38bdf8; margin-bottom:8px;">ขั้นตอนที่ 1: คัดลอก Webhook URL ของเซิร์ฟเวอร์ BPP-VMS</div>
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <input id="guideWebhookUrlCopyBox" type="text" readonly class="inp mono" style="background:rgba(0,0,0,0.5); font-size:12px; color:#38bdf8; flex:1;" value="">
+              </div>
+              <div style="font-size:11.5px; color:#94a3b8;">* หากเซิร์ฟเวอร์มี Domain หรือ IP ภายนอก ให้เปลี่ยน localhost เป็น IP หรือ Domain ของเซิร์ฟเวอร์</div>
+            </div>
+
+            <div style="background:rgba(10,8,22,0.8); border:1px solid rgba(56,189,248,0.3); border-radius:8px; padding:14px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#38bdf8; margin-bottom:8px;">ขั้นตอนที่ 2: ตั้งค่าในหน้า Web UI ของกล้อง Dahua ITC</div>
+              <ol style="margin:0; padding-left:20px; font-size:12.5px; color:#cbd5e1; display:flex; flex-direction:column; gap:6px;">
+                <li>เปิดเบราว์เซอร์แล้วเข้าสู่ระบบของกล้อง Dahua ITC (เช่น <span style="font-family:var(--font-mono); color:#a78bfa;">http://192.168.1.108</span>)</li>
+                <li>ไปที่เมนู <b>Setting &gt; Event &gt; Smart Plan</b> และเปิดใช้งานฟังก์ชัน <b>ITC / ANPR (License Plate Recognition)</b></li>
+                <li>ไปที่เมนู <b>Setting &gt; Network &gt; Access Platform &gt; Alarm Center</b> หรือ <b>HTTP Push / Webhook</b></li>
+                <li>ทำเครื่องหมายถูกที่ <b>Enable</b> และวาง Webhook URL ที่คัดลอกมาลงในช่อง URL / Server Address</li>
+                <li>เลือกส่งข้อมูล: <b>Vehicle Picture (ภาพรถ)</b>, <b>Plate Picture (ภาพป้าย)</b>, และ <b>Plate Info (ข้อความป้ายทะเบียน)</b></li>
+                <li>กด <b>Save</b> บันทึกการตั้งค่า</li>
+              </ol>
+            </div>
+
+            <div style="background:rgba(56,189,248,0.08); border-left:3px solid #38bdf8; padding:10px 14px; border-radius:0 8px 8px 0;">
+              <div style="font-weight:600; color:#38bdf8; margin-bottom:4px;">⚡ การประมวลผล Watchlist อัตโนมัติ:</div>
+              <div style="font-size:12px; color:#cbd5e1;">เมื่อกล้องตรวจจับป้ายทะเบียนได้ กล้องจะยิงข้อมูลตรงมาที่ Webhook นี้ BPP-VMS จะนำป้ายไปเทียบกับฐานข้อมูลรถเฝ้าระวัง (Watchlist) หากตรงกับแบล็กลิสต์ ระบบจะส่งการแจ้งเตือนพร้อมรูปถ่ายเข้า Telegram ของเจ้าหน้าที่ทันที โดยไม่ต้องเปิด Server AI บน Frigate</div>
+            </div>
+          </div>
+
+          <!-- TAB 3: CGNAT / NO PUBLIC IP -->
+          <div id="guideSectionCgnat" class="guide-section" style="display:none;">
+            <h4 style="color:#4ade80; margin:0 0 8px 0; font-size:15px; display:flex; align-items:center; gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              วิธีเชื่อมต่อหน่วยงานภายนอกที่ไม่มี Public IP (CGNAT / ซิมมือถือ 4G)
+            </h4>
+            <p style="margin-bottom:12px; color:#cbd5e1;">กรณีหน่วยงานภายนอก (เช่น โรงเรียน, ด่านชุมชน, อบต.) มีกล้อง VIGI หลายตัว และไม่มี Public IP หรือเป็นเน็ตซิม 4G ไม่สามารถ Forward Port หรือติดตั้ง MikroTik ได้ มี 2 ทางเลือกที่ทำได้ทันที 100%:</p>
+            
+            <div style="background:linear-gradient(135deg, rgba(74,222,128,0.12) 0%, rgba(168,85,247,0.1) 100%); border:1px solid rgba(74,222,128,0.4); border-radius:10px; padding:16px 18px; margin-bottom:16px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:rgba(74,222,128,0.2); color:#4ade80;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  </span>
+                  <div>
+                    <div style="font-weight:700; color:#4ade80; font-size:14px; font-family:var(--font-ui);">โปรแกรมสำเร็จรูป BPP NVR Bridge สำหรับ Windows</div>
+                    <div style="font-size:12px; color:#cbd5e1;">โปรแกรมหน้าต่างกราฟิกพร้อมใช้งานในตัว ไม่ต้องลง Python หรือ Node.js ย่อลง System Tray ได้</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <a href="downloads/bpp-nvr-bridge.zip" download="bpp-nvr-bridge.zip" class="btn-primary" style="background:linear-gradient(135deg, #10b981, #059669); border:none; text-decoration:none; padding:8px 16px; font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(16,185,129,0.35); border-radius:8px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    ดาวน์โหลด BPP NVR Bridge (ZIP)
+                  </a>
+                  <a href="downloads/BPP-NVR-Bridge.ps1" download="BPP-NVR-Bridge.ps1" class="btn-secondary" style="background:rgba(56,189,248,0.2); border:1px solid rgba(56,189,248,0.45); color:#7dd3fc; text-decoration:none; padding:8px 14px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px; border-radius:8px;" title="ดาวน์โหลดเฉพาะไฟล์สคริปต์ตัวแก้ล่าสุดเพื่อนำไปวางทับ">
+                    ⚡ อัปเดตสคริปต์ (PS1)
+                  </a>
+                  <a href="/user_guide.html#mod7" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.45); color:#e9d5ff; text-decoration:none; padding:8px 14px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px; border-radius:8px; transition:all 0.2s;" title="เปิดดูคู่มือการเชื่อมต่อกล้อง VIGI, Edge LPR และ NVR Bridge ฉบับเต็ม">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    📖 คู่มือเว็บ (หมวด 7)
+                  </a>
+                </div>
+              </div>
+              <div style="font-size:12px; color:#cbd5e1; line-height:1.5;">
+                <b>วิธีใช้งาน:</b> แตกไฟล์ ZIP &gt; ดับเบิลคลิกเปิด <span style="font-family:var(--font-mono); color:#4ade80;">BPP-NVR-Bridge.vbs</span> (หรือ .bat) &gt; กรอก IP NVR (กรณีผ่านท่อ VPN ใช้ 10.10.10.2:554) และเลือกช่องกล้อง &gt; กด <b>"🚀 เริ่มส่งสัญญาณ"</b> ระบบจะส่งสัญญาณ RTMP Outbound ตรงเข้าสู่ BPP-VMS ทันที
+              </div>
+            </div>
+
+            <div style="background:rgba(10,8,22,0.8); border:1px solid rgba(74,222,128,0.3); border-radius:8px; padding:14px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#4ade80; margin-bottom:6px;">ทางเลือกที่ 1: กล้องหรือ NVR ผลักสัญญาณออก (RTMP Outbound Push)</div>
+              <div style="font-size:12px; color:#cbd5e1; margin-bottom:8px;">ไฟร์วอลล์และเน็ต 4G จะบล็อกเฉพาะการเชื่อมต่อขาเข้า (Inbound) แต่จะ<b>อนุญาตการส่งออก (Outbound) เสมอ</b>:</div>
+              <div style="font-family:var(--font-mono); font-size:12.5px; color:#f1f5f9; background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:4px; margin-bottom:8px;">
+                เป้าหมาย RTMP: <span style="color:#4ade80;">rtmp://[SERVER_IP]:1935/live/[stream_key]</span>
+              </div>
+              <div style="font-size:12px; color:#94a3b8;">กล้องหรือเครื่อง NVR ที่รองรับ RTMP Push สามารถใส่ URL นี้เพื่อส่งภาพสดเข้ามาที่ BPP-VMS ได้โดยตรงโดยไม่ต้องมีเราเตอร์ MikroTik</div>
+            </div>
+
+            <div style="background:rgba(10,8,22,0.8); border:1px solid rgba(74,222,128,0.3); border-radius:8px; padding:14px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#4ade80; margin-bottom:6px;">ทางเลือกที่ 2: ใช้คอมพิวเตอร์หน้างานเป็นตัวบริดจ์ (BPP NVR Bridge — รองรับ VIGI / Dahua / Hikvision)</div>
+              <div style="font-size:12px; color:#cbd5e1; margin-bottom:8px;">หากเครื่อง NVR หรือกล้องไม่มีเมนู RTMP Push ให้ใช้คอมพิวเตอร์ในวง LAN เดียวกับกล้องเปิดโปรแกรม BPP NVR Bridge ทำหน้าที่แปลงสัญญาณ RTSP ยี่ห้อ VIGI, Dahua, Hikvision หรือ Custom URL ส่งตรงเข้าสู่เซิร์ฟเวอร์ BPP-VMS อัตโนมัติ (กิน CPU ~0% ไม่กระตุก)</div>
+              <div style="font-family:var(--font-mono); font-size:11.5px; color:#cbd5e1; background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:4px;">
+                # ตัวอย่างคำสั่ง Bridge ที่โปรแกรมรันเบื้องหลัง (Stream Copy):<br>
+                ffmpeg -rtsp_transport tcp -re -i "rtsp://admin:pass@192.168.1.100:554/ch1/stream2" -c copy -f flv "rtmp://[SERVER_IP]:1935/live/[unit_code]_ch1"
+              </div>
+            </div>
+
+            <!-- SERVER REGISTRATION STEP -->
+            <div style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.4); border-radius:8px; padding:14px 16px; margin-bottom:16px;">
+              <div style="font-weight:600; color:#c084fc; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                ขั้นตอนฝั่งเซิร์ฟเวอร์: การลงทะเบียนกล้อง Bridge เข้า Dashboard (สำหรับผู้ดูแลระบบ)
+              </div>
+              <div style="font-size:12px; color:#cbd5e1; margin-bottom:10px;">หลังจากฝั่งหน้างานกด <b>"🚀 เริ่มส่งสัญญาณ (Start Bridge)"</b> ให้ผู้ดูแลระบบเพิ่มกล้องในระบบ BPP-VMS ดังนี้:</div>
+              <ol style="margin:0; padding-left:20px; font-size:12.5px; color:#cbd5e1; display:flex; flex-direction:column; gap:6px;">
+                <li>ไปที่เมนู <b>⚙️ ตั้งค่าระบบ</b> ➔ แท็บ <b>กล้องในระบบ (NVR)</b> ➔ คลิก <b>"+ เพิ่มกล้องใหม่"</b></li>
+                <li><b>ประเภทกล้อง (Preset):</b> เลือก <b>TP-Link VIGI (Smart AI)</b> เพื่อปิด Server AI (ประหยัด CPU 100%)</li>
+                <li><b>ชื่อกล้อง:</b> ตั้งตามรหัสหน่วยงานและช่อง เช่น <span style="font-family:var(--font-mono); color:#4ade80;">dan_khok_sung_ch1</span></li>
+                <li><b>RTSP URL (Main Stream):</b> กรอก URL สตรีม RTMP ภายในเครื่อง:
+                  <div style="font-family:var(--font-mono); font-size:11.5px; color:#4ade80; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px; margin-top:4px;">
+                    rtmp://127.0.0.1:1935/live/[unit_code]_ch[N] &nbsp;<span style="color:#94a3b8;">(เช่น rtmp://127.0.0.1:1935/live/dan_khok_sung_ch1)</span>
+                  </div>
+                </li>
+                <li>คลิก <b>"บันทึก"</b> ภาพสดจากหน่วยงานภายนอกจะปรากฏบน Dashboard ทันที</li>
+              </ol>
+            </div>
+
+            <!-- FIREWALL & PRE-FLIGHT WARNING WITH EXPANDABLE GUIDE -->
+            <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.25);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                <div style="font-weight: 700; color: #fbbf24; font-size: 13.5px; display: flex; align-items: center; gap: 6px;">
+                  <span>🛡️ ข้อกำหนดและการตั้งค่าไฟร์วอลล์ (Firewall & Network Guide)</span>
+                </div>
+                <a href="bpp_vms_master_guide.html" target="_blank" rel="noopener noreferrer" style="font-size: 11.5px; color: #38bdf8; text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>เปิดคู่มือฉบับเต็ม (Master Guide)</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </a>
+              </div>
+              
+              <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6; margin-bottom: 12px; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 6px;">
+                • <b>ฝั่งหน้างาน (Bridge):</b> Windows Firewall ต้องอนุญาตการเชื่อมต่อ <u>Outbound Port 1935 (RTMP)</u> ไปยังเซิร์ฟเวอร์<br>
+                • <b>ฝั่งเซิร์ฟเวอร์ (BPP-VMS):</b> ต้องเปิดรับ <u>Inbound Port 1935 (RTMP)</u> ใน Router/Firewall ของศูนย์สั่งการ
+              </div>
+
+              <!-- Accordion 1: ฝั่งหน้างาน Windows Firewall -->
+              <details style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; margin-bottom: 8px; overflow: hidden;" open>
+                <summary style="padding: 10px 14px; font-weight: 600; color: #60a5fa; font-size: 12.5px; cursor: pointer; user-select: none; background: rgba(59, 130, 246, 0.08); display: flex; align-items: center; gap: 6px;">
+                  <span>🖥️ 1. ฝั่งหน้างาน (Bridge Client) — ปลดบล็อค Windows Firewall (Outbound 1935)</span>
+                </summary>
+                <div style="padding: 12px 14px; font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+                  <div style="margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                      <strong style="color: #38bdf8;">วิธีที่ 1: รันคำสั่งด่วนใน PowerShell (Run as Administrator)</strong>
+                      <button type="button" class="btn-ghost" style="padding: 2px 10px; font-size: 11px; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="navigator.clipboard.writeText('New-NetFirewallRule -DisplayName &quot;BPP-VMS RTMP Outbound&quot; -Direction Outbound -LocalPort 1935 -Protocol TCP -Action Allow').then(() => { if (window.bppToast) window.bppToast('คัดลอกคำสั่ง PowerShell แล้ว!'); else alert('คัดลอกคำสั่ง PowerShell แล้ว!'); })">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        คัดลอกคำสั่ง
+                      </button>
+                    </div>
+                    <pre style="margin: 0; background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); color: #34d399; font-family: var(--font-mono); font-size: 11px; overflow-x: auto; white-space: pre-wrap;"><code>New-NetFirewallRule -DisplayName "BPP-VMS RTMP Outbound" -Direction Outbound -LocalPort 1935 -Protocol TCP -Action Allow</code></pre>
+                  </div>
+                  <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; margin-top: 8px;">
+                    <strong style="color: #94a3b8;">วิธีที่ 2: ตั้งค่าผ่านหน้าต่าง GUI:</strong>
+                    <ol style="margin: 4px 0 0 0; padding-left: 18px; font-size: 11.5px; color: #94a3b8;">
+                      <li>เปิด <code>Windows Defender Firewall with Advanced Security</code></li>
+                      <li>คลิก <b>Outbound Rules</b> (แถบซ้าย) ➔ คลิก <b>New Rule...</b> (แถบขวา)</li>
+                      <li>เลือก <b>Port</b> ➔ <b>TCP</b> ➔ กรอก Specific remote ports: <code>1935</code></li>
+                      <li>เลือก <b>Allow the connection</b> ➔ กด Next จนถึงหน้าสุดท้าย ตั้งชื่อ <code>BPP-VMS RTMP</code> แล้วกด Finish</li>
+                    </ol>
+                  </div>
+                </div>
+              </details>
+
+              <!-- Accordion 2: ฝั่งเซิร์ฟเวอร์ศูนย์สั่งการ Router Port Forwarding -->
+              <details style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px; margin-bottom: 8px; overflow: hidden;">
+                <summary style="padding: 10px 14px; font-weight: 600; color: #c084fc; font-size: 12.5px; cursor: pointer; user-select: none; background: rgba(168, 85, 247, 0.08); display: flex; align-items: center; gap: 6px;">
+                  <span>🏢 2. ฝั่งเซิร์ฟเวอร์ศูนย์ (BPP-VMS) — ตั้งค่า Forward พอร์ต 1935 (Inbound)</span>
+                </summary>
+                <div style="padding: 12px 14px; font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+                  <div style="margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                      <strong style="color: #a78bfa;">กรณีที่ 1: ศูนย์ใช้เราเตอร์ MikroTik (เสียบสายด่วนใน Terminal)</strong>
+                      <button type="button" class="btn-ghost" style="padding: 2px 10px; font-size: 11px; color: #c084fc; border-color: rgba(192, 132, 252, 0.4); cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" onclick="navigator.clipboard.writeText('/ip firewall nat add chain=dstnat dst-port=1935 action=dst-nat protocol=tcp to-addresses=[IP_BPP_VMS_SERVER] to-ports=1935 comment=&quot;BPP-VMS RTMP 1935&quot;').then(() => { if (window.bppToast) window.bppToast('คัดลอกคำสั่ง MikroTik แล้ว!'); else alert('คัดลอกคำสั่ง MikroTik แล้ว!'); })">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        คัดลอกคำสั่ง
+                      </button>
+                    </div>
+                    <pre style="margin: 0; background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); color: #c084fc; font-family: var(--font-mono); font-size: 11px; overflow-x: auto; white-space: pre-wrap;"><code>/ip firewall nat add chain=dstnat dst-port=1935 action=dst-nat protocol=tcp to-addresses=[IP_BPP_VMS_SERVER] to-ports=1935 comment="BPP-VMS RTMP 1935"</code></pre>
+                    <div style="font-size: 11px; color: #94a3b8; margin-top: 3px;">*เปลี่ยน <code>[IP_BPP_VMS_SERVER]</code> เป็น IP เครื่องเซิร์ฟเวอร์ เช่น <code>192.168.1.50</code></div>
+                  </div>
+
+                  <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; margin-top: 8px;">
+                    <strong style="color: #cbd5e1;">กรณีที่ 2: ศูนย์ใช้เราเตอร์ทั่วไปของผู้ให้บริการ (AIS Fibre / True / 3BB):</strong>
+                    <div style="font-size: 11.5px; color: #94a3b8; margin-top: 3px;">
+                      เข้าหน้าตั้งค่าเราเตอร์ ➔ หาเมนู <b>Port Forwarding / Virtual Server</b> ➔ เพิ่มกฎใหม่:
+                      External Port: <code>1935</code>, Internal Port: <code>1935</code>, Protocol: <code>TCP</code>, Internal IP: <code>IP เครื่อง BPP-VMS Docker</code>
+                    </div>
+                  </div>
+
+                  <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; margin-top: 8px;">
+                    <strong style="color: #cbd5e1;">กรณีที่ 3: ศูนย์ไม่มี Public IP (ติด CGNAT):</strong>
+                    <div style="font-size: 11.5px; color: #94a3b8; margin-top: 3px;">
+                      ให้ติดตั้ง <b>Tailscale</b> หรือ <b>ZeroTier</b> ทั้งเครื่อง Bridge หน้างานและเครื่อง BPP-VMS Server เพื่อจำลองวงแลนเสมือน (VPN Mesh) และยิงสตรีม RTMP ผ่าน IP ของ VPN โดยไม่ต้องเปิดพอร์ตที่เร้าเตอร์
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <!-- Accordion 3: การเข้ารหัสรหัสผ่านอัตโนมัติ (URL-encoding) -->
+              <details style="background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; overflow: hidden;">
+                <summary style="padding: 10px 14px; font-weight: 600; color: #6ee7b7; font-size: 12.5px; cursor: pointer; user-select: none; background: rgba(16, 185, 129, 0.08); display: flex; align-items: center; gap: 6px;">
+                  <span>🔐 3. การเข้ารหัสรหัสผ่านกล้องอัตโนมัติ (URL-encoding สำหรับ @, $, :, #)</span>
+                </summary>
+                <div style="padding: 12px 14px; font-size: 12px; color: #cbd5e1; line-height: 1.6;">
+                  <p style="margin: 0 0 8px 0;">
+                    ระบบ BPP-VMS Dashboard รุ่นใหม่จะทำการ <strong>URL-encoding ให้อัตโนมัติ</strong> หากรหัสผ่านของกล้องหรือ NVR มีอักขระพิเศษ ป้องกันปัญหาสตรีม RTSP/RTMP ไม่ขึ้น โดยแปลงตามมาตรฐานดังนี้:
+                  </p>
+                  <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <table style="border-collapse: collapse; font-size: 11.5px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08);">
+                      <tr style="background: rgba(255,255,255,0.05); color: #94a3b8;"><th style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08);">อักขระพิเศษ</th><th style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08);">URL-encoded</th><th style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08);">ตัวอย่าง</th></tr>
+                      <tr><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #fbbf24; font-weight: bold; text-align: center;">@</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #34d399; font-family: var(--font-mono);">%40</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono); font-size: 10.5px; color: #cbd5e1;">pass@123 ➔ pass%40123</td></tr>
+                      <tr><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #fbbf24; font-weight: bold; text-align: center;">#</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #34d399; font-family: var(--font-mono);">%23</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono); font-size: 10.5px; color: #cbd5e1;">bpp#215 ➔ bpp%23215</td></tr>
+                      <tr><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #fbbf24; font-weight: bold; text-align: center;">$</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #34d399; font-family: var(--font-mono);">%24</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono); font-size: 10.5px; color: #cbd5e1;">admin$99 ➔ admin%2499</td></tr>
+                      <tr><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #fbbf24; font-weight: bold; text-align: center;">:</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); color: #34d399; font-family: var(--font-mono);">%3A</td><td style="padding: 4px 10px; border: 1px solid rgba(255,255,255,0.08); font-family: var(--font-mono); font-size: 10.5px; color: #cbd5e1;">sec:ret ➔ sec%3Aret</td></tr>
+                    </table>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div style="background:rgba(74,222,128,0.08); border-left:3px solid #4ade80; padding:10px 14px; border-radius:0 8px 8px 0;">
+              <div style="font-weight:600; color:#4ade80; margin-bottom:4px;">✅ ข้อดีเด่นชัด:</div>
+              <div style="font-size:12px; color:#cbd5e1;">ประหยัดงบประมาณ ไม่ต้องจัดซื้อเราเตอร์ MikroTik เพิ่มเติม และไม่กระทบโครงสร้างระบบเครือข่ายเดิมของหน่วยงานนั้น รองรับ NVR ยี่ห้อชั้นนำทั้ง VIGI, Dahua, Hikvision สามารถนำเข้ากล้องนับสิบตัวสู่ศูนย์สั่งการ BPP-VMS ได้อย่างง่ายดายและปลอดภัย</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-foot" style="padding:12px 20px; border-top:1px solid rgba(168,85,247,0.25); display:flex; justify-content:flex-end; background:rgba(15,10,32,0.8);">
+          <button id="btnCloseCameraSetupGuide2" class="btn-primary" style="padding:8px 24px; font-size:13px; font-weight:600; cursor:pointer;">
+            เข้าใจแล้ว / ปิดหน้าต่าง
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- toast -->
+    <div id="toast" class="toast" role="status" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34e2a8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      <span id="toastMsg"></span>
+    </div>
+  </div>
+</div>
+<!-- Pin Chart.js so the dashboard never executes a different release merely
+     because the CDN's package alias advanced. -->
+<script src="assets/chart.umd.min.js"></script>
+<!-- Federation client disabled: standalone site deployment -->
+<!-- Hls.js client-side video buffering for KhonKaen HLS camera streams -->
+<script src="assets/hls.min.js"></script>
+<!-- v158: Comprehensive removal of officer pins, clearLayers & window.officerPointLayer sync (Incident 2.99) -->
+<script src="assets/app.js?v=158"></script>
+<script src="assets/account-label.js?v=1"></script>
+<!-- v17: Proper error icon in toast & Thai validation messages (Incident 2.82) -->
+<script src="assets/admin.js?v=17"></script>
+<!-- v11: Display observed plate and tier indicator badge for partial match history (ADR 0031) -->
+<script src="assets/watchlist.js?v=11"></script>
+<script src="assets/chat-widget.js?v=11"></script>
+<!-- v80: Comprehensive removal of officer pins, clearLayers & window.officerPointLayer sync (Incident 2.99) -->
+<script src="assets/analytics.js?v=82"></script>
+<!-- v27: Replace redundant vault/case ID with Person Address/Domicile in table & cards -->
+<script src="assets/arrest-vault.js?v=29"></script>
+<!-- v101: Mobile text layout fix - increase lineHeight, adaptive card width, fix parallel edge overlap -->
+<script src="assets/i2-graph.js?v=102"></script>
+<script src="assets/nas-video-archive.js?v=3"></script>
+<input type="file" id="logoUpload" accept="image/png, image/jpeg, image/webp" style="display:none">
+
+    <!-- ========== NVR AUTO-DISCOVERY MODAL ========== -->
+    <div id="scanNvrOverlay" class="overlay" style="z-index: 70;" hidden>
+      <div class="modal scan-nvr-modal" role="dialog" aria-modal="true" aria-label="ค้นหากล้อง NVR อัตโนมัติ" style="width: 700px; max-width: 95vw;">
+        <div class="modal-head">
+          <div class="modal-head-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+          </div>
+          <div class="modal-head-text">
+            <div class="modal-title">NVR Auto-Discovery Wizard</div>
+            <div class="modal-sub">ค้นหาและเพิ่มกล้องจาก NVR เครือข่ายเข้าสู่ระบบอัตโนมัติ (รองรับสูงสุด 64 ช่อง)</div>
+          </div>
+          <button id="btnCloseScanNvr" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+          <!-- Instructions Banner -->
+          <div style="background: rgba(99, 102, 241, 0.1); border-left: 4px solid #818cf8; border-radius: 8px; padding: 12px 15px; font-size: 12px; line-height: 1.6; color: #cbd5e1;">
+            <div style="font-weight: 600; color: #a5b4fc; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px;">
+              <span>💡 คำแนะนำการใช้งาน Wizard ค้นหากล้องอัตโนมัติ:</span>
+            </div>
+            <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;">
+              <li><strong>IP Address:</strong> ใส่ IP ของเครื่อง NVR ในวง LAN เช่น <code>192.168.1.100</code> หรือ Public IP / DDNS หากเชื่อมต่อข้ามไซต์</li>
+              <li><strong>RTSP Port:</strong> ค่ามาตรฐานคือ <code>554</code> (ไม่ต้องเปลี่ยนหากไม่ได้แก้ไขพอร์ตใน NVR)</li>
+              <li><strong>Username / Password:</strong> ใส่ชื่อผู้ใช้และรหัสผ่านของ <strong>เครื่อง NVR</strong> (ไม่ใช่รหัสเข้า BPP-VMS)</li>
+              <li><strong>ยี่ห้อ (Brand):</strong> เลือกยี่ห้อ NVR ให้ตรง เพื่อให้ระบบเรียกใช้เส้นทาง RTSP สตรีมที่ถูกต้อง (VIGI, Dahua, Hikvision)</li>
+              <li><strong>การทำงาน:</strong> ระบบจะใช้ Socket ตรวจสอบการตอบสนองของช่องสัญญาณ 1-64 หากพบสัญญาณจะแสดงในรายการให้เลือกเพื่อนำเข้าอัตโนมัติทันที</li>
+            </ul>
+          </div>
+
+          <!-- Section 1: NVR Connection Info -->
+          <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 10px;">ข้อมูลเครื่อง NVR</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <label class="field">
+                <span class="field-label">IP Address (Public/Local)</span>
+                <input id="inpScanIp" class="inp mono" type="text" placeholder="e.g. 192.168.1.100 or public-ip.com">
+              </label>
+              <label class="field">
+                <span class="field-label">RTSP Port (ค่าเริ่มต้น 554)</span>
+                <input id="inpScanPort" class="inp mono" type="number" placeholder="554" value="554">
+              </label>
+              <label class="field">
+                <span class="field-label">Username</span>
+                <input id="inpScanUser" class="inp mono" type="text" placeholder="admin" autocomplete="new-password" data-lpignore="true" data-1p-ignore>
+              </label>
+              <label class="field">
+                <span class="field-label">Password</span>
+                <input id="inpScanPass" class="inp mono" type="password" placeholder="••••••••" autocomplete="new-password" data-lpignore="true" data-1p-ignore>
+              </label>
+              <label class="field">
+                <span class="field-label">ยี่ห้อ (Brand)</span>
+                <select id="inpScanBrand" class="inp">
+                  <option value="TP-Link VIGI">TP-Link VIGI</option>
+                  <option value="Dahua / DH">Dahua</option>
+                  <option value="Hikvision / HIK">Hikvision</option>
+                </select>
+              </label>
+              <div style="display: flex; align-items: flex-end;">
+                <button id="btnStartScan" class="btn-primary" style="width: 100%; height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  เริ่มค้นหากล้อง (Scan)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Grouping Info -->
+          <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 10px;">การจัดกลุ่มกล้อง (Grouping)</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <label class="field">
+                <span class="field-label">รหัสหน่วยงาน (Unit Code)</span>
+                <input id="inpScanUnitCode" class="inp" type="text" placeholder="เช่น BPP215" value="BPP215">
+              </label>
+              <label class="field">
+                <span class="field-label">กลุ่มย่อย (Camera Group)</span>
+                <input id="inpScanGroup" class="inp" type="text" placeholder="เช่น อาคาร A, ป้อมหน้า">
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 3: Scan Results -->
+          <div style="flex: 1; min-height: 250px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column;">
+            <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 13px; font-weight: 600; color: #a78bfa;">ผลการค้นหา</span>
+              <label style="font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; color: #cbd5e1;">
+                <input type="checkbox" id="chkSelectAllScan" disabled> เลือกทั้งหมด
+              </label>
+            </div>
+            <div id="scanResultsList" style="padding: 10px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 300px; align-items: start; align-content: start;">
+              <div style="grid-column: 1 / -1; text-align: center; color: #666; padding: 20px; font-size: 13px;">กรุณากรอกข้อมูลและกดปุ่ม Scan...</div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+            <button id="btnCancelScan" class="btn-ghost">ยกเลิก</button>
+            <button id="btnSubmitScan" class="btn-primary" disabled>นำเข้ากล้องที่เลือก</button>
+          </div>
+        </div>
+      </div>
+    </div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

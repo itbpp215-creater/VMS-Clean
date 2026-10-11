@@ -1,0 +1,51 @@
+# mediamtx RTMP Relay Configuration
+# Accepts RTMP push from TP-Link VIGI cameras and exposes RTSP for go2rtc to pull
+
+###############################################
+# Global settings
+###############################################
+logLevel: info
+logDestinations: [stdout]
+
+###############################################
+# RTMP server - accepts VIGI camera push
+###############################################
+rtmp: yes
+rtmpAddress: :1935
+rtmpEncryption: "no"
+
+###############################################
+# RTSP server - go2rtc pulls from here
+###############################################
+rtsp: yes
+rtspAddress: :8554
+rtspsAddress: :8322
+rtspEncryption: "no"
+
+###############################################
+# Disable unused protocols
+###############################################
+hls: no
+webrtc: no
+srt: no
+record: no
+
+###############################################
+# Path defaults
+###############################################
+pathDefaults:
+  # Accept any incoming RTMP publish
+  source: publisher
+  # No authentication required
+  readUser:
+  readPass:
+  publishUser:
+  publishPass:
+  # Keep stream alive even when no readers
+  sourceOnDemand: no
+
+###############################################
+# Paths - auto-match any camera name
+###############################################
+paths:
+  all_others:

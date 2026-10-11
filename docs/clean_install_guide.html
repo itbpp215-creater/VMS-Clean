@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BPP-VMS - คู่มือติดตั้งระบบสำหรับเครื่องใหม่ (Clean Setup Guide)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --code-bg: #090d16;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    header h1 {
+      font-size: 2.2rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    header p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+    .badge-clean {
+      display: inline-block;
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      padding: 0.3rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 0.75rem;
+    }
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .checklist-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    .checklist-table th, .checklist-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .checklist-table th {
+      background: rgba(0,0,0,0.2);
+      color: var(--accent);
+    }
+    .tag-req {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+    .tag-opt {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--accent);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .section-title {
+      font-size: 1.5rem;
+      color: var(--accent);
+      margin: 2.5rem 0 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .step-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+    .step-card h3 {
+      font-size: 1.25rem;
+      color: #fff;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .meta-box {
+      background: rgba(0,0,0,0.3);
+      border-left: 4px solid var(--accent);
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0 1rem;
+      border-radius: 0 6px 6px 0;
+    }
+    .meta-box span {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .meta-box strong {
+      color: #fff;
+    }
+    ol, ul {
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: Consolas, monospace;
+      font-size: 0.9rem;
+      color: #38bdf8;
+      margin: 0.75rem 0;
+      position: relative;
+    }
+    .btn-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #0284c7;
+      color: #fff;
+      text-decoration: none;
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      transition: background 0.2s;
+    }
+    .btn-link:hover {
+      background: var(--accent-hover);
+    }
+    .callout-safe {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1.5rem 0;
+      color: #86efac;
+    }
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>📹 BPP-VMS Clean Installation Guide</h1>
+    <p>คู่มือเตรียมข้อมูลและตั้งค่าระบบสำหรับเครื่องใหม่ (Zero-BPP215 Leak)</p>
+    <div class="badge-clean">🛡️ ปลอดภัย 100% — ปราศจากข้อมูลความลับของ ตชด.215</div>
+  </header>
+
+  <div class="summary-card">
+    <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #fff;">📋 สิ่งที่ต้องจัดเตรียมก่อนเริ่มติดตั้ง (Quick Checklist)</h2>
+    <p style="color: var(--text-muted); font-size: 0.95rem;">
+      ระบบนี้เปิดทำงานได้ทันทีแม้ยังไม่มีคีย์เสริม โดยคุณสามารถนำคีย์ของหน่วยงานตนเองมาใส่ตามหัวข้อด้านล่างนี้:
+    </p>
+
+    <table class="checklist-table">
+      <thead>
+        <tr>
+          <th>ลำดับ</th>
+          <th>รายการ</th>
+          <th>ความสำคัญ</th>
+          <th>เอามาจากไหน</th>
+          <th>นำไปใส่ตรงไหน</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>Superadmin Password</strong></td>
+          <td><span class="tag-req">จำเป็น</span></td>
+          <td>กำหนดขึ้นใหม่เอง</td>
+          <td>หน้าต่างตอนรัน <code>Setup_New_Machine.bat</code></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><strong>กล้องวงจรปิด (RTSP)</strong></td>
+          <td><span class="tag-req">จำเป็น</span></td>
+          <td>กล้อง IP / NVR ในเครือข่ายของท่าน</td>
+          <td><code>config/config.yml</code> หรือหน้าเว็บเมนูจัดการกล้อง</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><strong>Google Gemini API Key</strong></td>
+          <td><span class="tag-opt">เสริม (AI)</span></td>
+          <td>Google AI Studio (สมัครฟรี)</td>
+          <td><code>frigate-nvr/.env</code> หรือกรอกตอนติดตั้ง</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><strong>Telegram Bot Token</strong></td>
+          <td><span class="tag-opt">เสริม (แจ้งเตือน)</span></td>
+          <td>แอป Telegram ผ่าน <code>@BotFather</code></td>
+          <td><code>Setup_Telegram_Bot.bat</code> หรือใน <code>.env</code></td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><strong>NAS Storage</strong></td>
+          <td><span class="tag-opt">เสริม (สำรองไฟล์)</span></td>
+          <td>IP Server / Synology ของหน่วยงาน</td>
+          <td><code>Setup_NAS_Storage.bat</code> หรือใน <code>.env</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="section-title">🔍 รายละเอียดทีละขั้นตอน: เอามาจากไหน และเอาไปใส่ที่ไหน</h2>
+
+  <!-- Step 1: Admin Password -->
+  <div class="step-card">
+    <h3>1. บัญชีผู้ดูแลระบบ (Superadmin Account)</h3>
+    <div class="meta-box">
+      <span><strong>ที่มา:</strong> กำหนดเองตอนติดตั้งครั้งแรก</span>
+      <span><strong>ตำแหน่งที่ใส่:</strong> หน้าต่าง Command Prompt ขณะรัน <code>Setup_New_Machine.bat</code></span>
+    </div>
+    <ol>
+      <li>เมื่อดับเบิลคลิกไฟล์ <code>Setup_New_Machine.bat</code> ตัวช่วยติดตั้งจะหยุดถามรหัสผ่านสำหรับบัญชี <code>admin</code></li>
+      <li>พิมพ์รหัสผ่านที่ต้องการ (ความยาวตั้งแต่ 8 ตัวอักษรขึ้นไป) แล้วกด <kbd>Enter</kbd></li>
+      <li>ระบบจะสร้างไฟล์ช่วยจำชื่อ <code>Admin_Login_Info.txt</code> ไว้ที่หน้าหลักของระบบให้อัตโนมัติ</li>
+    </ol>
+  </div>
+
+  <!-- Step 2: Cameras -->
+  <div class="step-card">
+    <h3>2. สตรีมกล้องวงจรปิด (Camera RTSP Streams)</h3>
+    <div class="meta-box">
+      <span><strong>ที่มา:</strong> IP Address, Username, และ Password ของกล้อง IP Camera หรือเครื่องบันทึก DVR/NVR ในจุดตรวจ</span>
+      <span><strong>ตำแหน่งที่ใส่:</strong> ไฟล์ <code>frigate-nvr/config/config.yml</code> หรือผ่านหน้า Dashboard "จัดการกล้อง"</span>
+    </div>
+    <p>ตัวอย่างรูปแบบ RTSP URL ตามยี่ห้อกล้องยอดนิยม:</p>
+    <ul>
+      <li><strong>Hikvision / Hilook:</strong> <code>rtsp://admin:Password123@192.168.1.101:554/Streaming/Channels/101</code></li>
+      <li><strong>Dahua / Imou:</strong> <code>rtsp://admin:Password123@192.168.1.101:554/cam/realmonitor?channel=1&subtype=0</code></li>
+      <li><strong>Uniview (UNV):</strong> <code>rtsp://admin:Password123@192.168.1.101:554/unicast/c1/s0/live</code></li>
+      <li><strong>กล้องทั่วไป (ONVIF):</strong> <code>rtsp://admin:Password123@192.168.1.101:554/live/ch0</code></li>
+    </ul>
+    <p>วิธีใส่ลงใน <code>frigate-nvr/config/config.yml</code>:</p>
+    <pre><code>go2rtc:
+  streams:
+    cam_gate:
+      - rtsp://admin:Pass1234@192.168.1.100:554/Streaming/Channels/101
+
+cameras:
+  cam_gate:
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/cam_gate
+          roles:
+            - detect
+            - record
+    detect:
+      enabled: true
+    record:
+      enabled: true</code></pre>
+  </div>
+
+  <!-- Step 3: Google Gemini API Key -->
+  <div class="step-card">
+    <h3>3. Google Gemini API Key (สมองกล AI ประจำระบบ)</h3>
+    <div class="meta-box">
+      <span><strong>ที่มา:</strong> เว็บไซต์ Google AI Studio (บริการฟรีของ Google)</span>
+      <span><strong>ตำแหน่งที่ใส่:</strong> กรอกตอนรัน <code>Setup_New_Machine.bat</code> หรือใส่ใน <code>frigate-nvr/.env</code></span>
+    </div>
+    <ol>
+      <li>เปิดเบราว์เซอร์แล้วไปที่: <a href="https://aistudio.google.com/app/apikey" target="_blank" class="btn-link">🔗 เปิด Google AI Studio (Get API Key)</a></li>
+      <li>ล็อกอินด้วยบัญชี Gmail ของท่าน</li>
+      <li>กดปุ่มสีน้ำเงิน <strong>"Create API key"</strong></li>
+      <li>คัดลอก (Copy) คีย์ที่ได้รับ (จะขึ้นต้นด้วยตัวอักษร <code>AIzaSy...</code>)</li>
+      <li>นำมาใส่ในไฟล์ <code>frigate-nvr/.env</code> ตรงบรรทัด:
+        <pre><code>GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Step 4: Telegram Bot -->
+  <div class="step-card">
+    <h3>4. Telegram Bot Token & Chat ID (ระบบแจ้งเตือนผ่านมือถือ)</h3>
+    <div class="meta-box">
+      <span><strong>ที่มา:</strong> แอป Telegram คุยกับ <code>@BotFather</code> และ <code>@userinfobot</code></span>
+      <span><strong>ตำแหน่งที่ใส่:</strong> รัน <code>Setup_Telegram_Bot.bat</code> หรือใส่ใน <code>frigate-nvr/.env</code></span>
+    </div>
+    <ol>
+      <li><strong>ขอ Token:</strong> เปิด Telegram ค้นหา <strong>@BotFather</strong> แล้วส่งข้อความ <code>/newbot</code> จากนั้นตั้งชื่อและ Username ให้บอท จะได้ Token เช่น <code>7123456789:AAH...</code></li>
+      <li><strong>หา Chat ID:</strong> ค้นหา <strong>@userinfobot</strong> แล้วกด Start จะได้ตัวเลข ID เช่น <code>123456789</code></li>
+      <li>นำไปใส่โดยดับเบิลคลิก <code>Setup_Telegram_Bot.bat</code> หรือใส่ใน <code>frigate-nvr/.env</code>:
+        <pre><code>TELEGRAM_BOT_TOKEN=7123456789:AAHxxxxxxxxxxxxxxxxxxxx
+TELEGRAM_CHAT_ID=123456789</code></pre>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Step 5: NAS Storage -->
+  <div class="step-card">
+    <h3>5. NAS Storage (พื้นที่สำรองข้อมูลเครือข่าย - ไม่บังคับ)</h3>
+    <div class="meta-box">
+      <span><strong>ที่มา:</strong> IP Address และชื่อ Shared Folder ของ NAS ในหน่วยงาน</span>
+      <span><strong>ตำแหน่งที่ใส่:</strong> รัน <code>Setup_NAS_Storage.bat</code> หรือใส่ใน <code>frigate-nvr/.env</code></span>
+    </div>
+    <p>หากมี Synology NAS ให้ใส่ค่าใน <code>frigate-nvr/.env</code>:</p>
+    <pre><code>NAS_HOST=192.168.1.200
+NAS_SHARE=vms_recordings
+NAS_USER=vms_admin
+NAS_PASS=NasPassword123</code></pre>
+    <p><em>(หากไม่มี ให้เว้นว่างไว้ ระบบจะบันทึกลงในไดรฟ์ D:\ ของเครื่องนั้นเอง)</em></p>
+  </div>
+
+  <div class="callout-safe">
+    <strong>💡 เคล็ดลับการอัปเดตระบบในอนาคต:</strong><br>
+    เมื่อมีเวอร์ชันใหม่ออกมา เพียงรันคำสั่ง <code>git pull</code> หรือดับเบิลคลิก <code>Update_System.bat</code> ระบบจะทำการอัปเดตเฉพาะโค้ดโปรแกรม ส่วนกล้อง บอท รหัสผ่าน และการตั้งค่าของท่านจะคงอยู่ครบ 100% ไม่ถูกเขียนทับแน่นอน
+  </div>
+
+  <footer>
+    <p>BPP-VMS Clean Distribution Framework | เอกสารเผยแพร่สำหรับติดตั้งภายนอก</p>
+  </footer>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+# LPR live sampling via Frigate latest.jpg plus post-event recording replay
+
+On 2026-10-04 a clearly visible plate (`กง2238`, CH02 `D_BPP215_2`) was never read even though LPR was enabled. The detector found it (conf 0.74), but the "Frigate OSD purple border" colour filter rejected it because the plate was in shade with a blue cast. Separately, mainstream owner election counted *ended* events, so the high-resolution sampling path never ran, and the per-sample RTSP open (~2.7 s on HEVC) was too slow anyway for the 1–2 s a plate is legible.
+
+We decided to (1) delete the colour filter outright, since every LPR frame is fetched with `bbox=0` and no border is ever drawn; (2) elect sampling owners from in-progress events only; (3) sample live frames from Frigate `latest.jpg` (~20 ms, detect resolution) instead of opening RTSP per sample; and (4) when live sampling yields no readable plate, replay the vehicle's pass from Frigate **recordings** at full resolution (`/api/<cam>/recordings/<ts>/snapshot.jpg`, ~0.2 s/frame) along the event's `path_data` inside the LPR zone, ~12 s after the event ends so the segment is flushed.
+
+This deliberately reverses the 2026-08-17 operator rule "no clip/historical-frame retrieval, real-time only". The operator chose it over a persistent RTSP decoder (constant CPU for HEVC 2K) and over detect-resolution-only sampling (misses distant plates). Replay results enter the same human-review queue as live reads; nothing is auto-confirmed. Disable with `LPR_RECORDING_REPLAY=0`.

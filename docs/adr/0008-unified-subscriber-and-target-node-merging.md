@@ -1,0 +1,3 @@
+# Unified SIM Subscriber and Device Target Node Merging
+
+In telecommunication intelligence, forensic SPNI extraction files introduce suspect target users (e.g., 'ไอ้หมีบ้านนาใหม่') whose phone numbers may already map to registered SIM owners or bank account names (e.g., 'นส. ชลธิชา จัดงูเหลือม') from prior i2 charts or TR14 lookups. To prevent visual node clutter and graph fragmentation while preserving full evidentiary transparency, we decided to consolidate them onto the same entity node, retaining the original registered owner details and appending the suspect user identity as ` / <เป้าหมาย> (ผู้ใช้งาน)`.

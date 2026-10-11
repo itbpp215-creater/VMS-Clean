@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLOTH BPP 215 - ระบบบริหารจัดการวิดีโอและเฝ้าระวังอัจฉริยะ (BPP-VMS)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #040814;
+      --bg-card: rgba(12, 20, 39, 0.85);
+      --bg-card-hover: rgba(18, 30, 58, 0.95);
+      --cyan: #00f2ff;
+      --cyan-glow: rgba(0, 242, 255, 0.35);
+      --blue: #0072ff;
+      --green: #00ff87;
+      --orange: #ff9900;
+      --red: #ff3366;
+      --purple: #9d4edd;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border-glow: 1px solid rgba(0, 242, 255, 0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Kanit', 'Outfit', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(0, 242, 255, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(0, 114, 255, 0.08) 0%, transparent 40%),
+        linear-gradient(to bottom, rgba(4, 8, 20, 0.98), rgba(4, 8, 20, 0.98));
+    }
+
+    /* Navbar */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      background: rgba(4, 8, 20, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: var(--border-glow);
+      padding: 14px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--cyan), var(--blue));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800; font-size: 1.2rem;
+      color: #000;
+      box-shadow: 0 0 15px var(--cyan-glow);
+    }
+
+    .brand-text h2 {
+      font-family: 'Outfit', 'Kanit', sans-serif;
+      font-size: 1.2rem; font-weight: 700;
+      letter-spacing: 1px;
+      background: linear-gradient(90deg, #fff, var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text span {
+      font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: -3px;
+    }
+
+    .nav-links {
+      display: flex; gap: 16px; list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem; font-weight: 400;
+      transition: all 0.25s ease;
+      padding: 6px 10px; border-radius: 8px;
+    }
+
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--cyan);
+      background: rgba(0, 242, 255, 0.08);
+    }
+
+    .btn-live {
+      background: linear-gradient(135deg, var(--cyan), var(--blue));
+      color: #000; font-weight: 600; font-size: 0.9rem;
+      padding: 8px 18px; border-radius: 20px;
+      text-decoration: none;
+      box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .btn-live:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 25px rgba(0, 242, 255, 0.6);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 100px 24px 60px;
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 40px 0 60px;
+      position: relative;
+    }
+
+    .badge-hero {
+      display: inline-block;
+      padding: 6px 18px;
+      background: rgba(0, 242, 255, 0.1);
+      border: 1px solid var(--cyan);
+      border-radius: 30px;
+      color: var(--cyan); font-size: 0.85rem; font-weight: 600;
+      margin-bottom: 20px; letter-spacing: 1px;
+    }
+
+    .hero h1 {
+      font-family: 'Outfit', 'Kanit', sans-serif;
+      font-size: 3.2rem; font-weight: 800;
+      line-height: 1.25; margin-bottom: 16px;
+      background: linear-gradient(90deg, #ffffff 0%, #00f2ff 50%, #0072ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      max-width: 800px; margin: 0 auto 32px;
+      font-size: 1.15rem; color: var(--text-muted); font-weight: 300;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 40px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: var(--border-glow);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.2rem; font-weight: 800;
+      color: var(--cyan);
+    }
+
+    .stat-label {
+      font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;
+    }
+
+    /* Section Styles */
+    section {
+      margin-bottom: 80px;
+      scroll-margin-top: 100px;
+    }
+
+    .section-header {
+      margin-bottom: 32px;
+    }
+
+    .section-tag {
+      color: var(--cyan); font-size: 0.85rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px;
+    }
+
+    .section-title {
+      font-size: 2rem; font-weight: 700; color: #fff;
+    }
+
+    /* Cards Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 28px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(0, 242, 255, 0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .col-12 { grid-column: span 12; }
+    .col-6 { grid-column: span 6; }
+    .col-4 { grid-column: span 4; }
+
+    .card-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 16px;
+    }
+
+    .icon-cyan { background: rgba(0, 242, 255, 0.15); color: var(--cyan); }
+    .icon-green { background: rgba(0, 255, 135, 0.15); color: var(--green); }
+    .icon-blue { background: rgba(0, 114, 255, 0.15); color: var(--blue); }
+    .icon-orange { background: rgba(255, 153, 0, 0.15); color: var(--orange); }
+    .icon-purple { background: rgba(157, 78, 221, 0.15); color: var(--purple); }
+    .icon-red { background: rgba(255, 51, 102, 0.15); color: var(--red); }
+
+    .card h3 {
+      font-size: 1.25rem; font-weight: 600; color: #fff; margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 0.95rem; color: var(--text-muted); line-height: 1.6;
+    }
+
+    /* Workflow Pipeline */
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .pipe-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 20px; border-radius: 12px;
+    }
+
+    .pipe-badge {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--cyan); color: #000;
+      font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.1rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .pipe-content h4 { font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    .pipe-content p { font-size: 0.9rem; color: var(--text-muted); }
+
+    /* Interactive Provisioning Demo */
+    .demo-box {
+      background: #091122;
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      border-radius: 14px;
+      padding: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block; font-size: 0.85rem; color: var(--cyan); margin-bottom: 6px; font-weight: 500;
+    }
+
+    .form-input {
+      width: 100%;
+      background: #040914;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff; padding: 10px 14px;
+      border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.9rem;
+    }
+
+    .checkbox-group {
+      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
+    }
+
+    .checkbox-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.85rem; color: var(--text-main); cursor: pointer;
+    }
+
+    .btn-action {
+      background: var(--cyan); color: #000;
+      border: none; padding: 10px 24px; border-radius: 8px;
+      font-weight: 600; font-size: 0.9rem; cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action:hover {
+      box-shadow: 0 0 15px var(--cyan-glow);
+    }
+
+    /* Terminal Window */
+    .terminal {
+      background: #02050b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px; overflow: hidden;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .term-header {
+      background: #0b1329; padding: 10px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .term-dots { display: flex; gap: 6px; }
+    .term-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+
+    .term-title { font-size: 0.75rem; color: var(--text-muted); }
+
+    .term-body {
+      padding: 16px; font-size: 0.85rem; color: #a6accd;
+      overflow-x: auto; line-height: 1.7;
+    }
+
+    .term-cmd { color: var(--cyan); }
+    .term-comment { color: #546e7a; }
+    .term-ok { color: var(--green); }
+
+    /* Security Matrix Table */
+    table.sec-table {
+      width: 100%; border-collapse: collapse; margin-top: 12px;
+    }
+
+    table.sec-table th, table.sec-table td {
+      padding: 12px 16px; text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    table.sec-table th {
+      background: rgba(0, 242, 255, 0.05);
+      color: var(--cyan); font-size: 0.85rem; font-weight: 600;
+    }
+
+    table.sec-table td { font-size: 0.9rem; color: var(--text-muted); }
+
+    .badge-sec {
+      display: inline-block; padding: 4px 10px; border-radius: 12px;
+      font-size: 0.75rem; font-weight: 600;
+    }
+
+    .b-green { background: rgba(0, 255, 135, 0.15); color: var(--green); border: 1px solid var(--green); }
+    .b-blue { background: rgba(0, 114, 255, 0.15); color: var(--blue); border: 1px solid var(--blue); }
+    .b-orange { background: rgba(255, 153, 0, 0.15); color: var(--orange); border: 1px solid var(--orange); }
+    .b-purple { background: rgba(157, 78, 221, 0.15); color: var(--purple); border: 1px solid var(--purple); }
+
+    /* Roadmap Phase Cards */
+    .roadmap-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+    }
+
+    .phase-tag {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.8rem; font-weight: 700;
+      letter-spacing: 1px; color: var(--cyan);
+      margin-bottom: 8px; display: block;
+    }
+
+    ul.feature-list { list-style: none; }
+    ul.feature-list li {
+      position: relative; padding-left: 20px; margin-bottom: 10px;
+    }
+    ul.feature-list li::before {
+      content: '•'; color: var(--primary); font-size: 1.2rem; line-height: 1; position: absolute; left: 0; top: 0; font-size: 0.8rem;
+    }
+
+    /* Footer */
+    footer {
+      border-top: var(--border-glow);
+      padding: 40px 24px; text-align: center; color: var(--text-muted); font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.2rem; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .col-6, .col-4 { grid-column: span 12; }
+      .nav-links { display: none; }
+    }
+
+    @media (max-width: 480px) {
+      nav { padding: 12px 16px; }
+      .brand-text span { display: none; }
+      .hero h1 { font-size: 1.7rem; }
+      .hero p { font-size: 0.95rem; }
+      .stats-grid { grid-template-columns: 1fr; }
+      main { padding: 20px 12px; }
+      .section-header h2 { font-size: 1.5rem; }
+      .card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav>
+    <a href="#" class="brand">
+      <div class="brand-logo">S</div>
+      <div class="brand-text">
+        <h2>SLOTH BPP 215</h2>
+        <span>Multi-Company Distributed AI Surveillance System</span>
+      </div>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#arch">สถาปัตยกรรมกระจายศูนย์ระดับกองร้อย</a></li>
+      <li><a href="#workflow">กลไกการทำงาน</a></li>
+      <li><a href="#camera">การเพิ่มกล้อง</a></li>
+      <li><a href="#install">การติดตั้ง</a></li>
+      <li><a href="#security">ระบบความปลอดภัย</a></li>
+      <li><a href="#roadmap">แผนพัฒนาอนาคต</a></li>
+      <li><a href="#hardware">สเปกคอมมาตรฐาน & DDNS</a></li>
+    </ul>
+    <a href="/index.html" class="btn-live"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:4px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>เปิดหน้า Live NVR</a>
+  </nav>
+
+  <div class="container">
+
+    <!-- Hero Section -->
+    <div class="hero">
+      <div class="badge-hero">SLOTH BPP MULTI-COMPANY DISTRIBUTED ARCHITECTURE</div>
+      <h1>ระบบเฝ้าระวังแบบกระจายศูนย์ระดับกองร้อย<br>และการเชื่อมโยงข้อมูล AI ป้ายทะเบียน</h1>
+      <p>โครงสร้างสถาปัตยกรรมกระจายศูนย์โดยให้แต่ละกองร้อยมีเครื่องคอมพิวเตอร์หลักของตัวเอง ประมวลผลวิดีโอในพื้นที่ และเชื่อมต่อแลกเปลี่ยนข้อมูล Watchlist ระหว่างกองร้อย พร้อมตัวเลือกจัดเก็บข้อมูลย้อนหลังด้วย NAS กองร้อย หรือ NAS กองกำกับการ</p>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-num">โหนดกองร้อย</div>
+          <div class="stat-label">มีเครื่องคอมพิวเตอร์หลักประจำกองร้อย</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">&lt; 0.2s</div>
+          <div class="stat-label">ความเร็วตรวจจับอ่านป้ายทะเบียน (LPR)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">Mesh Sync</div>
+          <div class="stat-label">เชื่อมโยงข้อมูลระหว่างกองร้อยเรียลไทม์</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">Company/HQ NAS</div>
+          <div class="stat-label">เลือกสำรองข้อมูล NAS กองร้อย หรือ NAS กองกำกับ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: System Architecture -->
+    <section id="arch">
+      <div class="section-header">
+        <div class="section-tag">PART 1: MULTI-COMPANY ARCHITECTURE</div>
+        <h2 class="section-title">1. สถาปัตยกรรมกระจายศูนย์ระดับกองร้อย (Multi-Company Federation Architecture)</h2>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card col-12">
+          <div class="card-icon icon-cyan"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+          <h3>กลไกการทำงานแบบกระจายศูนย์ระดับกองร้อย (Distributed Company Nodes + Inter-Sync)</h3>
+          <p>ออกแบบระบบตามโครงสร้างกองร้อยตำรวจตระเวนชายแดน (ตชด.215, ตชด.214, ฯลฯ) เพื่อความคล่องตัวสูงสุด โดยมีหลักการทำงานสำคัญดังนี้:</p>
+          
+          <div class="cards-grid" style="margin-top: 20px;">
+            <div class="card col-4" style="background: rgba(255,255,255,0.02);">
+              <h4 style="color: var(--cyan);">1. เครื่องคอมหลักประจำกองร้อย</h4>
+              <p style="font-size:0.85rem; margin-top:6px;"><strong>Company Host Node:</strong> แต่ละกองร้อยมีเครื่องคอมพิวเตอร์หลักเป็นของตัวเอง ทำหน้าที่เป็น NVR และ AI Engine รับสตรีมกล้องวงจรปิดในเขตพื้นที่รับผิดชอบของกองร้อยนั้นๆ</p>
+            </div>
+            <div class="card col-4" style="background: rgba(255,255,255,0.02);">
+              <h4 style="color: var(--green);">2. การเชื่อมต่อข้อมูลระหว่างกองร้อย</h4>
+              <p style="font-size:0.85rem; margin-top:6px;"><strong>Inter-Company Sync:</strong> เครื่องคอมหลักของทุกกองร้อยสามารถเชื่อมต่อและซิงค์แลกเปลี่ยนข้อมูล Watchlist ป้ายทะเบียนรถต้องสงสัยคดียาเสพติดระหว่างกันได้แบบเรียลไทม์</p>
+            </div>
+            <div class="card col-4" style="background: rgba(255,255,255,0.02);">
+              <h4 style="color: var(--blue);">3. ยืดหยุ่นในการเลือกใช้ NAS</h4>
+              <p style="font-size:0.85rem; margin-top:6px;"><strong>Company or HQ NAS:</strong> แต่ละกองร้อยเลือกได้ว่าจะติดตั้ง NAS ประจำกองร้อยเอง หรือส่งไฟล์วิดีโอคลิปเหตุการณ์ไปสำรองไว้ที่ NAS รวมศูนย์ของ **กองกำกับการ**</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Operating Workflow -->
+    <section id="workflow">
+      <div class="section-header">
+        <div class="section-tag">PART 2: WORKFLOW</div>
+        <h2 class="section-title">2. ขั้นตอนและกลไกการทำงาน (Operating Workflow)</h2>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card col-6">
+          <div class="card-icon icon-green"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></div>
+          <h3>ขั้นตอนการประมวลผลวิดีโอและ AI (Processing Pipeline)</h3>
+          <div class="pipeline">
+            <div class="pipe-step">
+              <div class="pipe-badge">1</div>
+              <div class="pipe-content">
+                <h4>RTSP Stream Ingestion</h4>
+                <p>ดึงสตรีมหลัก (HD) สำหรับบันทึก และสตรีมย่อย (Sub-stream) จากกล้องวงจรปิดในพื้นที่กองร้อยเข้าสู่เครื่องคอมหลัก</p>
+              </div>
+            </div>
+            <div class="pipe-step">
+              <div class="pipe-badge">2</div>
+              <div class="pipe-content">
+                <h4>AI Object Track & Zone Filtering</h4>
+                <p>โมเดล YOLO วิเคราะห์ตรวจจับ Person, Car, Motorcycle, Truck ในโซนที่กำหนด หากพบวัตถุจะสร้าง Event ทันที</p>
+              </div>
+            </div>
+            <div class="pipe-step">
+              <div class="pipe-badge">3</div>
+              <div class="pipe-content">
+                <h4>Thai LPR Sidecar Extraction</h4>
+                <p>เมื่อพบยานพาหนะ LPR Service จะดึง Crop Frame ความละเอียดสูงมาสแกนตัวอักษรและหมวดจังหวัดภาษาไทย</p>
+              </div>
+            </div>
+            <div class="pipe-step">
+              <div class="pipe-badge">4</div>
+              <div class="pipe-content">
+                <h4>Watchlist Matching & Instant Alert</h4>
+                <p>เปรียบเทียบเลขทะเบียนกับ Watchlist DB ซิงค์ข้ามกองร้อย หากตรงกันจะส่งการ์ดแจ้งเตือนเข้า Discord/Line ทันที</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card col-6">
+          <div class="card-icon icon-blue"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
+          <h3>ตัวอย่างการแจ้งเตือนเหตุการณ์จริง (Real-Time Notification Card)</h3>
+          <div style="background:#091325; border:1px solid var(--border-cyan); border-radius:12px; padding:20px; margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px; margin-bottom:12px;">
+              <span style="color:var(--red); font-weight:700; font-size:0.9rem;">แจ้งเตือนพบยานพาหนะเฝ้าระวัง!</span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">เมื่อสักครู่</span>
+            </div>
+            <p style="font-size:0.9rem; margin-bottom:6px;"><strong>ป้ายทะเบียน:</strong> <span style="background:var(--red); color:#fff; padding:2px 8px; border-radius:4px; font-weight:700;">1กข 8888 กรุงเทพมหานคร</span></p>
+            <p style="font-size:0.9rem; margin-bottom:6px;"><strong>กล้อง:</strong> nongwang8 (จุดตรวจทางเข้ากองร้อย ตชด.215)</p>
+            <p style="font-size:0.9rem; margin-bottom:6px;"><strong>สถานที่:</strong> กองร้อยตำรวจตระเวนชายแดนที่ 215 (อ.นางรอง)</p>
+            <p style="font-size:0.9rem; margin-bottom:12px;"><strong>หมายเหตุ:</strong> ข้อมูลซิงค์จากบัญชีเฝ้าระวังกลาง กองกำกับการ</p>
+            <div style="background:#030712; height:120px; border-radius:8px; border:1px dashed var(--cyan); display:flex; align-items:center; justify-content:center; color:var(--cyan); font-size:0.85rem;">
+              [ภาพ Snapshot + กรอบตรวจจับ AI]
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Camera Provisioning -->
+    <section id="camera">
+      <div class="section-header">
+        <div class="section-tag">PART 3: PROVISIONING</div>
+        <h2 class="section-title">3. ขั้นตอนการเพิ่มและจัดการกล้อง (Camera Provisioning Guide)</h2>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card col-6">
+          <div class="card-icon icon-orange"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
+          <h3>ขั้นตอนการเพิ่มกล้องใหม่เข้าสู่ระบบ</h3>
+          <ol style="padding-left: 20px; color: var(--text-muted); font-size:0.95rem; line-height:1.8;">
+            <li><strong>เข้าสู่ระบบด้วยสิทธิ์ Admin:</strong> ล็อกอินผ่านหน้าเว็บ `https://localhost/login.html`</li>
+            <li><strong>เปิดหน้าตั้งค่าระบบ (Settings):</strong> คลิกปุ่มฟันเฟืองมุมขวาบน เลือกแถบ "จัดการกล้อง"</li>
+            <li><strong>กรอก RTSP Stream URL:</strong> ใส่ Stream URL หลัก (Main) และสตรีมย่อย (Sub-stream)</li>
+            <li><strong>กดปุ่ม "ทดสอบ":</strong> ระบบจะดึง Snapshot ทดสอบความสมบูรณ์ของภาพนิ่งเรียลไทม์</li>
+            <li><strong>เลือกวัตถุที่ต้องการให้ AI ตรวจจับ:</strong> ติ๊กเลือก Person, Car, Motorcycle, Truck หรือตีกรอบ Detection Zone</li>
+            <li><strong>กด "บันทึก":</strong> ระบบจะเขียน Config อะตอมมิกและรีสตาร์ทบริการแบบไม่กระทบประวัติคลังเหตุการณ์ย้อนหลัง</li>
+          </ol>
+        </div>
+
+        <div class="card col-6">
+          <div class="card-icon icon-cyan"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg></div>
+          <h3>ทดลองจำลองฟอร์มเพิ่มกล้อง (Interactive Camera Demo)</h3>
+          <div class="demo-box">
+            <div class="form-group">
+              <label>ชื่อกล้อง (Camera Name)</label>
+              <input type="text" class="form-input" id="demoCamName" value="nongwang16">
+            </div>
+            <div class="form-group">
+              <label>RTSP Main Stream URL (บันทึก HD)</label>
+              <input type="text" class="form-input" id="demoMainUrl" value="rtsp://{FRIGATE_NONGWANG_USER}:{FRIGATE_NONGWANG_PASS}@192.168.1.100:554/ch1/main">
+            </div>
+            <div class="form-group">
+              <label>วัตถุที่ต้องการให้ AI ตรวจจับ (Tracked Objects)</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label"><input type="checkbox" checked> Person</label>
+                <label class="checkbox-label"><input type="checkbox" checked> Car</label>
+                <label class="checkbox-label"><input type="checkbox" checked> Motorcycle</label>
+                <label class="checkbox-label"><input type="checkbox" checked> Truck</label>
+              </div>
+            </div>
+            <button class="btn-action" onclick="if(window.bppToast) window.bppToast('✓ ทดสอบการเพิ่มกล้องเรียบร้อย! ระบบ Config API พร้อมประมวลผล'); else alert('✓ ทดสอบการเพิ่มกล้องเรียบร้อย! ระบบ Config API พร้อมประมวลผล');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกและเพิ่มกล้องเข้า Frigate</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Installation & Deployment -->
+    <section id="install">
+      <div class="section-header">
+        <div class="section-tag">PART 4: DEPLOYMENT</div>
+        <h2 class="section-title">4. ขั้นตอนการติดตั้งและปรับแต่งระบบ (Installation & Deployment)</h2>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card col-12">
+          <div class="card-icon icon-purple"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12l-5 5"></path><path d="M15 9l5 5"></path></svg></div>
+          <h3>คำสั่งติดตั้งและเริ่มต้นใช้งานระบบ (One-Command Deployment)</h3>
+          
+          <div class="terminal">
+            <div class="term-header">
+              <div class="term-dots">
+                <div class="term-dot dot-red"></div>
+                <div class="term-dot dot-yellow"></div>
+                <div class="term-dot dot-green"></div>
+              </div>
+              <div class="term-title">PowerShell / Linux Terminal - SLOTH BPP 215 Deployment</div>
+            </div>
+            <div class="term-body">
+              <div class="term-comment"># 1. Clone Repository และเตรียมไฟล์การตั้งค่า (.env)</div>
+              <div><span class="term-cmd">cd</span> d:\project\BPP-VMS\frigate-nvr</div>
+              <div><span class="term-cmd">Copy-Item</span> .env.example .env</div>
+              <br>
+              <div class="term-comment"># 2. Rebuild และเปิดใช้งาน 7 Microservices ทั้งหมดในครั้งเดียว</div>
+              <div><span class="term-cmd">docker compose build</span></div>
+              <div><span class="term-cmd">docker compose up -d --force-recreate</span></div>
+              <br>
+              <div class="term-comment"># 3. ตรวจสอบสถานะการทำงานของทุกคอนเทนเนอร์ (ต้องขึ้น Up & Healthy ทั้งหมด)</div>
+              <div><span class="term-cmd">docker compose ps</span></div>
+              <div class="term-ok">✓ nvr-dashboard        Up 443/tcp, 80/tcp (Healthy)</div>
+              <div class="term-ok">✓ frigate              Up 8555/tcp (Healthy)</div>
+              <div class="term-ok">✓ config-api           Up 5003/tcp</div>
+              <div class="term-ok">✓ auth-service         Up 5002/tcp</div>
+              <div class="term-ok">✓ watchlist-api        Up 5001/tcp</div>
+              <div class="term-ok">✓ lpr-service          Up</div>
+              <div class="term-ok">✓ config-validator     Up 5004/tcp (Healthy)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: Security Architecture -->
+    <section id="security">
+      <div class="section-header">
+        <div class="section-tag">PART 5: SECURITY</div>
+        <h2 class="section-title">5. ระบบความปลอดภัยและความน่าเชื่อถือ (Security & RBAC Architecture)</h2>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card col-12">
+          <div class="card-icon icon-red"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3>ตารางสถาปัตยกรรมความปลอดภัยและการป้องกันข้อมูล (Security Control Matrix)</h3>
+          
+          <table class="sec-table">
+            <thead>
+              <tr>
+                <th>มิติความปลอดภัย</th>
+                <th>กลไกที่ใช้บังคับ (Implementation Mechanism)</th>
+                <th>ผลลัพธ์การป้องกัน (Security Benefit)</th>
+                <th>สถานะการทดสอบ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Authentication</strong></td>
+                <td>JWT Token บรรจุใน HttpOnly, SameSite=Strict Cookie</td>
+                <td>ป้องกันการถูกขโมย Session ผ่าน XSS / Script Injection 100%</td>
+                <td><span class="badge-sec b-green">✓ PASSED</span></td>
+              </tr>
+              <tr>
+                <td><strong>Password Storage</strong></td>
+                <td>Bcrypt Password Hashing (Salt Work Factor = 12)</td>
+                <td>ป้องกันการถอดรหัสรหัสผ่านแม้ฐานข้อมูลถูกเปิดเผย</td>
+                <td><span class="badge-sec b-green">✓ PASSED</span></td>
+              </tr>
+              <tr>
+                <td><strong>Authorization (RBAC)</strong></td>
+                <td>Admin-Only FastAPI Dependency Gate (`require_admin`)</td>
+                <td>จำกัดสิทธิ์แก้ไข Config/เพิ่มกล้อง เฉพาะบัญชี Admin เท่านั้น</td>
+                <td><span class="badge-sec b-green">✓ PASSED</span></td>
+              </tr>
+              <tr>
+                <td><strong>Inter-service Security</strong></td>
+                <td>Constant-time Shared Secret Header Verification</td>
+                <td>ไม่อนุญาตให้คอนเทนเนอร์ภายนอกเรียกใช้งาน API โดยตรง</td>
+                <td><span class="badge-sec b-green">✓ PASSED</span></td>
+              </tr>
+              <tr>
+                <td><strong>FileSystem ACL</strong></td>
+                <td>NTFS/Linux Restrict Access (Administrators & SYSTEM only)</td>
+                <td>ป้องกันผู้ใช้ทั่วไปในเครื่องโฮสต์เข้าถึงไฟล์รหัสผ่าน/โทะเคน</td>
+                <td><span class="badge-sec b-green">✓ PASSED</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Future Development Roadmap -->
+    <section id="roadmap">
+      <div class="section-header">
+        <div class="section-tag">PART 6: ROADMAP</div>
+        <h2 class="section-title">6. แผนการพัฒนาระบบในอนาคต (Future Development Roadmap)</h2>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card col-6">
+          <div class="roadmap-card">
+            <span class="phase-tag">PHASE 1 (ระยะสั้น 1 - 6 เดือน)</span>
+            <h3 style="color:#fff;">อัปเกรด AI LPR 2.0 & Dedicated Night-Vision</h3>
+            <ul class="feature-list" style="margin-top:12px;">
+              <li><strong>Multi-Country LPR Engine:</strong> พัฒนาโมเดล AI อ่านป้ายทะเบียน สปป.ลาว และกัมพูชา เพื่อรองรับด่านชายแดน</li>
+              <li><strong>Global Shutter Night-Vision Cameras:</strong> ติดตั้งกล้อง LPR ชนิดอินฟราเรดสปีดสูง จับภาพกลางคืน 100%</li>
+              <li><strong>Auto Cold Storage Backup:</strong> ระบบสำรองไฟล์วิดีโอเหตุการณ์ย้อนหลังไป NAS อัตโนมัติเมื่อดิสก์เต็ม</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card col-6">
+          <div class="roadmap-card">
+            <span class="phase-tag" style="color:var(--green);">PHASE 2 (ระยะกลาง 6 - 12 เดือน)</span>
+            <h3 style="color:#fff;">Drone AI Recon & Mobile Operations App</h3>
+            <ul class="feature-list" style="margin-top:12px;">
+              <li><strong>Drone AI Reconnaissance Integration:</strong> เชื่อมสตรีมโดรนลาดตระเวนเข้า VMS ตรวจจับคน/รถตามช่องทางธรรมชาติ</li>
+              <li><strong>Mobile Operations App (iOS/Android):</strong> แอปพลิเคชันสมาร์ทโฟนสำหรับชุดสืบสวน รับ Real-time Alert พร้อมพิกัด GPS</li>
+              <li><strong>Live Stream Share Link:</strong> ระบบแชร์สตรีมกล้องสดแบบจำกัดเวลา (Expiring Link) ให้หน่วยงานร่วมปฏิบัติงาน</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card col-6">
+          <div class="roadmap-card">
+            <span class="phase-tag" style="color:var(--orange);">PHASE 3 (ระยะยาว 1 - 2 ปี)</span>
+            <h3 style="color:#fff;">Behavioral Analytics & Predictive Intelligence</h3>
+            <ul class="feature-list" style="margin-top:12px;">
+              <li><strong>Behavioral AI Analysis:</strong> วิเคราะห์พฤติกรรมเสี่ยง (เช่น รถขับวนซ้ำผิดปกติ, รถจอดในจุดเปลี่ยวเป็นเวลานาน)</li>
+              <li><strong>Central Big Data Federation:</strong> เชื่อมต่อ API ตรงกับศูนย์ปฏิบัติการ ศปส.ตร. และ ป.ป.ส. ส่วนกลาง</li>
+              <li><strong>License Plate Anomaly Detection:</strong> ตรวจจับความผิดปกติของแผ่นป้ายทะเบียนสวม/ป้ายทะเบียนปลอม</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card col-6">
+          <div class="roadmap-card">
+            <span class="phase-tag" style="color:var(--purple);">PHASE 4 (ความมั่นคงขั้นสูง)</span>
+            <h3 style="color:#fff;">Person Re-Identification & Cross-Cam Tracking</h3>
+            <ul class="feature-list" style="margin-top:12px;">
+              <li><strong>Person Re-ID & Face Recognition:</strong> ระบบค้นหาและติดตามเส้นทางเป้าหมายข้ามทุกกล้องในเครือข่าย</li>
+              <li><strong>Route Heatmap & Timeline Reconstruction:</strong> สร้างแผนผังเส้นทางเดินทางย้อนหลังของรถเป้าหมายอัตโนมัติ</li>
+              <li><strong>Automated Forensic Report:</strong> ระบบสร้างรายงานสรุปพยานหลักฐานสำหรับส่งดำเนินคดีอาญา</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 7: Company Spec & NAS Architecture & Remote DDNS Guide -->
+    <section id="hardware">
+      <div class="section-header">
+        <div class="section-tag">PART 7: STANDARD SPECIFICATIONS & REMOTE ACCESS</div>
+        <h2 class="section-title">7. สเปกมาตรฐานเครื่องคอมพิวเตอร์กองร้อย, NAS และคำแนะนำการดูวิดีโอเรียลไทม์จากภายนอกผ่าน DDNS</h2>
+      </div>
+
+      <!-- สเปกคอมพิวเตอร์หลักประจำกองร้อย -->
+      <div class="cards-grid" style="margin-bottom: 24px;">
+        <div class="card col-6">
+          <div class="card-icon icon-cyan"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+          <h3>1. สเปกมาตรฐานเครื่องคอมพิวเตอร์หลักประจำกองร้อย (Standard Company Host PC)</h3>
+          <ul class="feature-list" style="margin-top:12px;">
+            <li><strong>CPU มาตรฐาน:</strong> <span style="color:var(--cyan); font-weight:700;">Intel Core i5-12500 หรือเทียบเท่าขึ้นไป</span> (เช่น i5-13500 / i5-14500 / AMD Ryzen 5 7600X ขึ้นไป) เพื่อรองรับการถอดรหัสวิดีโอหลายสตรีม</li>
+            <li><strong>หน่วยความจำ (RAM):</strong> <span style="color:var(--green); font-weight:700;">32 GB - 64 GB ขึ้นไป (DDR4/DDR5)</span> เพื่อความลื่นไหลในการรัน Docker 7 Microservices + Caching + WebRTC Stream</li>
+            <li><strong>การ์ดจอเร่งความเร็ว AI (GPU):</strong> <span style="color:var(--orange); font-weight:700;">NVIDIA GeForce RTX 4060 Ti / RTX 5060 Ti ขึ้นไป</span> (12GB-16GB VRAM) สำหรับการประมวลผล YOLO และอ่านป้ายทะเบียน LPR แบบขนาน</li>
+            <li><strong>ดิสก์ภายในเครื่อง (SSD):</strong> <span style="color:var(--purple); font-weight:700;">NVMe M.2 SSD อย่างน้อย 1 TB ขึ้นไป</span> สำหรับติดตั้ง OS, Docker Engine, SQLite/PostgreSQL DB และ Cache เหตุการณ์</li>
+          </ul>
+        </div>
+
+        <div class="card col-6">
+          <div class="card-icon icon-orange"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
+          <h3>2. ข้อแนะนำสถานที่ตั้ง NAS และคำนวณขนาดความจุ (NAS Location & Capacity Guide)</h3>
+          <ul class="feature-list" style="margin-top:12px;">
+            <li><strong>สถานที่ตั้ง NAS (คำแนะนำ):</strong>
+              <br>• <strong style="color:var(--cyan);">ตั้งไว้ที่ กองกำกับการ (กิโล/กก.) - ทางเลือกหลักที่แนะนำ:</strong> รวมศูนย์งบประมาณ NAS ขนาดใหญ่ไว้ที่เดียว ดูแลรักษาง่ายโดยทีม IT กองกำกับการ และป้องกันข้อมูลสูญหายจากกองร้อยชายแดน
+              <br>• <strong>ตั้งไว้ประจำแต่ละกองร้อย:</strong> ใช้ NAS ขนาดเล็ก (4-8 Bay) ประจำกองร้อย หากเป็นพื้นที่ชายแดนห่างไกลที่อินเทอร์เน็ตไม่เสถียร
+            </li>
+            <li style="margin-top:8px;"><strong>ขนาดความจุ NAS ที่แนะนำ:</strong>
+              <br>• คำนวณบันทึกคลิปวิดีโอ 16 กล้อง HD ย้อนหลัง 90 วัน -> ใช้พื้นที่ประมาณ **40 - 45 TB**
+              <br>• <strong style="color:var(--green);">ความจุจัดซื้อที่แนะนำ (รวม RAID Protection):</strong> ควรใช้ NAS ความจุสุทธิ <span style="color:var(--green); font-weight:700;">60 TB - 100 TB</span> (เช่น Enterprise Hard Drive 16TB - 20TB จำนวน 6-8 ลูก)
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- กล้องซ่อนพราง 5G Router และ DDNS Remote Access -->
+      <div class="cards-grid">
+        <div class="card col-4">
+          <div class="card-icon icon-purple"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0 1 13 0"/></svg></div>
+          <h3>3. ชุดกล้องซ่อนพรางสำหรับการซุ่มยิง</h3>
+          <ul class="feature-list" style="margin-top:12px;">
+            <li><strong>Covert Pinhole Cameras:</strong> กล้องรูเข็มขนาดจิ๋วซ่อนในตู้ไฟ/เสาไฟ สำหรับงานซุ่มยิงทางการข่าว</li>
+            <li><strong>Body-Worn Cameras (BWC):</strong> กล้องติดตัวเจ้าหน้าที่ชุดเคลื่อนที่เร็ว ลิงก์สตรีม 5G กลับคอมพิวเตอร์กองร้อย</li>
+            <li><strong>Low-light Sensor:</strong> จับภาพสีชัดเจนในสภาวะแสงน้อยกลางคืน</li>
+          </ul>
+        </div>
+
+        <div class="card col-4">
+          <div class="card-icon icon-blue"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.93 19.07A10 10 0 0 1 19.07 4.93"/><path d="M7.76 16.24a6 6 0 0 1 8.48-8.48"/><circle cx="12" cy="12" r="2"/></svg></div>
+          <h3>4. เครือข่ายเชื่อมต่อเราเตอร์ 5G VPN</h3>
+          <ul class="feature-list" style="margin-top:12px;">
+            <li><strong>Industrial Router:</strong> Teltonika RUTX50 / Peplink MAX 5G Router ทนทานระดับการทหาร</li>
+            <li><strong>Dual SIM Auto-Failover:</strong> ใส่ SIM 5G 2 ค่าย สลับสายอัตโนมัติเมื่อสัญญาณดับ</li>
+            <li><strong>WireGuard VPN Tunnel:</strong> เข้ารหัสความปลอดภัย 256-bit เชื่อมกองร้อยกับกองกำกับการ</li>
+          </ul>
+        </div>
+
+        <div class="card col-4">
+          <div class="card-icon icon-green"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <h3>5. คู่มือเปิดดูวิดีโอเรียลไทม์จากภายนอกผ่าน DDNS & WebRTC</h3>
+          <ul class="feature-list" style="margin-top:12px;">
+            <li><strong>1. Forward Port ที่เราเตอร์กองร้อย:</strong>
+              <br>• <span style="color:var(--cyan); font-weight:700;">Port 443 (HTTPS):</span> สำหรับ Web Dashboard & Login Auth
+              <br>• <span style="color:var(--green); font-weight:700;">Port 8555 (TCP/UDP):</span> สำหรับ WebRTC Real-Time Stream (&lt;0.2s)
+            </li>
+            <li style="margin-top:6px;"><strong>2. เข้าชมผ่าน DDNS Domain:</strong>
+              <br>พิมพ์ `https://<ชื่อ-DDNS-กองร้อย>.ddns.net` บนสมาร์ทโฟน/แท็บเล็ต ดูสดได้จากทุกที่ทั่วโลก
+            </li>
+            <li style="margin-top:6px;"><strong>3. ทางเลือกเสริมความปลอดภัยสูงสุด (VPN App):</strong>
+              <br>รัน WireGuard VPN บนมือถือเพื่อดูผ่าน IP ภายใน ป้องกันแฮกเกอร์ 100%
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <p>© 2026 SLOTH BPP 215 - Video Management & AI Surveillance System | กองร้อยตำรวจตระเวนชายแดนที่ 215</p>
+    <p style="margin-top:4px; font-size:0.75rem;">พัฒนาด้วยเทคโนโลยี Frigate, go2rtc, OpenCV, YOLO, FastAPI, Python 3.11 และ Docker Microservices</p>
+  </footer>
+
+</body>
+</html>

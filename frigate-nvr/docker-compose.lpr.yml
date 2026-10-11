@@ -1,0 +1,151 @@
+﻿services:
+  lpr:
+    container_name: lpr-service
+    image: lpr-service:local
+    build:
+      context: ./lpr-service
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - media
+      - lpr-data
+      - media-egress
+    environment:
+      LPR_ALERT_COOLDOWN: ${LPR_ALERT_COOLDOWN:-30}
+      LPR_ALERT_LOCATION: ${LPR_ALERT_LOCATION:-Sloth BPP 215}
+      LPR_BOX_PAD_RATIO: ${LPR_BOX_PAD_RATIO:-0.15}
+      LPR_CAMERAS: ${LPR_CAMERAS:-cam11}
+      LPR_CAMERAS_FILE: ${LPR_CAMERAS_FILE:-/lpr-config/lpr_cameras.txt}
+      LPR_CHAR_CONF: ${LPR_CHAR_CONF:-0.25}
+      LPR_CHAR_MODEL: ${LPR_CHAR_MODEL:-/models/data_plate.pt}
+      LPR_DATA_DIR: ${LPR_DATA_DIR:-/data}
+      LPR_DEVICE: ${LPR_DEVICE:-auto}
+      LPR_DISCORD_WEBHOOK_URL: ${LPR_DISCORD_WEBHOOK_URL:-}
+      LPR_FRAME_INTERVAL: ${LPR_FRAME_INTERVAL:-0.8}
+      LPR_FEDERATION_CA_BUNDLE: ${LPR_FEDERATION_CA_BUNDLE:-}
+      LPR_FRIGATE_BASE_URL: ${LPR_FRIGATE_BASE_URL:-http://frigate:5000}
+      LPR_GO2RTC_BASE_URL: ${LPR_GO2RTC_BASE_URL:-http://frigate:1984}
+      LPR_LABELS: ${LPR_LABELS:-car,motorcycle,truck,bus,person}
+      LPR_VEHICLE_LABELS: ${LPR_VEHICLE_LABELS:-car,motorcycle,truck,bus}
+      LPR_LINE_OCR_MODEL: ${LPR_LINE_OCR_MODEL:-}
+      LPR_MODEL_VERSION: ${LPR_MODEL_VERSION:-baseline-20260818}
+      LPR_MODEL_STORE_DIR: /model-store
+      LPR_LOG_LEVEL: ${LPR_LOG_LEVEL:-INFO}
+      LPR_LOG_RETAIN_DAYS: ${LPR_LOG_RETAIN_DAYS:-14}
+      LPR_MAINSTREAM_MAX_SAMPLES: ${LPR_MAINSTREAM_MAX_SAMPLES:-12}
+      LPR_MAINSTREAM_CONSENSUS_MIN: ${LPR_MAINSTREAM_CONSENSUS_MIN:-2}
+      LPR_MIN_PLATE_LEN: ${LPR_MIN_PLATE_LEN:-3}
+      LPR_PLATE_DET_CONF: ${LPR_PLATE_DET_CONF:-0.30}
+      LPR_PLATE_DETECT_MODEL: ${LPR_PLATE_DETECT_MODEL:-/models/license_plate.pt}
+      LPR_POLL_INTERVAL: ${LPR_POLL_INTERVAL:-1}
+      LPR_SET_SUB_LABEL: ${LPR_SET_SUB_LABEL:-1}
+      LPR_SUSPECT_PLATES: ${LPR_SUSPECT_PLATES:-}
+      LPR_SUSPECT_PLATES_FILE: ${LPR_SUSPECT_PLATES_FILE:-/lpr-config/suspect_plates.txt}
+      LPR_TELEGRAM_BOT_TOKEN: ${LPR_TELEGRAM_BOT_TOKEN:-}
+      LPR_TELEGRAM_CHAT_ID: ${LPR_TELEGRAM_CHAT_ID:-}
+      LPR_USE_FRIGATE_BOX: ${LPR_USE_FRIGATE_BOX:-1}
+      LPR_WATCHLIST_DB: ${LPR_WATCHLIST_DB:-/lpr-config/watchlist.db}
+      LPR_WATCHLIST_API_URL: ${LPR_WATCHLIST_API_URL:-http://watchlist-api:5001}
+      LPR_ZONES_FILE: ${LPR_ZONES_FILE:-/lpr-config/lpr_zones.json}
+      WATCHLIST_FEDERATION_SHARED_SECRET: ${WATCHLIST_FEDERATION_SHARED_SECRET:?WATCHLIST_FEDERATION_SHARED_SECRET is required}
+      WATCHLIST_SERVICE_SHARED_SECRET: ${WATCHLIST_SERVICE_SHARED_SECRET:?WATCHLIST_SERVICE_SHARED_SECRET is required}
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-vms.local}
+      ALERT_PUBLIC_DOMAIN: ${ALERT_PUBLIC_DOMAIN:-${PUBLIC_DOMAIN:-vms.local}}
+    volumes:
+      - ./lpr-service/app.py:/app/app.py:ro
+      - ./lpr-service/vehicle_mmcr.py:/app/vehicle_mmcr.py:ro
+      - ./lpr-service/runtime_health.py:/app/runtime_health.py:ro
+      - ./LicensePlateRECOG/model:/models:ro
+      - ./config/lpr:/lpr-config:ro
+      - ./config/certs:/federation-certs:ro
+      - ./lpr-data:/data
+      - ./lpr-model-store:/model-store:ro
+      - ./config/dashboard-settings:/settings-data:ro
+    healthcheck:
+      test: ["CMD", "python3", "/app/runtime_health.py", "/data/health/lpr.json", "--max-age", "45", "--require-upstream"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  lpr-trainer:
+    container_name: lpr-trainer
+    image: lpr-service:local
+    build:
+      context: ./lpr-service
+    command: ["python3", "-u", "/app/train_pipeline.py", "--exit-when-idle"]
+    profiles:
+      - manual
+    restart: "no"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - lpr-data
+      - media-egress
+    shm_size: '2gb'
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      WATCHLIST_DB_PATH: /data/watchlist.db
+      LPR_DATASET_DIR: /data/dataset
+      LPR_MODEL_STORE_DIR: /model-store
+      LPR_BASE_DETECTOR: /base-models/license_plate.pt
+      LPR_BASE_CHAR_MODEL: /base-models/data_plate.pt
+      LPR_DEVICE: ${LPR_TRAIN_DEVICE:-0}
+      LPR_TRAIN_EPOCHS: ${LPR_TRAIN_EPOCHS:-20}
+      LPR_LINE_OCR_EPOCHS: ${LPR_LINE_OCR_EPOCHS:-20}
+      LPR_SYNTHETIC_COUNT: ${LPR_SYNTHETIC_COUNT:-600}
+      LPR_MIN_COVERAGE_PER_KIND: ${LPR_MIN_COVERAGE_PER_KIND:-10}
+      LPR_METRIC_TOLERANCE: ${LPR_METRIC_TOLERANCE:-0.005}
+      LPR_THAI_FONT_PATHS: ${LPR_THAI_FONT_PATHS:-/thai-fonts/tahoma.ttf,/thai-fonts/THSarabunNew.ttf,/thai-fonts/LeelawUI.ttf}
+      LPR_DISCORD_WEBHOOK_URL: ${LPR_DISCORD_WEBHOOK_URL:-}
+      LPR_TELEGRAM_BOT_TOKEN: ${LPR_TELEGRAM_BOT_TOKEN:-}
+      LPR_TELEGRAM_CHAT_ID: ${LPR_TELEGRAM_CHAT_ID:-}
+      HOME: /tmp
+      ULTRALYTICS_CONFIG_DIR: /tmp/Ultralytics
+      YOLO_CONFIG_DIR: /tmp/Ultralytics
+    volumes:
+      - ./config/lpr:/data
+      - ./lpr-data:/lpr-data:ro
+      - ./LicensePlateRECOG/model:/base-models:ro
+      - ./lpr-model-store:/model-store
+      - type: bind
+        source: ${LPR_THAI_FONTS_DIR:-C:/Windows/Fonts}
+        target: /thai-fonts
+        read_only: true
+    healthcheck:
+      test: ["CMD", "python3", "/app/runtime_health.py", "/model-store/health/lpr-trainer.json", "--max-age", "45"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+networks:
+  media:
+    external: true
+    name: frigate-nvr_media
+  lpr-data:
+    external: true
+    name: frigate-nvr_lpr-data
+  media-egress:
+    external: true
+    name: frigate-nvr_media-egress

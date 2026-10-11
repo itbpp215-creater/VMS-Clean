@@ -1,0 +1,40 @@
+# Documentation health checks — warning-only phase (continue-on-error ทุก step)
+# ตรวจ: ลิงก์ .md เสีย + secret pattern ใน config/เอกสาร — ยังไม่ block PR
+# เมื่อผลนิ่ง (ไม่มี false positive) ค่อยพิจารณาเปลี่ยนเป็น required check
+name: docs-checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  docs-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Markdown relative-link check (warning-only)
+        continue-on-error: true
+        run: |
+          fail=0
+          # ไล่ทุกไฟล์ .md หา ](path.md) แบบ relative แล้วตรวจว่าไฟล์ปลายทางมีจริง
+          while IFS= read -r f; do
+            dir=$(dirname "$f")
+            grep -oE '\]\(([^)#]+\.md)' "$f" 2>/dev/null | sed 's/](//' | while read -r l; do
+              case "$l" in http*) continue;; esac
+              if [ ! -f "$dir/$l" ]; then echo "::warning file=$f::broken link -> $l"; fi
+            done
+          done < <(git ls-files '*.md')
+          exit 0
+
+      - name: Secret pattern scan (warning-only)
+        continue-on-error: true
+        run: |
+          # จับ URL ที่มี credential ฝัง (user:pass@) ใน config/เอกสาร — ยกเว้นตัวอย่าง
+          # เชิงบรรยาย (<user>, ***, user:pass) และ {FRIGATE_*} placeholder ที่ถูกต้อง
+          hits=$(git ls-files 'config/*.yml' '*.md' | xargs grep -nE '(rtsp|rtmp)://[^{<` ][^:/]*:[^@/]*@' 2>/dev/null | grep -vE '<user>|\*\*\*|user:pass' || true)
+          if [ -n "$hits" ]; then echo "::warning::credential-like URL found:"; echo "$hits"; fi
+          wh=$(git ls-files | xargs grep -rln 'discord.com/api/webhooks/' 2>/dev/null || true)
+          if [ -n "$wh" ]; then echo "::warning::possible Discord webhook committed: $wh"; fi
+          exit 0

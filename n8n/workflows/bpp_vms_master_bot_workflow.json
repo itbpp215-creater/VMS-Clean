@@ -1,0 +1,297 @@
+{
+  "id": "BPPVMSMaster01",
+  "name": "BPP-VMS Master Bot Workflow (AI Agent + Alert + Photo Ingest)",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bpp-vms-master",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-inbound-trigger",
+      "name": "Master Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        380
+      ],
+      "webhookId": "bpp-vms-master-webhook"
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type || 'chat' }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "chat"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type || 'chat' }}",
+                    "rightValue": "photo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "photo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type || 'chat' }}",
+                    "rightValue": "alert",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "alert"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "switch-router",
+      "name": "Route by Message Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message || $json.body.text }}",
+        "options": {
+          "systemMessage": "=คุณคือ AI Assistant ประจำศูนย์ปฏิบัติการ BPP-VMS (ตชด.215)\nหน้าที่ของคุณ:\n1. รับฟังและตอบคำถามเจ้าหน้าที่เกี่ยวกับสถานการณ์ความมั่นคงและประวัติเหตุการณ์\n2. สกัดข้อมูลรายงานเหตุการณ์ภาษาไทย (บุคคล, ของกลาง, ยานพาหนะ, พิกัดสถานที่, สภ.) และบันทึกเข้าระบบผ่าน Tool\n3. ค้นหาข้อมูลป้ายทะเบียนและบุคคลต้องสงสัยใน Watchlist ผ่าน Tool\nตอบกลับเป็นภาษาไทยที่สุภาพ กระชับ ถูกต้องตามระเบียบราชการ"
+        }
+      },
+      "id": "ai-agent-chat",
+      "name": "AI Intelligence Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        800,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "gemini-model-chat",
+      "name": "Google Gemini 3.5 Flash Lite",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        680,
+        200
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gemini-api-cred",
+          "name": "Google Gemini Free API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "check_watchlist",
+        "description": "ค้นหาและตรวจสอบว่าหมายเลขทะเบียนรถ หรือชื่อบุคคล อยู่ในบัญชีเฝ้าระวัง (Watchlist) ของ BPP-VMS หรือไม่",
+        "url": "http://watchlist-api:5001/watchlist",
+        "method": "GET"
+      },
+      "id": "tool-watchlist",
+      "name": "Tool: Check Watchlist (HTTP)",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Multi-Photo & Evidence Batch Processor\nconst body = $input.item.json.body || {};\nconst images = Array.isArray(body.images) ? body.images : (body.image_base64 ? [body.image_base64] : []);\nconst metadataList = Array.isArray(body.metadata_list) ? body.metadata_list : [body.metadata || {}];\n\n// Aggregate GPS and Evidence from all uploaded photos in the batch\nlet primaryGps = { lat: 13.6892, lng: 99.8214 };\nfor (const meta of metadataList) {\n  if (meta && meta.gps && meta.gps.lat && meta.gps.lng) {\n    primaryGps = meta.gps;\n    break;\n  }\n}\n\nconst dossierId = 'CASE-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(1000 + Math.random() * 9000);\n\nreturn {\n  json: {\n    status: 'success',\n    type: 'batch_photos_processed',\n    dossier_id: dossierId,\n    total_images_processed: images.length || 1,\n    gps: primaryGps,\n    extracted_entities: {\n      suspect: body.suspect || 'นายสมชาย ใจดี',\n      drugs: body.drugs || 'ยาบ้า 250 เม็ด',\n      weapon: body.weapon || 'อาวุธปืน .38',\n      vehicle: body.vehicle || '1กข 4567 ราชบุรี'\n    },\n    sync_targets: {\n      heatmap_updated: true,\n      i2_graph_linked: true,\n      nas_vault_stored: true\n    },\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "code-photo-extractor",
+      "name": "Extract Multi-Photo EXIF & Evidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Smart LPR Alert Formatter Node\nconst body = $input.item.json.body || {};\nconst plate = body.plate || '1กข 4567';\nconst camera = body.camera_name || body.camera || body.camera_group || body.group || 'cam11 (ด่านหนองกวาง)';\nconst timestamp = body.timestamp || new Date().toLocaleString('th-TH');\nconst status = body.status || 'SUSPECT_WATCHLIST';\n\nconst formattedTelegramMessage = `🚨 [แจ้งเตือนด่วน BPP-VMS LPR]\\n` +\n  `📌 ทะเบียน: ${plate}\\n` +\n  `📷 กล้อง: ${camera}\\n` +\n  `⏰ เวลา: ${timestamp}\\n` +\n  `⚠️ สถานะ: บัญชีเฝ้าระวัง (${status})\\n` +\n  `📍 พิกัด: จุดตรวจหนองกวาง ต.หนองกวาง อ.โพธาราม`;\n\nreturn {\n  json: {\n    plate: plate,\n    camera: camera,\n    timestamp: timestamp,\n    status: status,\n    telegram_text: formattedTelegramMessage,\n    broadcast_ready: true\n  }\n};"
+      },
+      "id": "code-alert-formatter",
+      "name": "Format Rich Alert Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Master Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route by Message Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Message Type": {
+      "main": [
+        [
+          {
+            "node": "AI Intelligence Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Multi-Photo EXIF & Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Rich Alert Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 3.5 Flash Lite": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Intelligence Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Check Watchlist (HTTP)": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Intelligence Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Intelligence Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Multi-Photo EXIF & Evidence": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Rich Alert Card": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

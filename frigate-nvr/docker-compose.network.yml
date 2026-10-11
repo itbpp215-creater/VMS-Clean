@@ -1,0 +1,85 @@
+services:
+  tailscale:
+    container_name: tailscale-service
+    image: tailscale/tailscale:latest
+    hostname: ${TAILSCALE_HOSTNAME:-bpp215-vms}
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTHKEY:-}
+      - TS_HOSTNAME=${TAILSCALE_HOSTNAME:-bpp215-vms}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_EXTRA_ARGS=--accept-routes
+      - TS_SERVE_CONFIG=/config/tailscale-serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+      - ./config/tailscale:/config:ro
+    networks:
+      edge:
+        aliases:
+          - nas-bot
+      security:
+      lpr-data:
+        aliases:
+          - nas-bot
+    ports:
+      - "127.0.0.1:5005:5005"
+
+  cloudflared:
+    container_name: cloudflared-tunnel
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required}
+    networks:
+      - edge
+
+  duckdns:
+    container_name: duckdns
+    image: lscr.io/linuxserver/duckdns:latest
+    restart: unless-stopped
+    networks:
+      - wan-egress
+    environment:
+      TZ: Asia/Bangkok
+      SUBDOMAINS: ${DUCKDNS_SUBDOMAIN:-}
+      TOKEN: ${DUCKDNS_TOKEN:-}
+      UPDATE_IP: ipv4
+      LOG_FILE: "false"
+
+  acme:
+    container_name: acme-sh
+    image: neilpang/acme.sh:latest
+    restart: unless-stopped
+    command: daemon
+    networks:
+      - wan-egress
+    environment:
+      DuckDNS_Token: ${DUCKDNS_TOKEN:-}
+    volumes:
+      - ./config/acme:/acme.sh
+      - ./config/certs:/certs-out
+
+networks:
+  edge:
+    external: true
+    name: frigate-nvr_edge
+  security:
+    external: true
+    name: frigate-nvr_security
+  lpr-data:
+    external: true
+    name: frigate-nvr_lpr-data
+  wan-egress:
+    external: true
+    name: frigate-nvr_wan-egress
+
+volumes:
+  tailscale-state:
+    external: true
+    name: frigate-nvr_tailscale-state

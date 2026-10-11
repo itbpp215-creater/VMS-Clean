@@ -1,0 +1,10 @@
+# CI installs the exact production service requirements plus test-only packages
+# needed by API transports, YAML invariants, and the lightweight LPR image path.
+-r ../auth-service/requirements-dev.txt
+-r ../config-api/requirements.txt
+
+# LPR tests import the real notification module and exercise JPEG boundaries
+# without loading model files; headless OpenCV avoids desktop GUI dependencies.
+numpy==2.4.3
+opencv-python-headless==4.13.0.92
+requests==2.34.2

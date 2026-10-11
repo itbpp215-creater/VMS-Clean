@@ -1,0 +1,58 @@
+services:
+  analytics-engine:
+    container_name: analytics-engine
+    image: analytics-engine:local
+    build:
+      context: ./analytics-engine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edge
+      - security
+      - lpr-data
+    volumes:
+      - nas-storage:/data/nas-storage:ro
+      - ./config/lpr:/lpr-config:ro
+      - ./config/dashboard-settings:/settings-data:ro
+      - ./analytics-engine:/app
+
+  n8n:
+    container_name: n8n-service
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    networks:
+      - edge
+      - security
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=Asia/Bangkok
+      - TZ=Asia/Bangkok
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_HIRING_BANNER_ENABLED=false
+      - N8N_DIAGNOSTICS_ENABLED=false
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ../n8n:/n8n-init:ro
+
+networks:
+  edge:
+    external: true
+    name: frigate-nvr_edge
+  security:
+    external: true
+    name: frigate-nvr_security
+  lpr-data:
+    external: true
+    name: frigate-nvr_lpr-data
+
+volumes:
+  nas-storage:
+    external: true
+    name: frigate-nvr_nas-storage
+  n8n-data:
+    external: true
+    name: frigate-nvr_n8n-data

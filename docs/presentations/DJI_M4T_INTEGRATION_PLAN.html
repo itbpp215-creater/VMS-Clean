@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="แผนเชื่อม DJI Matrice 4T เข้ากับ BPP-VMS แบบเป็นเฟส">
+  <title>DJI Matrice 4T — แผนเชื่อมต่อ BPP-VMS</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --surface: #0d1b2e;
+      --surface-2: #11243c;
+      --line: #24435f;
+      --text: #e8f2fa;
+      --muted: #a7bbce;
+      --cyan: #38d8ff;
+      --cyan-dark: #0d98c0;
+      --green: #4be0a2;
+      --amber: #ffcb66;
+      --red: #ff7f95;
+      --shadow: 0 24px 64px rgba(0, 0, 0, .34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
+      background: radial-gradient(circle at 10% 0%, rgba(56, 216, 255, .14), transparent 31%), var(--bg);
+    }
+
+    button { font: inherit; }
+
+    .shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 38px 0 46px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--cyan);
+      font-size: .79rem;
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 760px;
+      margin-bottom: 14px;
+      font-size: clamp(2rem, 5vw, 3.8rem);
+      line-height: 1.08;
+    }
+
+    .lead {
+      max-width: 790px;
+      margin-bottom: 30px;
+      color: var(--muted);
+      font-size: 1.08rem;
+      line-height: 1.75;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+
+    .summary article, .phase-card, .flow, .notice, .choice-table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(155deg, rgba(17, 36, 60, .94), rgba(13, 27, 46, .9));
+      box-shadow: var(--shadow);
+    }
+
+    .summary article { padding: 17px 18px; }
+    .summary strong { display: block; margin-bottom: 5px; color: var(--cyan); font-size: 1.2rem; }
+    .summary span { color: var(--muted); font-size: .88rem; line-height: 1.45; }
+
+    .flow { margin-bottom: 32px; padding: 20px; overflow-x: auto; }
+    .flow-row { display: flex; min-width: 780px; align-items: center; justify-content: space-between; gap: 10px; }
+    .node { min-width: 126px; padding: 12px; border: 1px solid rgba(56, 216, 255, .28); border-radius: 12px; background: rgba(56, 216, 255, .06); text-align: center; font-size: .88rem; line-height: 1.45; }
+    .node b { display: block; color: var(--cyan); }
+    .arrow { color: var(--cyan); font-size: 1.4rem; }
+
+    .phase-tabs {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(64px, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .phase-tab {
+      min-height: 62px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--muted);
+      background: var(--surface);
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .phase-tab:hover, .phase-tab:focus-visible { border-color: var(--cyan); color: var(--text); outline: none; }
+    .phase-tab.active { border-color: var(--cyan); color: var(--bg); background: var(--cyan); font-weight: 700; }
+    .phase-tab small { display: block; margin-top: 2px; font-size: .72rem; }
+
+    .phase-card { min-height: 485px; padding: clamp(22px, 4vw, 42px); }
+    .phase-meta { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+    .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; color: var(--cyan); background: rgba(56, 216, 255, .12); font-size: .82rem; font-weight: 700; }
+    .phase-count { color: var(--muted); font-size: .88rem; }
+    .phase-card h2 { margin-bottom: 8px; font-size: clamp(1.6rem, 3.5vw, 2.45rem); }
+    .objective { margin-bottom: 26px; color: var(--amber); font-size: 1.04rem; }
+    .phase-body { display: grid; grid-template-columns: 1.1fr .9fr; gap: 26px; }
+    .phase-body h3 { margin-bottom: 11px; color: var(--cyan); font-size: 1rem; }
+    .phase-body ul { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.7; }
+    .phase-body li + li { margin-top: 7px; }
+
+    .procedure {
+      grid-column: 1 / -1;
+      margin-top: 2px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .procedure ol { margin: 0; padding-left: 23px; color: var(--muted); line-height: 1.7; }
+    .procedure li { padding-left: 5px; }
+    .procedure li + li { margin-top: 10px; }
+    .procedure li::marker { color: var(--cyan); font-weight: 700; }
+
+    .gate {
+      height: max-content;
+      padding: 17px;
+      border-left: 3px solid var(--green);
+      border-radius: 0 12px 12px 0;
+      color: var(--muted);
+      background: rgba(75, 224, 162, .08);
+      line-height: 1.65;
+    }
+
+    .gate b { display: block; margin-bottom: 4px; color: var(--green); }
+    .warning { border-left-color: var(--amber); background: rgba(255, 203, 102, .08); }
+    .warning b { color: var(--amber); }
+
+    .controls { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 22px; }
+    .controls button { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 11px; color: var(--text); background: var(--surface); cursor: pointer; }
+    .controls button:hover, .controls button:focus-visible { border-color: var(--cyan); outline: none; }
+    .controls .next { border-color: var(--cyan-dark); color: var(--bg); background: var(--cyan); font-weight: 700; }
+    .controls button:disabled { opacity: .42; cursor: not-allowed; }
+    .key-hint { color: var(--muted); font-size: .82rem; }
+
+    .notice { margin-top: 30px; padding: 20px 22px; }
+    .notice h2 { margin-bottom: 11px; font-size: 1.15rem; }
+    .notice p { margin: 0; color: var(--muted); line-height: 1.7; }
+
+    .choice-table-wrap { margin-top: 18px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 650px; }
+    th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--cyan); font-size: .88rem; }
+    td { color: var(--muted); font-size: .91rem; line-height: 1.55; }
+    tr:last-child td { border-bottom: 0; }
+
+    .hidden { display: none; }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 22px, 1120px); padding-top: 24px; }
+      .summary, .phase-body { grid-template-columns: 1fr; }
+      .phase-tabs { grid-template-columns: repeat(4, 1fr); }
+      .phase-card { min-height: 0; }
+      .key-hint { display: none; }
+    }
+
+    @media (max-width: 420px) {
+      .phase-tabs { grid-template-columns: repeat(3, 1fr); }
+      .phase-tab { min-height: 54px; font-size: .84rem; }
+      .controls { align-items: stretch; }
+      .controls button { flex: 1; padding: 0 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <p class="eyebrow">BPP-VMS · DJI Matrice 4T</p>
+    <h1>แผนเชื่อมภาพโดรนเข้าสู่ระบบ</h1>
+    <p class="lead">กดเลือกเฟส หรือใช้ปุ่มก่อนหน้า/ถัดไป เพื่อไล่ตรวจแผนทีละช่วง โดยเป้าหมายคือแสดงภาพตามเลนส์ที่ผู้ควบคุมเลือก พร้อม AI, LPR และการบันทึกแบบแยกอิสระ</p>
+
+    <section class="summary" aria-label="สรุปขอบเขต">
+      <article><strong>1 ช่องภาพคงที่</strong><span>ชื่อกล้องคงเดิม แต่ภาพเปลี่ยนตาม Wide / Zoom / Thermal ที่ Pilot 2 เลือก</span></article>
+      <article><strong>VPN ก่อน</strong><span>รีโมตอยู่คนละ LAN จึงส่งสตรีมผ่าน WireGuard ไปยัง ingest ที่แยกจากระบบหลัก</span></article>
+      <article><strong>แยกสวิตช์จริง</strong><span>AI, LPR, ภาพนิ่ง และวิดีโอต้องไม่ผูกกันโดยไม่ตั้งใจ</span></article>
+    </section>
+
+    <section class="flow" aria-label="เส้นทางภาพ">
+      <div class="flow-row">
+        <div class="node"><b>Matrice 4T</b>เลนส์ที่เลือกอยู่</div><span class="arrow">→</span>
+        <div class="node"><b>RC Plus 2</b>DJI Pilot 2</div><span class="arrow">→</span>
+        <div class="node"><b>VPN + Ingest</b>RTMP / WHIP</div><span class="arrow">→</span>
+        <div class="node"><b>go2rtc / Frigate</b>AI · LPR · Record</div><span class="arrow">→</span>
+        <div class="node"><b>Dashboard</b>ดูสดและบันทึกมือ</div>
+      </div>
+    </section>
+
+    <nav class="phase-tabs" aria-label="เลือกเฟส" role="tablist">
+      <button class="phase-tab active" type="button" data-phase="0" role="tab" aria-selected="true">0<small>สำรวจ</small></button>
+      <button class="phase-tab" type="button" data-phase="1" role="tab" aria-selected="false">1<small>PoC</small></button>
+      <button class="phase-tab" type="button" data-phase="2" role="tab" aria-selected="false">2<small>สวิตช์</small></button>
+      <button class="phase-tab" type="button" data-phase="3" role="tab" aria-selected="false">3<small>เชื่อมระบบ</small></button>
+      <button class="phase-tab" type="button" data-phase="4" role="tab" aria-selected="false">4<small>AI / LPR</small></button>
+      <button class="phase-tab" type="button" data-phase="5" role="tab" aria-selected="false">5<small>ทดสอบ</small></button>
+      <button class="phase-tab" type="button" data-phase="6" role="tab" aria-selected="false">6<small>ใช้งานจริง</small></button>
+    </nav>
+
+    <section class="phase-card" aria-live="polite">
+      <div class="phase-meta"><span class="badge" id="phaseBadge">Phase 0</span><span class="phase-count" id="phaseCount">1 / 7</span></div>
+      <h2 id="phaseTitle"></h2>
+      <p class="objective" id="phaseObjective"></p>
+      <div class="phase-body">
+        <div><h3>งานในเฟสนี้</h3><ul id="phaseTasks"></ul></div>
+        <aside class="gate" id="phaseGate"></aside>
+        <div class="procedure"><h3>วิธีทำทีละขั้น</h3><ol id="phaseSteps"></ol></div>
+      </div>
+      <div class="controls">
+        <button id="prevButton" type="button">← เฟสก่อนหน้า</button>
+        <span class="key-hint">ใช้ปุ่ม ← และ → บนแป้นพิมพ์ได้</span>
+        <button class="next" id="nextButton" type="button">เฟสถัดไป →</button>
+      </div>
+    </section>
+
+    <section class="notice">
+      <h2>รูปแบบการตั้งค่าที่จะทำให้เลือกได้จริง</h2>
+      <p>บันทึกจากหน้า Dashboard ด้วยมือใช้งานได้เมื่อมีภาพสด ส่วนการบันทึกถาวรบนเซิร์ฟเวอร์ต้องเพิ่มการตั้งค่าและกติกาใหม่ตามตารางนี้</p>
+      <div class="choice-table-wrap">
+        <table>
+          <thead><tr><th>ตัวเลือก</th><th>ค่าที่เสนอ</th><th>กติกา</th></tr></thead>
+          <tbody>
+            <tr><td>AI</td><td>เปิด / ปิด</td><td>ตรวจจับวัตถุทั่วไปตามสตรีมที่กำลังแสดง</td></tr>
+            <tr><td>LPR</td><td>เปิด / ปิด</td><td>เปิด vehicle detection ขั้นต่ำโดยอัตโนมัติ แม้ปิด AI ทั่วไป</td></tr>
+            <tr><td>บันทึกภาพ</td><td>ปิด / เมื่อเกิดเหตุการณ์</td><td>แยกจากการบันทึกวิดีโอ</td></tr>
+            <tr><td>บันทึกวิดีโอ</td><td>ปิด / เหตุการณ์ / ต่อเนื่อง</td><td>โหมดเหตุการณ์ต้องมี AI หรือ LPR เป็นแหล่งสร้างเหตุการณ์</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ข้อมูลทุกเฟสของแผนถูกเก็บในหน้าเดียว เพื่อให้ผู้ใช้เลื่อนตรวจทีละเฟสโดยไม่ต้องเชื่อมต่อระบบภายนอก.
+    const phases = [
+      {
+        title: "สำรวจของจริงและล็อก baseline",
+        objective: "ยืนยันข้อจำกัดของโดรนและเครือข่ายก่อนเปลี่ยนระบบ Production",
+        tasks: [
+          "ตรวจ firmware ของ Matrice 4T, RC Plus 2 และ DJI Pilot 2 รวมถึงเมนู Custom Live Streaming",
+          "ตรวจ Local Data Mode, CGNAT และเส้นทางอินเทอร์เน็ตของภาคสนาม",
+          "วัด upload, latency, jitter และ packet loss จากจุดใช้งานจริง",
+          "บันทึกสุขภาพ Docker, GPU, disk และ hash คอนฟิกปัจจุบันเพื่อใช้เทียบหลังทดสอบ"
+        ],
+        steps: [
+          "จดรุ่น firmware ของโดรน, RC Plus 2 และ DJI Pilot 2 จากเมนู About แล้วเทียบกับเอกสาร DJI; อัปเดตเฉพาะเมื่อมีแผนทดสอบและแบตเตอรี่เพียงพอ ไม่อัปเดตระหว่างปฏิบัติการ.",
+          "ต่อ RC Plus 2 เข้ากับ Wi-Fi ของเราเตอร์ภาคสนาม แล้วเปิด DJI Pilot 2 เพื่อตรวจว่ามีเมนู Manual/Custom Live Streaming และรองรับ URL แบบ RTMP หรือ WHIP ตาม firmware จริง.",
+          "ตรวจ Local Data Mode ให้ปิดก่อนทดสอบ เพราะต้องใช้การเชื่อมต่อออกไปยัง ingest; บันทึกชื่อเครือข่ายและวิธีเชื่อมต่อ 4G/5G เป็นข้อมูลปฏิบัติการ.",
+          "จากจุดบินจริง วัด upload ต่อเนื่องอย่างน้อย 10 นาทีและจด latency, jitter, packet loss; หากจะใช้ 1080p/3 Mbps ให้มี upload เหลืออย่างน้อยประมาณ 6 Mbps.",
+          "บน BPP-VMS บันทึกสถานะกล้องเดิม, พื้นที่ disk, GPU/CPU และสำรอง hash/config ก่อนเริ่ม เพื่อให้พิสูจน์ได้ว่าการทดลองไม่กระทบระบบเดิม."
+        ],
+        gateTitle: "เกณฑ์ผ่าน",
+        gate: "ทราบว่าต้องใช้เราเตอร์ภาคสนาม/VPN แบบใด และมี bandwidth ที่เพียงพอสำหรับการทดสอบโดยไม่กระทบกล้องเดิม"
+      },
+      {
+        title: "PoC สตรีมแยกจากระบบจริง",
+        objective: "พิสูจน์ว่าสตรีมหลักเปลี่ยนตามเลนส์ที่ Pilot 2 เลือกได้อย่างเสถียร",
+        tasks: [
+          "ตั้ง MediaMTX ทดสอบเฉพาะบน IP ของ WireGuard และไม่ผูกกับ Dashboard หรือ Frigate",
+          "ทดสอบ RTMP เป็นทางหลัก และทดสอบ WHIP เปรียบเทียบหาก firmware รองรับ",
+          "เริ่ม 720p/1.5 Mbps ก่อน แล้วจึงทดสอบ 1080p/3 Mbps",
+          "สลับ Wide, Medium Tele, Tele และ Thermal อย่างน้อย 20 ครั้ง พร้อมตรวจ codec, resolution และ keyframe",
+          "ทดสอบหยุดส่ง, VPN หลุด, เปลี่ยนเครือข่าย และเปิด Pilot 2 ใหม่"
+        ],
+        steps: [
+          "สร้าง WireGuard tunnel ระหว่างเราเตอร์ภาคสนามกับจุดรับสตรีม โดย route อนุญาตเฉพาะ IP และพอร์ต ingest ไม่เชื่อมทั้งสอง LAN เต็มวง.",
+          "เปิด MediaMTX ชั่วคราวใน network ที่แยกจาก Frigate และกำหนด stream path เช่น dji_m4t_01 พร้อม publisher credential เฉพาะการทดสอบ.",
+          "ใส่ URL ingest ใน DJI Pilot 2 แล้วเริ่มส่งที่ 720p/1.5 Mbps; ดู log ของ gateway เพื่อยืนยันว่ามี publisher เพียงหนึ่งรายและ codec ที่รับได้.",
+          "สลับ Wide, Medium Tele, Tele และ Thermal แล้วบันทึกเวลา, ความละเอียด, FPS และว่าภาพกลับมาหลังสลับภายในเวลาที่ตกลงกันหรือไม่.",
+          "จำลองการหยุดส่งและตัด VPN 10 วินาที, 1 นาที และ 5 นาที จากนั้นคืนเครือข่าย; ตรวจว่า gateway กลับรับสตรีมได้โดยไม่ต้องแก้ config หรือ restart Frigate.",
+          "หาก RTMP หน่วงหรือไม่เสถียร ให้ทำชุดทดสอบ WHIP เดียวกัน แล้วเลือกโปรโตคอลจาก latency, reconnect และความเข้ากันได้จริง ไม่เลือกจากสมมติฐาน."
+        ],
+        gateTitle: "เกณฑ์ผ่าน",
+        gate: "มี stream ID เดียวที่กลับมาเองเมื่อสัญญาณฟื้น และไม่มีภาพเก่าค้างจนเข้าใจผิดว่าเป็นภาพสด"
+      },
+      {
+        title: "แก้สวิตช์ AI, LPR และ Record ให้เป็นอิสระ",
+        objective: "แก้ช่องว่างของระบบปัจจุบันก่อนนำกล้องโดรนเข้าสู่การบันทึกจริง",
+        tasks: [
+          "เพิ่ม model/API สำหรับ enabled, ai_enabled, lpr_enabled, snapshot_mode และ record_mode",
+          "แก้ lifecycle ที่ปิด Record ตาม AI โดยไม่ตั้งใจ",
+          "ทำให้ LPR เปิด vehicle detection ที่จำเป็นแบบ atomic",
+          "เพิ่มหน้า UI ให้เลือกภาพนิ่งและวิดีโอแบบแยกกัน พร้อมบันทึกค่าได้จริง",
+          "เขียน unit test และ browser smoke test สำหรับทุกชุดค่าที่สำคัญ"
+        ],
+        steps: [
+          "กำหนด schema กลางต่อกล้อง: enabled, ai_enabled, lpr_enabled, snapshot_mode และ record_mode โดย record_mode มี off, events และ continuous.",
+          "แก้ Config API ให้ GET/POST/PUT คืนค่าและบันทึกทุกฟิลด์ พร้อมทำ transaction เดียวเพื่อป้องกันค่าครึ่งหนึ่งถูกเขียนเมื่อ validation ล้มเหลว.",
+          "กำหนดกติกา: LPR เปิดได้แม้ AI ทั่วไปปิด แต่ backend ต้องเปิด vehicle detection ขั้นต่ำ; event record ต้องใช้ AI หรือ LPR เป็นแหล่ง event.",
+          "แก้หน้าจอจัดการกล้องให้ checkbox/select ของภาพนิ่งและวิดีโอส่งค่าจริง และแสดงคำเตือนหากผู้ใช้เลือกค่าที่ขัดกับกติกา.",
+          "เพิ่ม unit test สำหรับทุก combination สำคัญ: AI ปิดแต่ continuous record เปิด, LPR เปิดแต่ AI ปิด, ปิดกล้องแล้วเปิดกลับ และ validation fail ต้องไม่ทำให้ config เสีย.",
+          "รัน browser smoke test เพื่อยืนยันว่าหน้าจอบันทึกค่าได้และการแก้หลายค่าในครั้งเดียวสั่ง restart ได้เพียงครั้งเดียว."
+        ],
+        gateTitle: "ข้อควรระวัง",
+        gate: "เฟสนี้เปลี่ยนพฤติกรรมกล้องทั่วไปด้วย จึงต้องมี test และ rollback ที่ครอบคลุมก่อนนำขึ้นระบบ", warning: true
+      },
+      {
+        title: "เชื่อม ingest เข้ากับ BPP-VMS",
+        objective: "เพิ่มกล้องโดรนเป็นกล้องชื่อคงที่ โดยไม่มี restart ทุกครั้งที่เริ่มบินหรือเปลี่ยนเลนส์",
+        tasks: [
+          "เพิ่ม media gateway container แยก service พร้อม healthcheck และสิทธิ์ต่ำสุด",
+          "เปิดพอร์ต ingest เฉพาะ VPN peer และใช้ credential แยกต่อโดรน",
+          "สร้างกล้องผ่าน Config API ด้วย technical ID เช่น dji_m4t_01 และชื่อแสดง DJI Matrice 4T",
+          "ให้ go2rtc/Frigate อ่านสตรีม RTSP ภายใน Docker network เท่านั้น",
+          "เพิ่ม FFmpeg normalizer เฉพาะเมื่อการสลับเลนส์ทำให้ decoder หลุดจริง"
+        ],
+        steps: [
+          "เพิ่ม MediaMTX เป็น service ใหม่ใน docker-compose โดยแยก media network, จำกัด capability และมี healthcheck; ยังไม่เปิด public port.",
+          "ผูกพอร์ต publish ของ ingest เข้ากับ IP ของ VPN เท่านั้น และเพิ่ม firewall allowlist ให้รับได้จาก WireGuard peer ของภาคสนาม.",
+          "เก็บ credential ของ publisher ใน .env/secret mount ไม่ใส่ URL ลับใน config.yml, Git, backup หรือหน้า Dashboard.",
+          "สร้างกล้อง dji_m4t_01 ผ่าน Config API ให้ go2rtc อ่าน RTSP ภายในจาก gateway และตั้งชื่อที่ผู้ใช้เห็นเป็น DJI Matrice 4T.",
+          "เปิดดู Live only ก่อน แล้วทดสอบ takeoff/landing และสลับเลนส์โดยไม่สร้างหรือลบกล้อง ไม่ restart Frigate และไม่แก้ URL ต่อเที่ยวบิน.",
+          "หาก stream เปลี่ยน codec/resolution แล้ว Frigate หรือ go2rtc ไม่ฟื้น ให้เพิ่ม normalizer ที่แปลงเป็น H.264/resolution คงที่ แล้ววัด CPU/GPU ใหม่ก่อนอนุมัติใช้."
+        ],
+        gateTitle: "เกณฑ์ผ่าน",
+        gate: "Dashboard ดูสดได้ทันทีเมื่อรีโมตส่งภาพ และกล้องเดิมไม่มีการแก้ไขหรือเฟรมตก"
+      },
+      {
+        title: "ปรับใช้ AI, LPR และการบันทึก",
+        objective: "เปิดความสามารถทีละส่วนพร้อมขอบเขตความแม่นยำที่ตรวจวัดได้",
+        tasks: [
+          "ทดสอบ AI แยก Wide, Zoom และ Thermal พร้อมเก็บผลจริง",
+          "ทดสอบ LPR บนภาพ RGB/Zoom ตามระยะ, มุม, ความเร็ว และแสงที่ต้องใช้งาน",
+          "เริ่ม LPR แบบไม่มี zone คงที่ เพราะมุมกล้องโดรนเคลื่อนที่ตลอด",
+          "ตรวจ event snapshot, event video และ continuous recording ในแต่ละโหมด",
+          "กำหนด retention และคำนวณพื้นที่เก็บ: 1080p/3 Mbps ประมาณ 1.35 GB ต่อชั่วโมง"
+        ],
+        steps: [
+          "เริ่มจากเปิด AI เพียงอย่างเดียวในภาพ RGB/Wide แล้วเก็บตัวอย่างตามระยะบินจริงเพื่อดู detection rate และ false positive.",
+          "เปิด LPR เฉพาะชุดทดสอบ RGB/Zoom ที่ป้ายทะเบียนมีขนาดและมุมเพียงพอ; บันทึกภาพต้นฉบับ, crop และผล OCR เพื่อวัดความแม่นยำ.",
+          "ไม่เปิด LPR สำหรับ Thermal เป็นค่าเริ่มต้น และแสดงคำเตือนใน UI จนกว่าจะมีผลทดสอบที่ยืนยันได้.",
+          "ทดสอบ snapshot event, event video และ continuous recording ทีละโหมด พร้อมเปิด playback เพื่อตรวจว่าช่วงก่อน/หลังเหตุการณ์และเสียง/ภาพสมบูรณ์.",
+          "ตกลง retention ตามพื้นที่จริง: continuous 1080p/3 Mbps ใช้ราว 32.4 GB ต่อวันต่อโดรน ก่อน overhead; ตั้ง alert ก่อน disk ใกล้เต็ม.",
+          "อนุมัติ LPR เมื่อผ่านเกณฑ์ความแม่นยำที่กำหนดร่วมกันสำหรับระยะ มุม ความเร็ว และสภาพแสงเป้าหมาย ไม่ใช้ผลจากการบินคนละเงื่อนไข."
+        ],
+        gateTitle: "ข้อจำกัดสำคัญ",
+        gate: "Thermal ไม่ควรถูกถือว่ารองรับ LPR จนกว่าจะผ่านการทดสอบจริง และระบบยังไม่รู้ชนิดเลนส์จาก pixels เพียงอย่างเดียว", warning: true
+      },
+      {
+        title: "ทดสอบความเสถียรและความปลอดภัย",
+        objective: "พิสูจน์ว่าสตรีมและการบันทึกทนต่อสภาพเครือข่ายภาคสนาม",
+        tasks: [
+          "ทำ soak test 30–60 นาทีขึ้นไป พร้อมสลับเลนส์และบันทึกต่อเนื่อง",
+          "ทดสอบ VPN restart, RC/Pilot restart, IP เปลี่ยน และ publisher ซ้ำ",
+          "ตรวจ FPS, bitrate, dropped frames, GPU/CPU, disk และ WebRTC live view",
+          "ยืนยันว่า ingest เข้าไม่ได้จากนอก VPN และ credential ไม่หลุดใน YAML, backup หรือ log",
+          "ทดสอบ playback, ดาวน์โหลดด้วยมือ และผล AI/LPR ตามเกณฑ์ที่ตกลงกัน"
+        ],
+        steps: [
+          "ทำ test sheet ที่มีเวลาเริ่ม/หยุดสตรีม, เปลี่ยนเลนส์, VPN restart, RC restart และการสลับ Wi-Fi/Cellular เพื่อบันทึกผลซ้ำได้.",
+          "ทำ soak test อย่างน้อย 30–60 นาทีในคุณภาพเป้าหมาย โดยเปิด metrics ของ gateway, go2rtc และ Frigate เพื่อตรวจ FPS, bitrate และ dropped/skipped frames.",
+          "ตรวจทุกชั้น: publisher state ที่ gateway, ภาพ WebRTC บน Dashboard, detection/event ใน Frigate และไฟล์ที่บันทึกบน disk.",
+          "ลอง publisher credential ผิดและลองเข้าพอร์ต ingest จากนอก VPN เพื่อยืนยันว่า firewall และ authentication ปฏิเสธได้จริง.",
+          "ตรวจ log, config และ backup ว่าไม่มี URL ที่มี secret หรือ credential รั่วอยู่; หมุน credential ทดสอบหนึ่งรอบเพื่อพิสูจน์ขั้นตอน revoke/replace.",
+          "ยุติการทดสอบและย้อนกลับทันทีหากกล้องเดิมมีผลกระทบ, disk/GPU เกินเกณฑ์ หรือภาพสตรีมไม่ฟื้นเองตามเกณฑ์."
+        ],
+        gateTitle: "เกณฑ์ผ่าน",
+        gate: "ระบบฟื้นตัวเองจากความขัดข้องที่กำหนด และไม่มีผลกระทบที่ตรวจพบกับกล้องหรือข้อมูลเดิม"
+      },
+      {
+        title: "นำขึ้นใช้งานจริงและวางทางย้อนกลับ",
+        objective: "เปิดใช้งานแบบค่อยเป็นค่อยไป โดยย้อนกลับได้เฉพาะส่วนโดรน",
+        tasks: [
+          "Deploy gateway ก่อน แล้วตรวจสุขภาพระบบเดิมก่อนเพิ่มกล้อง DJI",
+          "เพิ่มกล้องแบบ Live only จากนั้นเปิด AI, LPR และ Record ทีละส่วน",
+          "ติดตาม alert, storage และคุณภาพเครือข่ายในช่วงแรกของการใช้งาน",
+          "อัปเดต architecture, current state, ADR, session log และ handover context",
+          "เตรียม rollback: ถอน binding, หยุด gateway, revoke VPN/credential โดยไม่ลบวิดีโอเดิม"
+        ],
+        steps: [
+          "ประกาศช่วง deploy และกำหนดผู้รับผิดชอบฝั่งบิน, เครือข่าย และ BPP-VMS รวมถึงช่องทางสื่อสารเมื่อภาพล่ม.",
+          "นำ gateway ขึ้นก่อน ตรวจ healthcheck และยืนยันว่ากล้องเดิมยังปกติ จากนั้นเพิ่ม dji_m4t_01 แบบ Live only.",
+          "หลังการบินทดสอบผ่าน จึงเปิด AI, LPR และ recording ทีละฟังก์ชัน โดยเก็บ metric และ log ทุกครั้งที่เปลี่ยนค่า.",
+          "ตั้ง alert สำหรับ ingest offline, disk, GPU/CPU และการไม่พบ event ตามคาด เพื่อให้ผู้ปฏิบัติการรู้ว่าเป็นปัญหาเครือข่ายหรือระบบวิเคราะห์.",
+          "อัปเดตเอกสาร architecture/current state/ADR/session และ handover context พร้อม URL ภายในที่ไม่มี secret และวิธีหมุน credential.",
+          "หากต้อง rollback ให้ปิด feature ของ DJI, ถอนกล้องผ่าน Config API, หยุดเฉพาะ gateway และ revoke VPN peer/credential; ห้ามลบวิดีโอเดิมอัตโนมัติ."
+        ],
+        gateTitle: "ผลลัพธ์",
+        gate: "ได้กล้องโดรนหนึ่งช่องที่ปลอดภัย สลับตามภาพที่ผู้ควบคุมเลือก และควบคุม AI/LPR/ภาพ/วิดีโอได้อย่างชัดเจน"
+      }
+    ];
+
+    // สถานะเฟสปัจจุบันควบคุมการแสดงผลเพียงจุดเดียว เพื่อให้ปุ่มและแป้นพิมพ์ทำงานเหมือนกัน.
+    let currentPhase = 0;
+    const title = document.getElementById("phaseTitle");
+    const objective = document.getElementById("phaseObjective");
+    const tasks = document.getElementById("phaseTasks");
+    const steps = document.getElementById("phaseSteps");
+    const gate = document.getElementById("phaseGate");
+    const badge = document.getElementById("phaseBadge");
+    const count = document.getElementById("phaseCount");
+    const previousButton = document.getElementById("prevButton");
+    const nextButton = document.getElementById("nextButton");
+    const tabs = Array.from(document.querySelectorAll(".phase-tab"));
+
+    // renderPhase วาดรายละเอียดเฟสที่เลือก อัปเดต aria state และปิดปุ่มเมื่อถึงปลายทาง.
+    function renderPhase(index) {
+      currentPhase = Math.max(0, Math.min(index, phases.length - 1));
+      const phase = phases[currentPhase];
+      title.textContent = phase.title;
+      objective.textContent = phase.objective;
+      tasks.replaceChildren(...phase.tasks.map((task) => {
+        const item = document.createElement("li");
+        item.textContent = task;
+        return item;
+      }));
+      steps.replaceChildren(...phase.steps.map((step) => {
+        const item = document.createElement("li");
+        item.textContent = step;
+        return item;
+      }));
+      gate.classList.toggle("warning", Boolean(phase.warning));
+      gate.innerHTML = `<b>${phase.gateTitle}</b>${phase.gate}`;
+      badge.textContent = `Phase ${currentPhase}`;
+      count.textContent = `${currentPhase + 1} / ${phases.length}`;
+      previousButton.disabled = currentPhase === 0;
+      nextButton.disabled = currentPhase === phases.length - 1;
+      nextButton.textContent = currentPhase === phases.length - 1 ? "ถึงเฟสสุดท้ายแล้ว" : "เฟสถัดไป →";
+      tabs.forEach((tab, tabIndex) => {
+        const active = tabIndex === currentPhase;
+        tab.classList.toggle("active", active);
+        tab.setAttribute("aria-selected", String(active));
+      });
+    }
+
+    // ปุ่มแท็บทำหน้าที่เลือกเฟสโดยตรง เพื่อให้ผู้ตรวจแผนกระโดดไปยังเรื่องที่สนใจได้.
+    tabs.forEach((tab) => tab.addEventListener("click", () => renderPhase(Number(tab.dataset.phase))));
+    previousButton.addEventListener("click", () => renderPhase(currentPhase - 1));
+    nextButton.addEventListener("click", () => renderPhase(currentPhase + 1));
+
+    // ปุ่มลูกศรช่วยเลื่อนทีละเฟสเมื่อผู้ใช้ไม่ได้กำลังพิมพ์ในช่องข้อมูล.
+    document.addEventListener("keydown", (event) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+      if (event.key === "ArrowLeft") renderPhase(currentPhase - 1);
+      if (event.key === "ArrowRight") renderPhase(currentPhase + 1);
+    });
+
+    renderPhase(0);
+  </script>
+</body>
+</html>

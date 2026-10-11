@@ -1,0 +1,138 @@
+# ========================================================================
+# BPP-VMS Clean Configuration Template (แม่แบบการตั้งค่ากล้องเริ่มต้น)
+# ========================================================================
+# สำหรับนำไปใช้งานบนเครื่องใหม่ โดยไม่มีข้อมูลกล้องหรือรหัสผ่านของ ตชด.215
+# ผู้ดูแลระบบสามารถเพิ่มกล้องของตนเองได้ที่นี่ หรือผ่านหน้าเว็บหลัก
+
+auth:
+  enabled: false
+
+ffmpeg:
+  hwaccel_args: preset-nvidia
+
+detect:
+  width: 1280
+  height: 720
+  fps: 5
+  enabled: false
+
+# ------------------------------------------------------------------------
+# รายการกล้องวงจรปิด (เพิ่มกล้องของคุณที่นี่)
+# ------------------------------------------------------------------------
+cameras:
+  # แบบที่ 1: กล้อง RTSP มาตรฐาน (ดึงภาพจาก NVR หรือตัวกล้องโดยตรง)
+  # เปลี่ยนชื่อ 'cam_sample' เป็นชื่อกล้องที่คุณต้องการ เช่น cam_gate, cam_front
+  cam_sample:
+    enabled: false
+    ui:
+      dashboard: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/cam_sample?video
+          input_args: preset-rtsp-restream
+          roles:
+            - record
+    detect:
+      enabled: false
+    record:
+      enabled: false
+
+  # แบบที่ 2: กล้อง RTMP Push Ingest (กล้องหน้างาน/4G/โดรน ยิงสัญญาณเข้ามาที่ NVR พอร์ต 1935)
+  # ข้อแนะนำ: กล้องทางไกลที่สัญญาณอาจสะดุด ควรปิด detect ไว้ (enabled: false)
+  # เพื่อป้องกันไม่ให้ Frigate Watchdog สั่งรีสตาร์ทตัวเองเวลาสัญญาณเน็ตกล้องหลุด
+  # cam_mobile_1:
+  #   enabled: true
+  #   ui:
+  #     dashboard: true
+  #   ffmpeg:
+  #     inputs:
+  #       - path: rtsp://127.0.0.1:8554/cam_mobile_1?video
+  #         input_args: preset-rtsp-restream
+  #         roles:
+  #           - record
+  #   detect:
+  #     enabled: false
+  #   record:
+  #     enabled: true
+
+# ------------------------------------------------------------------------
+# การเชื่อมต่อสตรีม RTSP / RTMP ผ่าน go2rtc
+# ------------------------------------------------------------------------
+go2rtc:
+  streams:
+    # แบบที่ 1: ดึงภาพ RTSP เข้ามา (RTSP Pull)
+    # เช่น: rtsp://admin:Password123@192.168.1.100:554/Streaming/Channels/101
+    cam_sample:
+      - rtsp://admin:Password123@192.168.1.100:554/live/ch0
+
+    # แบบที่ 2: รอรับสัญญาณ RTMP ยิงเข้ามา (RTMP Push Ingest)
+    # กฎสำคัญ: ต้องประกาศชื่อสตรีมพร้อมเครื่องหมาย : (ไม่ต้องใส่ URL ข้างใน)
+    # เพื่อให้ go2rtc เปิดช่องรอรับสัญญาณ ไม่งั้นจะเจอปัญหา "stream not found"
+    # ตัวอย่าง: ถ้ากล้องยิงมาที่ rtmp://<IP>:1935/live/cam_mobile_1 ให้ประกาศ:
+    # cam_mobile_1:
+
+  rtmp:
+    listen: :1935
+  webrtc:
+    candidates:
+      # ระบุโดเมน DDNS (เช่น DuckDNS) หรือ IP เครื่อง NVR เพื่อให้ดูสดผ่าน WebRTC จากนอกวง LAN ได้
+      # - yoursubdomain.duckdns.org:8555
+      # - 192.168.1.xxx:8555
+      - stun:8555
+
+# ------------------------------------------------------------------------
+# การตั้งค่า AI Detection & LPR Model
+# ------------------------------------------------------------------------
+model:
+  height: 640
+  input_dtype: float
+  input_tensor: nchw
+  labelmap:
+    0: person
+    1: bicycle
+    2: car
+    3: motorcycle
+    5: bus
+    7: truck
+  labelmap_path: /labelmap/coco-80.txt
+  model_type: yolo-generic
+  path: /config/model_cache/yolo11m-640.onnx
+  width: 640
+
+mqtt:
+  enabled: true
+  host: mqtt
+  port: 1883
+
+objects:
+  track:
+    - person
+    - car
+    - motorcycle
+    - truck
+    - bus
+
+record:
+  alerts:
+    pre_capture: 10
+    post_capture: 10
+    retain:
+      days: 7
+      mode: motion
+  detections:
+    pre_capture: 10
+    post_capture: 10
+    retain:
+      days: 7
+      mode: motion
+  enabled: true
+  motion:
+    days: 7
+
+snapshots:
+  bounding_box: false
+  enabled: true
+  retain:
+    default: 14
+
+version: 0.17-0

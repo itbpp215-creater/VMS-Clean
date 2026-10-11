@@ -1,0 +1,47 @@
+name: Deploy Frigate (self-hosted)
+
+# push เข้า main → runner บนเครื่อง Frigate ดึงโค้ดล่าสุดแล้ว deploy อัตโนมัติ
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:          # แก้แค่เอกสารจะไม่ redeploy/restart Frigate
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch: {}   # กดรันเองได้จากหน้า Actions
+
+# ไม่ให้ deploy ซ้อนกัน
+concurrency:
+  group: frigate-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # label เฉพาะเครื่อง production ปัจจุบัน (Windows) — กันชนกับ runner เก่าบนเครื่อง Linux
+    # ที่ปลดระวางแล้ว เผื่อยังลงทะเบียนค้างอยู่ใน GitHub (runs-on: [self-hosted] เดิมจะแมตช์ได้ทั้งคู่)
+    runs-on: [self-hosted, windows-production]
+    # หมายเหตุ: ไม่ใช้ actions/checkout — เรา deploy "โฟลเดอร์จริง" บนเครื่องโดยตรง
+    steps:
+      - name: Pull latest & deploy
+        # ระบุ path เต็มของ Git Bash ตรงๆ (ไม่ใช้ "shell: bash" เฉยๆ) — บนเครื่องนี้ PATH มี
+        # C:\WINDOWS\system32\bash.exe (ตัวลิงก์ไป WSL ที่ไม่ได้ลงดิสโทรไว้) มาก่อน Git\bin เสมอ
+        # "shell: bash" ธรรมดาจะ resolve ไปเจอ WSL stub นั้นแล้วพังทันที (exec ไม่ได้)
+        # ใช้ 8.3 short path (C:\PROGRA~1\...) แทน "C:\Program Files\..." แบบมี quote —
+        # ตัว parser ของ custom shell string ใน Actions ไม่รองรับ path ที่มี space+quote แบบนั้น
+        # (ลองแล้วพัง: IOException เพราะตัด path เพี้ยนเป็น C:\WINDOWS\system32\"C:)
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -eo pipefail {0}'
+        env:
+          GH_TOKEN: ${{ github.token }}   # token ชั่วคราวของ workflow (ไม่ต้องเก็บ credential บนเครื่อง)
+        run: |
+          set -euo pipefail
+          # path จริงของโปรเจกต์บนเครื่อง production ปัจจุบัน — ย้ายเครื่อง/ย้ายดิสก์แล้ว
+          # (เดิม C:/Things-Analytic-NVR/frigate-nvr ซึ่งไม่มีอยู่บนเครื่องใหม่ ทำให้ job
+          # ล้มเงียบที่ขั้น cd — ดู docs/troubleshooting.md #13)
+          # หมายเหตุ: แก้ path อย่างเดียวยังไม่ทำให้ auto-deploy กลับมา — ตรวจ 2026-07-16
+          # ไม่พบ Runner.Listener process / actions.runner service / โฟลเดอร์ actions-runner
+          # บนเครื่องนี้ ต้องลงทะเบียน self-hosted runner (label windows-production) ใหม่ก่อน
+          cd "D:/BPP-VMS/frigate-nvr"
+          # ดึงด้วย token ของ workflow แล้วบังคับให้ตรงกับ remote (.env/storage ไม่ถูกแตะ เพราะ ignored)
+          git fetch --prune "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${GITHUB_REF_NAME}"
+          git reset --hard FETCH_HEAD
+          chmod +x deploy.sh
+          ./deploy.sh

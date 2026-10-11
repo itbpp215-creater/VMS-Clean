@@ -1,0 +1,3 @@
+# Clean Distribution Architecture and Pre-Push Sanitization Gate
+
+To safely deploy BPP-VMS to new and external machines without leaking BPP215 camera streams, NAS storage credentials, Telegram bot tokens, Gemini API keys, or suspect lists, we establish a separate Clean Distribution Repository (`https://github.com/itbpp215-creater/VMS-Clean.git`) paired with an automated local Pre-Push Sanitization Gate. The internal BPP215 repository remains the primary development workspace, while the gate rigorously scrubs site-specific secrets, substitutes blank configuration templates, and builds standalone release packages for seamless downstream updates.

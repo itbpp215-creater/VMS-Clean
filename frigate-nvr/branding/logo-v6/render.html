@@ -1,0 +1,107 @@
+<!doctype html>
+<!-- Query-controlled browser renderer provides consistent curved type, shield preview, and isolated PSD layers. -->
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: 1500pt 1500pt;
+      margin: 0
+    }
+
+    html,
+    body {
+      width: 2000px;
+      height: 2000px;
+      margin: 0;
+      overflow: hidden;
+      background: transparent
+    }
+
+    svg {
+      width: 2000px;
+      height: 2000px
+    }
+
+    body.type-only #art {
+      visibility: hidden
+    }
+
+    body.art-only #type {
+      visibility: hidden
+    }
+  </style>
+</head>
+
+<body><svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 2000 2000">
+    <defs>
+      <clipPath id="clip">
+        <path d="M900 55 1650 280 1520 1090Q1415 1375 900 1730 385 1375 280 1090L150 280Z" />
+      </clipPath>
+      <path id="thai" d="M330 345Q900 90 1470 345" />
+      <linearGradient id="tf" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#F4E8FF" />
+        <stop offset=".48" stop-color="#C084FC" />
+        <stop offset="1" stop-color="#8B3FD1" />
+      </linearGradient>
+      <linearGradient id="sf" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#18264A" />
+        <stop offset="1" stop-color="#06070F" />
+      </linearGradient>
+      <filter id="sh" x="-20%" y="-30%" width="140%" height="180%">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="9" result="b" />
+        <feOffset dy="13" result="o" />
+        <feFlood flood-color="#06070F" flood-opacity=".95" />
+        <feComposite in2="o" operator="in" />
+        <feMerge>
+          <feMergeNode />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <g id="art">
+      <path d="M900 55 1650 280 1520 1090Q1415 1375 900 1730 385 1375 280 1090L150 280Z" fill="url(#sf)"
+        stroke="#06070F" stroke-width="52" stroke-linejoin="round" />
+      <path d="M900 55 1650 280 1520 1090Q1415 1375 900 1730 385 1375 280 1090L150 280Z" fill="none" stroke="#A855F7"
+        stroke-width="28" stroke-linejoin="round" />
+      <path d="M900 92 1610 305 1482 1071Q1374 1335 900 1669 426 1335 318 1071L190 305Z" fill="none" stroke="#E9D5FF"
+        stroke-width="8" stroke-linejoin="round" opacity=".9" />
+      <image href="mascot-crop.png" x="285" y="250" width="1230" height="1277" preserveAspectRatio="xMidYMid meet"
+        clip-path="url(#clip)" />
+      <path d="M360 1030h180M1260 1030h180" stroke="#38BDF8" stroke-width="12" opacity=".75" />
+    </g>
+    <g id="type" font-family="Leelawadee UI, Noto Sans Thai, Tahoma, sans-serif" text-anchor="middle">
+      <text font-size="55" font-weight="800" font-style="italic" letter-spacing=".5" fill="url(#tf)" stroke="#06070F"
+        stroke-width="21" paint-order="stroke" filter="url(#sh)">
+        <textPath href="#thai" startOffset="50%">ศูนย์ควบคุมและวิเคราะห์ข้อมูล • ร้อย ตชด.215</textPath>
+      </text>
+      <text font-size="55" font-weight="800" font-style="italic" letter-spacing=".5" fill="url(#tf)" stroke="#E9D5FF"
+        stroke-width="3" paint-order="stroke">
+        <textPath href="#thai" startOffset="50%">ศูนย์ควบคุมและวิเคราะห์ข้อมูล • ร้อย ตชด.215</textPath>
+      </text>
+      <path d="M65 1208h1670l55 66-55 292H65l-55-66v-226Z" fill="#06070F" stroke="#06070F" stroke-width="34"
+        stroke-linejoin="round" filter="url(#sh)" />
+      <path d="M65 1208h1670l55 66-55 292H65l-55-66v-226Z" fill="#101936" stroke="#A855F7" stroke-width="18"
+        stroke-linejoin="round" />
+      <path d="M93 1238h1614l38 46-35 249H90l-35-46v-203Z" fill="none" stroke="#38BDF8" stroke-width="6"
+        stroke-linejoin="round" />
+      <path d="M245 1398h1310" stroke="#9D4EDD" stroke-width="6" opacity=".7" />
+      <text x="900" y="1380" font-family="Bahnschrift SemiBold Condensed, Leelawadee UI, Tahoma, sans-serif"
+        font-size="148" font-weight="800" font-style="italic" letter-spacing="10" fill="url(#tf)" stroke="#06070F"
+        stroke-width="26" paint-order="stroke">BPP 215</text>
+      <text x="900" y="1380" font-family="Bahnschrift SemiBold Condensed, Leelawadee UI, Tahoma, sans-serif"
+        font-size="148" font-weight="800" font-style="italic" letter-spacing="10" fill="url(#tf)" stroke="#E9D5FF"
+        stroke-width="5" paint-order="stroke">BPP 215</text>
+      <text x="900" y="1519" font-family="Bahnschrift SemiBold Condensed, Leelawadee UI, Tahoma, sans-serif"
+        font-size="101" font-weight="800" font-style="italic" letter-spacing="7" fill="url(#tf)" stroke="#06070F"
+        stroke-width="22" paint-order="stroke">SLOTH</text>
+      <text x="900" y="1519" font-family="Bahnschrift SemiBold Condensed, Leelawadee UI, Tahoma, sans-serif"
+        font-size="101" font-weight="800" font-style="italic" letter-spacing="7" fill="url(#tf)" stroke="#E9D5FF"
+        stroke-width="4" paint-order="stroke">SLOTH</text>
+    </g>
+  </svg>
+  <script>document.body.className = new URLSearchParams(location.search).get('layer') || '';</script>
+</body>
+
+</html>

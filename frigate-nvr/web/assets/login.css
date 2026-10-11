@@ -1,0 +1,205 @@
+:root {
+  --bg: #0b0d17;
+  --panel: #161a2b;
+  --text: #f0f2f8;
+  --text-dim: #9aa0bd;
+  --primary: #9d4edd;
+  --primary-hover: #b451ff;
+  --danger: #fb5b78;
+  --border: #23283f;
+  /* Keep authentication independent of remote font CDNs while covering Thai text. */
+  --font-login: "Leelawadee UI", "Noto Sans Thai", Thonburi, Tahoma, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle at 50% 0%, rgba(157, 78, 221, 0.15) 0%, transparent 50%);
+  color: var(--text);
+  font-family: var(--font-login);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.login-wrapper {
+  width: 100%;
+  max-width: 400px;
+  padding: 20px;
+}
+
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 30px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 16px;
+}
+
+.login-brand h1 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #eef0f8;
+}
+.brand-logo img {
+  filter: drop-shadow(0 0 20px rgba(157, 78, 221, 0.6));
+}
+
+.login-brand p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.field {
+  margin-bottom: 20px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.input-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon svg {
+  position: absolute;
+  left: 14px;
+  color: var(--text-dim);
+}
+
+.input-icon input {
+  width: 100%;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px 12px 40px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  transition: all 0.2s;
+}
+
+.input-icon input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(157, 78, 221, 0.2);
+}
+
+.btn-primary {
+  width: 100%;
+  background: linear-gradient(135deg, var(--primary), #7b2cbf);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(157, 78, 221, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error-msg {
+  background: rgba(251, 91, 120, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(251, 91, 120, 0.2);
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.login-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .login-wrapper {
+    padding: 12px;
+  }
+  .login-card {
+    padding: 24px 18px;
+    border-radius: 12px;
+  }
+  .brand-logo {
+    width: 76px;
+    height: 76px;
+    margin-bottom: 12px;
+  }
+  .login-brand h1 {
+    font-size: 20px;
+  }
+  .login-brand p {
+    font-size: 13px;
+  }
+  .btn-primary, .input-icon input {
+    min-height: 44px;
+  }
+}
+

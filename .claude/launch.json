@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bpp-dashboard",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": [
+        "run", "--rm", "--name", "bpp-preview",
+        "-p", "8090:80",
+        "--add-host", "host.docker.internal:host-gateway",
+        "-v", "D:/BPP-VMS/frigate-nvr/web:/usr/share/nginx/html:ro",
+        "-v", "D:/BPP-VMS/preview-nginx.conf:/etc/nginx/conf.d/default.conf:ro",
+        "nginx:alpine"
+      ],
+      "port": 8090
+    }
+  ]
+}

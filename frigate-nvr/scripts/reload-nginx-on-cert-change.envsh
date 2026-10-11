@@ -1,0 +1,68 @@
+# Reload nginx automatically after acme.sh renews the TLS certificate.
+#
+# acme.sh (service `acme`) renews ~30 days before expiry and copies the new
+# fullchain/privkey into ./config/certs, which this container mounts read-only.
+# nginx reads certificates only at start/reload, so without this hook a renewed
+# certificate would sit on disk unused until someone reloaded by hand and the
+# site would eventually serve an expired certificate.
+#
+# acme.sh runs in its own container and cannot signal this one without either a
+# Docker socket mount (privilege escalation risk) or a shared PID namespace
+# (couples both containers' lifecycles), so the reload is driven from here by
+# watching the certificate file instead. The check is a checksum of one ~3 KB
+# file per hour, and a reload only happens when the bytes actually change.
+#
+# This is a .envsh (sourced) rather than a .sh (executed) because the official
+# nginx entrypoint skips non-executable *.sh files and Windows bind mounts do
+# not carry a reliable executable bit — the same reason the Federation ACL hook
+# beside this one is a .envsh.
+
+bpp_cert_watch_file="/etc/nginx/certs/fullchain.pem"
+# 1 hour: certificates change roughly every 60 days, so anything faster only
+# adds noise. Overridable for tests via the dashboard service environment.
+bpp_cert_watch_interval="${CERT_WATCH_INTERVAL:-3600}"
+
+if [ ! -r "${bpp_cert_watch_file}" ]; then
+    echo "$0: ${bpp_cert_watch_file} not readable; certificate auto-reload disabled"
+else
+    # Runs in the background for the container's lifetime. The entrypoint execs
+    # nginx after sourcing this file, so this subshell is re-parented to the
+    # nginx master and lives exactly as long as the container does; a container
+    # restart re-arms it.
+    (
+        # nginx is not running yet at source time. Wait for the master's pid file
+        # before the first check so an early reload can never race startup.
+        bpp_cert_wait=0
+        while [ ! -s /var/run/nginx.pid ] && [ "${bpp_cert_wait}" -lt 60 ]; do
+            sleep 2
+            bpp_cert_wait=$((bpp_cert_wait + 2))
+        done
+
+        bpp_cert_seen="$(md5sum "${bpp_cert_watch_file}" 2>/dev/null | cut -d' ' -f1)"
+        while sleep "${bpp_cert_watch_interval}"; do
+            bpp_cert_now="$(md5sum "${bpp_cert_watch_file}" 2>/dev/null | cut -d' ' -f1)"
+
+            # An unreadable/half-written file mid-copy yields an empty checksum.
+            # Skipping the round leaves the previous value in place, so the change
+            # is picked up on the next pass once the copy has settled.
+            [ -z "${bpp_cert_now}" ] && continue
+            [ "${bpp_cert_now}" = "${bpp_cert_seen}" ] && continue
+
+            # Validate before signalling: a reload with a broken certificate pair
+            # is rejected by nginx anyway, and retrying on the next pass is safer
+            # than recording a checksum that was never actually loaded.
+            if nginx -t >/dev/null 2>&1; then
+                if nginx -s reload; then
+                    bpp_cert_seen="${bpp_cert_now}"
+                    echo "$(date -Iseconds) [cert-watch] certificate changed, nginx reloaded"
+                else
+                    echo "$(date -Iseconds) [cert-watch] reload failed, retrying next cycle"
+                fi
+            else
+                echo "$(date -Iseconds) [cert-watch] certificate changed but 'nginx -t' failed, keeping current config"
+            fi
+        done
+    ) &
+fi
+
+unset bpp_cert_watch_file bpp_cert_watch_interval bpp_cert_wait

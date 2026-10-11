@@ -1,0 +1,294 @@
+services:
+  frigate:
+    container_name: frigate-nvr
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - media-egress
+      - media
+    restart: unless-stopped
+    stop_grace_period: 10s
+    env_file:
+      - ./config/camera_credentials.env
+    image: frigate-branded:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    shm_size: "1024mb"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config:/config
+      - frigate-db:/db
+      - type: tmpfs
+        target: /config/auth
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/certs
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/lpr
+        tmpfs:
+          size: 1048576
+      - ./config/dashboard-settings/storage-policy:/config/dashboard-settings:ro
+      - type: tmpfs
+        target: /config/backups
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/acme
+        tmpfs:
+          size: 1048576
+      - ./storage:/media/frigate
+      - ./scripts/stream_health_monitor.py:/opt/stream_health_monitor.py:ro
+      - cuda-cache:/root/.nv
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      - "8555:8555"
+      - "8555:8555/udp"
+      - "1935:1935"
+    environment:
+      FRIGATE_DATABASE_PATH: /db/frigate.db
+      FRIGATE_DVR_USER: ${FRIGATE_DVR_USER:?FRIGATE_DVR_USER is required}
+      FRIGATE_DVR_PASS: ${FRIGATE_DVR_PASS:?FRIGATE_DVR_PASS is required}
+      FRIGATE_PRASAT_USER: ${FRIGATE_PRASAT_USER:?FRIGATE_PRASAT_USER is required}
+      FRIGATE_PRASAT_PASS: ${FRIGATE_PRASAT_PASS:?FRIGATE_PRASAT_PASS is required}
+      FRIGATE_CAM11_USER: ${FRIGATE_CAM11_USER:-}
+      FRIGATE_CAM11_PASS: ${FRIGATE_CAM11_PASS:-}
+      STORAGE_MIN_FREE_PERCENT: ${STORAGE_MIN_FREE_PERCENT:-15}
+      FFMPEG_DISABLE_GAMMA_EQUALIZER: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  media-compat-service:
+    container_name: media-compat-service
+    image: media-compat-service:local
+    build:
+      context: ./media-compat-service
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - media
+    environment:
+      MEDIA_COMPAT_PROXY_SHARED_SECRET: ${MEDIA_COMPAT_PROXY_SHARED_SECRET:?MEDIA_COMPAT_PROXY_SHARED_SECRET is required}
+      MEDIA_COMPAT_ENABLED: ${MEDIA_COMPAT_ENABLED:-false}
+      FRIGATE_BASE_URL: http://frigate:5000
+    volumes:
+      - type: bind
+        source: ./runtime-cache/mobile-video
+        target: /cache
+      - type: tmpfs
+        target: /work
+        tmpfs:
+          size: 536870912
+          mode: 0777
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import json,os,urllib.request; request=urllib.request.Request('http://127.0.0.1:5008/health',headers={'X-User':'healthcheck','X-Role':'user','X-BPP-Proxy-Secret':os.environ['MEDIA_COMPAT_PROXY_SHARED_SECRET']}); assert json.load(urllib.request.urlopen(request,timeout=3))['ready'] is True"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  dashboard:
+    container_name: nvr-dashboard
+    image: nginx:1.29.8-alpine3.23@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edge
+      - media
+      - security
+    depends_on:
+      - config-api
+      - frigate
+      - media-compat-service
+    environment:
+      WATCHLIST_PROXY_SHARED_SECRET: ${WATCHLIST_PROXY_SHARED_SECRET:?WATCHLIST_PROXY_SHARED_SECRET is required}
+      MEDIA_COMPAT_PROXY_SHARED_SECRET: ${MEDIA_COMPAT_PROXY_SHARED_SECRET:?MEDIA_COMPAT_PROXY_SHARED_SECRET is required}
+      BPP_FEDERATION_ALLOW_CIDR: ${BPP_FEDERATION_ALLOW_CIDR:-127.0.0.1/32}
+      NGINX_ENVSUBST_FILTER: "^(WATCHLIST_PROXY_SHARED_SECRET|MEDIA_COMPAT_PROXY_SHARED_SECRET)$"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./dashboard-nginx.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./scripts/generate-federation-allow.envsh:/docker-entrypoint.d/19-generate-federation-allow.envsh:ro
+      - ./scripts/reload-nginx-on-cert-change.envsh:/docker-entrypoint.d/20-reload-nginx-on-cert-change.envsh:ro
+      - ./config/dashboard-settings:/settings-data
+      - ./config/lpr:/lpr-settings
+      - ./lpr-data:/lpr-data:ro
+      - ./config/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+
+  config-api:
+    container_name: config-api
+    image: config-api:local
+    build:
+      context: ./config-api
+    restart: unless-stopped
+    depends_on:
+      config-validator:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - security
+      - config-validation
+      - edge
+    environment:
+      CONFIG_API_FRIGATE_VALIDATOR_HOST: config-validator
+      CONFIG_API_FRIGATE_VALIDATOR_PORT: 5004
+      CONFIG_API_LPR_CAMERAS_PATH: /lpr-settings/lpr_cameras.txt
+      WATCHLIST_FEDERATION_SHARED_SECRET: ${WATCHLIST_FEDERATION_SHARED_SECRET:?WATCHLIST_FEDERATION_SHARED_SECRET is required}
+    volumes:
+      - ./config:/config
+      - ./config-api/api.py:/app/api.py:ro
+      - ./config-api/stream_probe.py:/app/stream_probe.py:ro
+      - ./config/lpr/lpr_cameras.txt:/lpr-settings/lpr_cameras.txt:ro
+      - ./config/dashboard-settings:/settings-data:ro
+      - type: tmpfs
+        target: /config/auth
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/certs
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/lpr
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/dashboard-settings
+        tmpfs:
+          size: 1048576
+      - type: tmpfs
+        target: /config/acme
+        tmpfs:
+          size: 1048576
+
+  config-validator:
+    container_name: config-validator
+    image: config-validator:local
+    env_file:
+      - ./config/camera_credentials.env
+    build:
+      context: ./config-validator
+    restart: unless-stopped
+    read_only: true
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5004/health', timeout=2).read()"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    tmpfs:
+      - /tmp
+    networks:
+      - config-validation
+    environment:
+      FRIGATE_DVR_USER: ${FRIGATE_DVR_USER:?FRIGATE_DVR_USER is required}
+      FRIGATE_DVR_PASS: ${FRIGATE_DVR_PASS:?FRIGATE_DVR_PASS is required}
+      FRIGATE_PRASAT_USER: ${FRIGATE_PRASAT_USER:?FRIGATE_PRASAT_USER is required}
+      FRIGATE_PRASAT_PASS: ${FRIGATE_PRASAT_PASS:?FRIGATE_PRASAT_PASS is required}
+      FRIGATE_CAM11_USER: ${FRIGATE_CAM11_USER:-}
+      FRIGATE_CAM11_PASS: ${FRIGATE_CAM11_PASS:-}
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp
+    volumes:
+      - ./config/model_cache:/config/model_cache:ro
+
+  system-restarter:
+    container_name: system-restarter
+    image: docker:cli
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Starting system-restarter..."
+        while true; do
+          if [ -f /workspace/config/restart.trigger ]; then
+            echo "Trigger found. Restarting..."
+            rm -f /workspace/config/restart.trigger
+            docker restart config-validator frigate-nvr
+            echo "Restart complete."
+          fi
+          if [ -f /workspace/config/lpr/train.trigger ] || [ -f /workspace/config/train.trigger ]; then
+            echo "LPR Train Trigger found. Starting lpr-trainer on demand..."
+            rm -f /workspace/config/lpr/train.trigger /workspace/config/train.trigger
+            docker start lpr-trainer
+            echo "lpr-trainer started."
+          fi
+          sleep 5
+        done
+
+networks:
+  edge:
+    external: true
+    name: frigate-nvr_edge
+  media:
+    external: true
+    name: frigate-nvr_media
+  media-egress:
+    external: true
+    name: frigate-nvr_media-egress
+  security:
+    external: true
+    name: frigate-nvr_security
+  config-validation:
+    external: true
+    name: frigate-nvr_config-validation
+
+volumes:
+  frigate-db:
+    external: true
+    name: frigate-nvr_frigate-db
+  cuda-cache:
+    external: true
+    name: frigate-nvr_cuda-cache

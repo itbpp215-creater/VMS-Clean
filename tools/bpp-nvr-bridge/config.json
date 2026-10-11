@@ -1,0 +1,32 @@
+{
+  "server_host": "192.168.10.200",
+  "unit_code": "external_unit",
+  "nvr_brand": "TP-Link VIGI",
+  "custom_rtsp_path": "",
+  "nvr_ip": "192.168.1.100",
+  "nvr_port": 554,
+  "username": "admin",
+  "password": "",
+  "camera_group": "",
+  "max_channels": 16,
+  "autostart_bridge": false,
+  "run_on_startup": false,
+  "channels": [
+    { "ch": 1, "enabled": true, "stream_type": "stream2" },
+    { "ch": 2, "enabled": true, "stream_type": "stream2" },
+    { "ch": 3, "enabled": true, "stream_type": "stream2" },
+    { "ch": 4, "enabled": true, "stream_type": "stream2" },
+    { "ch": 5, "enabled": false, "stream_type": "stream2" },
+    { "ch": 6, "enabled": false, "stream_type": "stream2" },
+    { "ch": 7, "enabled": false, "stream_type": "stream2" },
+    { "ch": 8, "enabled": false, "stream_type": "stream2" },
+    { "ch": 9, "enabled": false, "stream_type": "stream2" },
+    { "ch": 10, "enabled": false, "stream_type": "stream2" },
+    { "ch": 11, "enabled": false, "stream_type": "stream2" },
+    { "ch": 12, "enabled": false, "stream_type": "stream2" },
+    { "ch": 13, "enabled": false, "stream_type": "stream2" },
+    { "ch": 14, "enabled": false, "stream_type": "stream2" },
+    { "ch": 15, "enabled": false, "stream_type": "stream2" },
+    { "ch": 16, "enabled": false, "stream_type": "stream2" }
+  ]
+}

@@ -1,0 +1,82 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+.venv
+venv/
+
+# Frigate / VMS specific
+storage/
+lpr-data/
+scratch/
+tests/__pycache__/
+config/config.yml
+runtime-cache/
+frigate-nvr/runtime-cache/
+runtime/
+frigate-nvr/runtime/
+*.partial
+*.mp4.partial
+tools/**/bin/*.exe
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+*.zip
+*.bak
+
+# Local Git worktrees used to isolate agent implementation branches.
+.worktrees/
+
+# Machine-local (เครื่อง production DESKTOP-CTO5T78) — ห้าม commit
+# backup/ มีสำเนา .env, private key (cert/ACME), config ก่อนแก้ และ bundle ของ repo เดิม
+backup/
+.claude/settings.local.json
+n8n/credentials.json
+*.secret
+gemini_api_key*
+*.local
+
+# Scratch & temporary ad-hoc test scripts (ห้าม commit สคริปต์ทดสอบชั่วคราว)
+test_*.py
+test*.js
+test_*.js
+scratch*.py
+scan_*.py
+scrape_*.py
+temp_*
+out.*
+*.tmp
+

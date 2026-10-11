@@ -1,0 +1,7 @@
+# Target-only overlay. Public DNS and ACME remain installed for later opt-in,
+# but normal install/start/update commands do not activate the public-edge profile.
+services:
+  duckdns:
+    profiles: ["public-edge"]
+  acme:
+    profiles: ["public-edge"]

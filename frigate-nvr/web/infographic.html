@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLOTH BPP 215 - Infographic Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #060913;
+      --bg-card: rgba(13, 22, 40, 0.75);
+      --border-cyan: #00f2ff;
+      --border-blue: #0072ff;
+      --border-green: #00ff87;
+      --border-orange: #ff9900;
+      --border-red: #ff3366;
+      --border-purple: #9d4edd;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --neon-shadow: 0 0 20px rgba(0, 242, 255, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Kanit', 'Outfit', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-main);
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(0, 242, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(0, 114, 255, 0.08) 0%, transparent 40%),
+        linear-gradient(rgba(6, 9, 19, 0.95), rgba(6, 9, 19, 0.95));
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      position: relative;
+      padding: 20px;
+      background: linear-gradient(180deg, rgba(0, 242, 255, 0.1) 0%, transparent 100%);
+      border-radius: 16px;
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .badge-top {
+      display: inline-block;
+      padding: 6px 16px;
+      background: rgba(0, 242, 255, 0.15);
+      border: 1px solid var(--border-cyan);
+      border-radius: 20px;
+      font-size: 14px;
+      color: var(--border-cyan);
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    h1 {
+      font-family: 'Outfit', 'Kanit', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, #ffffff 0%, #00f2ff 50%, #0072ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      font-weight: 400;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--neon-shadow);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .c1 { grid-column: span 4; border-color: rgba(0, 242, 255, 0.3); } .c1::before { background: var(--border-cyan); }
+    .c2 { grid-column: span 4; border-color: rgba(0, 255, 135, 0.3); } .c2::before { background: var(--border-green); }
+    .c3 { grid-column: span 4; border-color: rgba(0, 114, 255, 0.3); } .c3::before { background: var(--border-blue); }
+    .c4 { grid-column: span 6; border-color: rgba(255, 153, 0, 0.3); } .c4::before { background: var(--border-orange); }
+    .c5 { grid-column: span 6; border-color: rgba(255, 51, 102, 0.3); } .c5::before { background: var(--border-red); }
+    .c6 { grid-column: span 6; border-color: rgba(157, 78, 221, 0.3); } .c6::before { background: var(--border-purple); }
+    .c7 { grid-column: span 6; border-color: rgba(0, 242, 255, 0.3); } .c7::before { background: var(--border-cyan); }
+
+    .card-num {
+      position: absolute;
+      top: 16px; right: 20px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      opacity: 0.2;
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .icon-box {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .c1 .icon-box { background: rgba(0, 242, 255, 0.15); color: var(--border-cyan); }
+    .c2 .icon-box { background: rgba(0, 255, 135, 0.15); color: var(--border-green); }
+    .c3 .icon-box { background: rgba(0, 114, 255, 0.15); color: var(--border-blue); }
+    .c4 .icon-box { background: rgba(255, 153, 0, 0.15); color: var(--border-orange); }
+    .c5 .icon-box { background: rgba(255, 51, 102, 0.15); color: var(--border-red); }
+    .c6 .icon-box { background: rgba(157, 78, 221, 0.15); color: var(--border-purple); }
+    .c7 .icon-box { background: rgba(0, 242, 255, 0.15); color: var(--border-cyan); }
+
+    .card-body {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    .highlight-stat {
+      font-size: 2.5rem;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+      color: var(--border-green);
+      margin: 8px 0;
+    }
+
+    ul.feature-list {
+      list-style: none;
+    }
+
+    ul.feature-list li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul.feature-list li::before {
+      content: '•'; color: var(--primary, #a855f7); font-size: 1.2rem; line-height: 1;
+      position: absolute;
+      left: 0; top: 0;
+      font-size: 0.8rem;
+    }
+
+    .timeline {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .tl-step {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+    }
+
+    .tl-step .phase { font-size: 0.75rem; color: var(--border-cyan); font-weight: 600; }
+    .tl-step .name { font-size: 0.85rem; font-weight: 500; margin-top: 4px; }
+
+    @media (max-width: 1024px) {
+      .c1, .c2, .c3, .c4, .c5, .c6, .c7 { grid-column: span 12; }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 16px 12px;
+      }
+      header h1 {
+        font-size: 1.6rem;
+      }
+      .subtitle {
+        font-size: 0.9rem;
+      }
+      .timeline {
+        flex-direction: column;
+      }
+      .card {
+        padding: 16px;
+      }
+      .stat-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-top">SLOTH BPP 215 INFOGRAPHIC</div>
+      <h1>หัวข้อการรายงานขับเคลื่อน SLOTH</h1>
+      <div class="subtitle">ขับเคลื่อนงานยาเสพติดด้วยเทคโนโลยี เพื่อความปลอดภัยของสังคม</div>
+    </header>
+
+    <div class="grid">
+      <!-- 1. ที่ตั้ง -->
+      <div class="card c1">
+        <div class="card-num">01</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+          <div>ที่ตั้งโครงการ</div>
+        </div>
+        <div class="card-body">
+          <p><strong>หน่วยงานรับผิดชอบ:</strong> กองร้อยตำรวจตระเวนชายแดนที่ 215 (ตชด.215)</p>
+          <p style="margin-top:8px;"><strong>พื้นที่ปฏิบัติการ:</strong> อ.นางรอง จ.บุรีรัมย์ และเส้นทางเชื่อมโยงแนวชายแดนไทย-กัมพูชา (บก.ตชด.ภาค 2)</p>
+        </div>
+      </div>
+
+      <!-- 2. จำนวนกล้อง -->
+      <div class="card c2">
+        <div class="card-num">02</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div>
+          <div>จำนวนกล้องวงจรปิด</div>
+        </div>
+        <div class="card-body">
+          <div class="highlight-stat">16 CHANNELS</div>
+          <p>• 15 กล้อง NVR หลัก (nongwang1 - 15)</p>
+          <p>• 1 กล้องอ่านป้ายทะเบียน AI (cam11)</p>
+        </div>
+      </div>
+
+      <!-- 3. การเชื่อมโยงข้อมูล -->
+      <div class="card c3">
+        <div class="card-num">03</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+          <div>เชื่อมโยงข้อมูลหน่วยข้างเคียง</div>
+        </div>
+        <div class="card-body">
+          <p><strong>Watchlist Federation API:</strong> ซิงค์ข้อมูลป้ายทะเบียนและรถต้องสงสัยกับ สภ.ข้างเคียง และ ป.ป.ส. ข้ามเครือข่ายอัตโนมัติ</p>
+          <p style="margin-top:8px;"><strong>Real-time Webhook:</strong> แจ้งเตือนเข้า Discord/Line ทันทีเมื่อเจอรถเป้าหมาย</p>
+        </div>
+      </div>
+
+      <!-- 4. วงรอบการประชุม -->
+      <div class="card c4">
+        <div class="card-num">04</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></div>
+          <div>วงรอบการประชุมและปฏิบัติการ</div>
+        </div>
+        <div class="card-body">
+          <ul class="feature-list">
+            <li><strong>Real-time Alert:</strong> สั่งการสกัดกั้นทันทีเมื่อระบบ AI ตรวจพบยานพาหนะเป้าหมาย</li>
+            <li><strong>Weekly Briefing:</strong> ประชุมวิเคราะห์ทราฟฟิกและข่าวสารยาเสพติดร่วมกับชุดสืบสวนทุกวันจันทร์</li>
+            <li><strong>Monthly Strategic Review:</strong> ประเมินประสิทธิภาพระบบ AI และอัปเดต Watchlist ประจำเดือน</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 5. ปัญหาและอุปสรรค -->
+      <div class="card c5">
+        <div class="card-num">05</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>
+          <div>ปัญหาและอุปสรรค</div>
+        </div>
+        <div class="card-body">
+          <ul class="feature-list">
+            <li>ข้อจำกัดของภาระการประมวลผล GPU/CPU เมื่อเปิด AI พร้อมกันหลายกล้อง</li>
+            <li>คุณภาพภาพถ่ายกล้องในเวลากลางคืนหรือสภาพอากาศปิด (ฝนตก/หมอกลง)</li>
+            <li>แบนด์วิดท์เครือข่ายสื่อสารตามแนวชายแดนมีความสว่างจำกัด</li>
+            <li>ยานพาหนะเป้าหมายไม่ติดแผ่นป้ายทะเบียน หรือป้ายชำรุดเปรอะโคลน</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 6. ความต้องการและข้อเสนอแนะ -->
+      <div class="card c6">
+        <div class="card-num">06</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path></svg></div>
+          <div>ความต้องการและข้อเสนอแนะ</div>
+        </div>
+        <div class="card-body">
+          <ul class="feature-list">
+            <li><strong>Hardware Acceleration:</strong> จัดหาการ์ด NVIDIA GPU / Coral TPU เพื่อรองรับ 32-64 กล้อง</li>
+            <li><strong>Dedicated LPR Cameras:</strong> อัปเกรดเป็นกล้องอินฟราเรดความเร็วสูง (Global Shutter)</li>
+            <li><strong>Central Big Data:</strong> เชื่อมต่อ API ตรงกับฐานข้อมูล ศปส.ตร. และ ป.ป.ส. ส่วนกลาง</li>
+            <li><strong>Off-grid Power:</strong> ระบบ Solar Cell + Battery สำรองไฟจุดตรวจห่างไกล</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 7. แผนพัฒนาในอนาคต -->
+      <div class="card c7">
+        <div class="card-num">07</div>
+        <div class="card-title">
+          <div class="icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path><path d="M9 12l-5 5"></path><path d="M15 9l5 5"></path></svg></div>
+          <div>แผนพัฒนาในอนาคต</div>
+        </div>
+        <div class="card-body">
+          <p>ยกระดับระบบสู่ Next-Gen AI Surveillance เพื่อความมั่นคงตามแนวชายแดน:</p>
+          <div class="timeline">
+            <div class="tl-step">
+              <div class="phase">PHASE 1</div>
+              <div class="name">LPR 2.0 (ลาว/กัมพูชา)</div>
+            </div>
+            <div class="tl-step">
+              <div class="phase">PHASE 2</div>
+              <div class="name">Drone AI Recon</div>
+            </div>
+            <div class="tl-step">
+              <div class="phase">PHASE 3</div>
+              <div class="name">Behavior Analytics</div>
+            </div>
+            <div class="tl-step">
+              <div class="phase">PHASE 4</div>
+              <div class="name">Mobile Field App</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

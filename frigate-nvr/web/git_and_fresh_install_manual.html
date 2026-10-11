@@ -1,0 +1,276 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือการติดตั้งและอัปเดตระบบ BPP-VMS (1-Click Guide)</title>
+  <style>
+    :root {
+      --bg: #090d1a;
+      --bg-surface: #0e1324;
+      --bg-card: rgba(19, 26, 49, 0.8);
+      --border: rgba(168, 85, 247, 0.25);
+      --primary: #a855f7;
+      --primary-hover: #c084fc;
+      --accent-green: #10b981;
+      --accent-cyan: #38bdf8;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --font-main: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-main);
+      line-height: 1.65;
+      padding: 30px 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    }
+    h1 { color: #fff; font-size: 1.85rem; margin-bottom: 8px; }
+    .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; }
+    h2 { color: var(--accent-cyan); font-size: 1.4rem; margin: 32px 0 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { color: var(--primary-hover); font-size: 1.15rem; margin: 24px 0 12px; }
+    p { margin-bottom: 14px; color: #cbd5e1; font-size: 15px; }
+    .callout {
+      background: rgba(168, 85, 247, 0.1);
+      border-left: 4px solid var(--primary);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 14.5px;
+    }
+    .callout.success {
+      background: rgba(16, 185, 129, 0.1);
+      border-left-color: var(--accent-green);
+    }
+    .step-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 18px 0;
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 14px;
+      font-weight: 700;
+      margin-right: 10px;
+    }
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: inline;
+    }
+    code {
+      font-family: var(--font-mono);
+      background: rgba(168,85,247,0.15);
+      color: #c084fc;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13.5px;
+    }
+    pre {
+      background: #060913;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 14px 18px;
+      overflow-x: auto;
+      margin: 14px 0;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--accent-cyan);
+    }
+    ul, ol { margin-left: 24px; margin-bottom: 16px; color: #cbd5e1; }
+    li { margin-bottom: 8px; }
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      margin: 10px 0;
+      box-shadow: 0 4px 15px rgba(168,85,247,0.4);
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent-green);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>📘 คู่มือการติดตั้งและอัปเดตระบบ BPP-VMS</h1>
+    <div class="subtitle">
+      ระบบติดตั้งอัตโนมัติแบบ 1-Click สำหรับเครื่องใหม่ และการอัปเดตโค้ดอย่างปลอดภัย<br>
+      กองกำกับการตำรวจตระเวนชายแดนที่ 21 (กก.ตชด.21) — กองร้อย ตชด.215 <span class="badge">1-Click Automated</span>
+    </div>
+
+    <div class="callout success">
+      <b>💡 จุดเด่นของระบบใหม่:</b> ไม่ต้องพิมพ์คำสั่งใน Terminal เองแม้แต่บรรทัดเดียว! ระบบสร้างไฟล์ <code>.env</code>, สุ่มสร้างรหัสความปลอดภัย 64 หลัก, สร้างใบรับรอง SSL, เปิดบริการทั้งหมด และสร้างบัญชี <code>admin</code> ให้เสร็จสรรพในคลิกเดียว
+    </div>
+
+    <h2>🚀 ตอนที่ 1: ขั้นตอนการลงเครื่องใหม่ (3 สเต็ปง่ายที่สุด)</h2>
+
+    <div class="step-box">
+      <span class="step-num">1</span>
+      <h3 class="step-title">เปิดโปรแกรม Docker Desktop</h3>
+      <p style="margin-top:10px;">เปิดโปรแกรม <b>Docker Desktop</b> บนหน้าจอ Windows ของท่าน รอจนกระทั่งสถานะที่มุมซ้ายล่างเปลี่ยนเป็นสีเขียว <b>(Engine running)</b></p>
+    </div>
+
+    <div class="step-box">
+      <span class="step-num">2</span>
+      <h3 class="step-title">นำโฟลเดอร์ระบบมาวางไว้ที่ D:\BPP-VMS (Zero-GitHub — ปลอดภัย 100%)</h3>
+      
+      <p style="margin-top:10px;">
+        🛡️ <b>หมดปัญหาเรื่องความเสี่ยง:</b> ท่าน<b>ไม่ต้องล็อกอินบัญชี GitHub</b> และ<b>ไม่ต้องพิมพ์ Personal Access Token (PAT)</b> บนเครื่องใหม่ให้เสี่ยงต่อการถูกขโมย เลือกดาวน์โหลดหรือก๊อปปี้ได้ง่ายๆ ตามนี้:
+      </p>
+
+      <div style="background: rgba(168,85,247,0.1); border: 1px solid var(--primary); border-radius: 12px; padding: 18px; margin: 14px 0;">
+        <h4 style="color:#fff; font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+          📦 วิธีที่ 1 (สะดวกที่สุด): กดดาวน์โหลดไฟล์ ZIP ผ่านหน้าเว็บ
+        </h4>
+        <p style="font-size:13.5px; color:#cbd5e1; margin-bottom:12px;">
+          เปิดเบราว์เซอร์จากเครื่องใหม่ แล้วกดปุ่มดาวน์โหลดแพ็กเกจติดตั้งสำเร็จรูป:
+        </p>
+        <a href="https://vms.local/downloads/bpp-vms-installer.zip" download="bpp-vms-installer.zip" class="btn-action download-installer-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          ดาวน์โหลด bpp-vms-installer.zip
+        </a>
+        <p style="font-size:13px; color:#38bdf8; margin-top:10px; margin-bottom:4px;">
+          📍 <b>หากเปิดไฟล์นี้บนเครื่องหลัก:</b> ไฟล์นี้มีอยู่แล้วบนเครื่องของท่านที่ <code>D:\BPP-VMS\bpp-vms-installer.zip</code> ก๊อปปี้ใส่ Flash Drive ได้ทันที
+        </p>
+        <p style="font-size:13px; color:var(--text-muted); margin-top:4px; margin-bottom:0;">
+          🌐 <b>ลิงก์ดาวน์โหลดโดยตรงสำหรับเครื่องใหม่:</b> <a href="https://vms.local/downloads/bpp-vms-installer.zip" target="_blank" style="color:#a855f7; font-weight:600; text-decoration:underline; word-break:break-all;">https://vms.local/downloads/bpp-vms-installer.zip</a>
+        </p>
+      </div>
+
+      <div style="background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.3); border-radius: 12px; padding: 18px; margin: 14px 0;">
+        <h4 style="color:var(--accent-cyan); font-size:15px; margin-bottom:8px;">
+          💾 วิธีที่ 2 (ออฟไลน์ 100%): ก๊อปปี้ผ่าน Flash Drive จากเครื่องแม่
+        </h4>
+        <p style="font-size:13.5px; color:#cbd5e1; margin-bottom:0;">
+          ที่เครื่องแม่ ให้ดับเบิลคลิกไฟล์ <b><code>Export_Installer_Package.bat</code></b> ระบบจะสร้างไฟล์ <code>bpp-vms-installer.zip</code> ให้ทันทีใน 4 วินาที ➔ นำไฟล์ใส่ Flash Drive ไปเสียบเครื่องใหม่ แล้วแตกไฟล์ลงไดรฟ์ <b><code>D:\</code></b>
+        </p>
+      </div>
+
+      <p style="margin-top:14px; margin-bottom:6px;">เมื่อแตกไฟล์เสร็จ โครงสร้างไดเรกทอรีที่ได้จะถูกต้องสมบูรณ์แบบตามคู่มือ 100%:</p>
+      <pre>D:\BPP-VMS\
+├── Setup_New_Machine.bat          <-- [ดับเบิลคลิกไฟล์นี้เพื่อเริ่มติดตั้ง]
+├── Update_System.bat             <-- [ดับเบิลคลิกไฟล์นี้เมื่อต้องการอัปเดต]
+├── Export_Installer_Package.bat  <-- [ส่งออกชุดติดตั้งสำหรับเครื่องอื่น]
+├── Export_System.bat             <-- [ส่งออกข้อมูลจากเครื่องเก่า]
+├── Import_System.bat             <-- [นำเข้าข้อมูลสู่เครื่องใหม่]
+├── git_and_fresh_install_manual.html
+└── frigate-nvr\</pre>
+    </div>
+
+    <div class="step-box">
+      <span class="step-num">3</span>
+      <h3 class="step-title">ดับเบิลคลิกไฟล์ Setup_New_Machine.bat</h3>
+      <p style="margin-top:10px;">คลิกขวาที่ <b><code>Setup_New_Machine.bat</code></b> > เลือก <b>Run as administrator</b> (หรือดับเบิลคลิกปกติ)</p>
+      <ul>
+        <li>ระบบจะสุ่มสร้างรหัสความปลอดภัย 64 หลักลงใน <code>.env</code> ให้อัตโนมัติ</li>
+        <li>ระบบจะสร้างใบรับรองความปลอดภัย HTTPS ให้อัตโนมัติ</li>
+        <li>ระบบจะเริ่มบริการคอนเทนเนอร์ Docker ทั้ง 17 ตัว</li>
+        <li><b>ตั้งรหัสผ่าน Admin:</b> เมื่อระบบถามรหัสผ่าน ให้กดปุ่ม <code>[Enter]</code> ทันที เพื่อใช้รหัสเริ่มต้น <code>ChangeMeAdmin123!</code> (หรือพิมพ์รหัสผ่านที่ต้องการ)</li>
+        <li>ระบบจะเปิดเบราว์เซอร์เข้าสู่หน้าเว็บ <code>https://localhost</code> ให้ทันที!</li>
+      </ul>
+      <p style="color:var(--text-muted); font-size:13px;">* ข้อมูลชื่อผู้ใช้และรหัสผ่านจะถูกบันทึกสำรองไว้ในไฟล์ <code>D:\BPP-VMS\Admin_Login_Info.txt</code> เสมอ</p>
+    </div>
+
+    <h2>🔄 ตอนที่ 2: การอัปเดตระบบเป็นเวอร์ชันล่าสุด</h2>
+    <p>เมื่อโปรเจกต์มีการอัปเดตฟังก์ชันใหม่ และต้องการนำเวอร์ชันล่าสุดมาปรับใช้กับเครื่องเดิมที่มีอยู่แล้ว:</p>
+    
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; margin: 15px 0 25px 0;">
+      <div class="step-box" style="margin:0; border-left:4px solid var(--accent-green);">
+        <h3 style="color:var(--accent-green); margin-bottom:8px;">🔹 แบบที่ 1: เครื่องหลักที่มี Git (Online)</h3>
+        <ol style="margin-left:20px; font-size:14px; line-height:1.6;">
+          <li>เปิดโฟลเดอร์ <code>D:\BPP-VMS</code></li>
+          <li>ดับเบิลคลิกไฟล์ <b><code>Update_System.bat</code></b></li>
+          <li>ระบบจะดึงโค้ดล่าสุด (<code>git pull</code>) และสั่ง Docker ให้ทันที</li>
+          <li><b>ข้อมูลไม่หาย 100%:</b> บัญชีผู้ใช้, รหัสผ่าน, และคลิปวิดีโอเดิมคงอยู่ครบถ้วน</li>
+        </ol>
+        <p style="font-size:12.5px; color:#9ca3af; margin-top:8px;">💡 <i>หากต้องการส่งอัปเดตให้เครื่องลูก ให้ดับเบิลคลิก <code>Export_Installer_Package.bat</code> เพื่อสร้าง ZIP ส่งต่อ</i></p>
+      </div>
+
+      <div class="step-box" style="margin:0; border-left:4px solid var(--accent-purple);">
+        <h3 style="color:var(--accent-purple); margin-bottom:8px;">🔹 แบบที่ 2: เครื่องหน้างานที่ลงผ่าน ZIP (Zero-GitHub)</h3>
+        <ol style="margin-left:20px; font-size:14px; line-height:1.6;">
+          <li>ดาวน์โหลด <code>bpp-vms-installer.zip</code> ล่าสุดจากเครื่องแม่ผ่าน <code>https://vms.local/downloads/bpp-vms-installer.zip</code> หรือก๊อปปี้ผ่าน USB Flash Drive</li>
+          <li><b>แตกไฟล์ทับลงที่เดิม:</b> แตกไฟล์ลงที่ไดรฟ์ <code>D:\</code> ทับโฟลเดอร์ <code>D:\BPP-VMS</code> เดิมได้ทันที</li>
+          <li><b>ปลอดภัย 100%:</b> ZIP ไม่มีไฟล์ <code>.env</code> และไม่มีฐานข้อมูล จึงไม่ทับหรือลบข้อมูลเดิมแน่นอน</li>
+          <li>ดับเบิลคลิกไฟล์ <b><code>Update_System.bat</code></b> เพื่อโหลดโค้ดใหม่เข้า Docker ทันที</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>📦 ตอนที่ 3: การย้ายข้อมูลจากเครื่องเดิม</h2>
+    <p>หากต้องการย้ายกล้อง ผู้ใช้ และการตั้งค่าเดิมมาจากเครื่องเก่า:</p>
+    <ol>
+      <li><b>ที่เครื่องเดิม:</b> ดับเบิลคลิก <code>Export_System.bat</code> แล้วนำไฟล์สำรองใส่ Flash Drive</li>
+      <li><b>ที่เครื่องใหม่:</b> นำไฟล์สำรองมาวางที่ไดรฟ์ <code>D:\</code> แล้วดับเบิลคลิก <code>Import_System.bat</code></li>
+    </ol>
+
+    <h2>❓ คำถามที่พบบ่อย (FAQ)</h2>
+    <div class="callout">
+      <b>Q: เข้าเว็บ https://localhost แล้วขึ้นเตือนความปลอดภัย "Your connection is not private"?</b><br>
+      <b>A:</b> เป็นปกติของใบรับรอง SSL ภายในเครื่อง ให้คลิกที่ <b>Advanced (ขั้นสูง)</b> > คลิก <b>Proceed to localhost</b> เพื่อเข้าสู่ระบบตามปกติ
+    </div>
+    <div class="callout">
+      <b>Q: รหัสผ่านเข้าใช้งานครั้งแรกคืออะไร?</b><br>
+      <b>A:</b> Username คือ <code>admin</code> และ Password คือ <code>ChangeMeAdmin123!</code> (หรือรหัสที่ตั้งไว้ในไฟล์ <code>Admin_Login_Info.txt</code>)
+    </div>
+
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var isFile = window.location.protocol === 'file:';
+      var buttons = document.querySelectorAll('.download-installer-btn');
+      buttons.forEach(function(btn) {
+        if (!isFile) {
+          btn.setAttribute('href', 'https://vms.local/downloads/bpp-vms-installer.zip');
+        } else {
+          var path = window.location.pathname || '';
+          if (path.indexOf('web') !== -1 || path.indexOf('frigate-nvr') !== -1) {
+            btn.setAttribute('href', 'downloads/bpp-vms-installer.zip');
+          } else {
+            btn.setAttribute('href', 'bpp-vms-installer.zip');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

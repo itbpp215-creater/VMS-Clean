@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>คู่มือการเพิ่มกล้องวงจรปิด BPP-VMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090b;
+      --panel: #111424;
+      --text: #e2e8f0;
+      --primary: #a855f7;
+      --primary-hover: #c084fc;
+      --border: rgba(255, 255, 255, 0.1);
+      --font: 'Kanit', sans-serif;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font);
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 800px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .header {
+      background: linear-gradient(90deg, #1e1b4b 0%, #312e81 100%);
+      padding: 20px 30px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      color: #fff;
+    }
+
+    .slide-container {
+      position: relative;
+      padding: 30px;
+      min-height: 350px;
+    }
+
+    .slide {
+      display: none;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    .slide.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide h2 {
+      color: var(--primary-hover);
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-size: 22px;
+    }
+
+    .slide p, .slide li {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #cbd5e1;
+      margin-bottom: 12px;
+    }
+
+    .slide ul, .slide ol {
+      margin-left: 20px;
+      padding-left: 0;
+    }
+
+    .alert {
+      background: rgba(234, 179, 8, 0.1);
+      border-left: 4px solid #eab308;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .alert-danger {
+      background: rgba(239, 68, 68, 0.1);
+      border-left: 4px solid #ef4444;
+    }
+    
+    .alert-success {
+      background: rgba(34, 197, 94, 0.1);
+      border-left: 4px solid #22c55e;
+    }
+
+    .alert-title {
+      font-weight: 600;
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 30px;
+      background: rgba(255, 255, 255, 0.02);
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      font-size: 16px;
+      font-family: var(--font);
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn:disabled {
+      background: #475569;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+    
+    .btn-outline {
+      background: transparent;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+    }
+
+    .btn-outline:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .progress {
+      font-size: 14px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .highlight {
+      color: #fff;
+      font-weight: 600;
+      background: rgba(168, 85, 247, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+        align-items: flex-start;
+      }
+      .container {
+        width: 100%;
+        border-radius: 8px;
+      }
+      .header {
+        padding: 14px 16px;
+      }
+      .header h1 {
+        font-size: 18px;
+      }
+      .slide-container {
+        padding: 16px;
+        min-height: 280px;
+      }
+      .slide h2 {
+        font-size: 18px;
+      }
+      .slide p, .slide li {
+        font-size: 14px;
+      }
+      .controls {
+        padding: 14px 16px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .btn {
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:8px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>คู่มือการเพิ่มกล้องวงจรปิด BPP-VMS</h1>
+    </div>
+
+    <div class="slide-container">
+      
+      <!-- Slide 1 -->
+      <div class="slide active">
+        <h2>ยินดีต้อนรับสู่คู่มือการใช้งาน</h2>
+        <p>คู่มือนี้จะสอนวิธี <strong>"เพิ่มกล้องวงจรปิด"</strong> เข้ามาในระบบแบบง่ายๆ ทีละขั้นตอน เหมาะสำหรับผู้เริ่มต้นครับ</p>
+        <p>ในระบบของเรา คุณสามารถเพิ่มกล้องได้ 2 แบบคือ:</p>
+        <ol>
+          <li><span class="highlight">กล้องของหน่วยงานเราเอง</span> (กล้องที่ติดตั้งอยู่ในค่ายหรือพื้นที่รับผิดชอบของเรา)</li>
+          <li><span class="highlight">กล้องของหน่วยงานอื่น</span> (ขอดูกล้องของหน่วยอื่นในเครือข่าย)</li>
+        </ol>
+        <div class="alert alert-success">
+          <span class="alert-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:6px;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg>พร้อมแล้วใช่ไหม?</span>
+          กดปุ่ม <strong>"ถัดไป"</strong> ด้านล่างเพื่อเริ่มเรียนรู้ขั้นตอนแรกได้เลยครับ
+        </div>
+      </div>
+
+      <!-- Slide 2 -->
+      <div class="slide">
+        <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:6px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>ขั้นตอนที่ 1: เข้าสู่หน้าตั้งค่า</h2>
+        <p>ก่อนอื่น เราต้องเปิดหน้าต่างสำหรับเพิ่มกล้องขึ้นมาก่อนครับ</p>
+        <ol>
+          <li>สังเกตที่เมนูด้านซ้ายล่างสุดของหน้าจอหลัก</li>
+          <li>คลิกที่ปุ่ม <span class="highlight">"ฟันเฟือง" (ตั้งค่า)</span></li>
+          <li>หน้าต่างการตั้งค่าจะเด้งขึ้นมาตรงกลางจอ</li>
+          <li>สังเกตด้านบนของหน้าต่าง จะมีแท็บคำว่า <strong>"กล้องในระบบ (NVR)"</strong> ให้คลิกที่แท็บนี้ครับ</li>
+          <li>จากนั้นคลิกปุ่ม <span class="highlight">+ เพิ่มกล้องใหม่</span> ที่มุมขวาบน</li>
+        </ol>
+      </div>
+
+      <!-- Slide 3 -->
+      <div class="slide">
+        <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:6px;"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><line x1="10" y1="6" x2="10" y2="6.01"/><line x1="14" y1="6" x2="14" y2="6.01"/><line x1="10" y1="10" x2="10" y2="10.01"/><line x1="14" y1="10" x2="14" y2="10.01"/><line x1="10" y1="14" x2="10" y2="14.01"/><line x1="14" y1="14" x2="14" y2="14.01"/><line x1="10" y1="18" x2="10" y2="18.01"/><line x1="14" y1="18" x2="14" y2="18.01"/></svg>แบบที่ 1: การเพิ่มกล้องของหน่วยงานเราเอง</h2>
+        <p>ถ้าคุณต้องการเพิ่มกล้องที่อยู่ในพื้นที่ของคุณเอง (ไม่ได้ดึงมาจากหน่วยงานอื่น) ให้ทำตามนี้ครับ:</p>
+        <ul>
+          <li><strong>ข้ามช่องดึงข้อมูล:</strong> ไม่ต้องสนใจกล่องที่เขียนว่า <em>"[- หน่วยงานอื่น -]"</em> ปล่อยผ่านไปได้เลยครับ</li>
+          <li><strong>ชื่อกล้อง:</strong> ตั้งชื่อกล้องเป็นภาษาอังกฤษ ตัวเลข หรือขีดล่าง เช่น <code>gate_01</code> <br><span style="color:#f87171; font-size:14px;">(ห้ามเว้นวรรคและห้ามใช้ภาษาไทยเด็ดขาด)</span></li>
+          <li><strong>กลุ่มของกล้อง:</strong> พิมพ์ชื่อจุดที่ติดตั้งเป็นภาษาไทยได้เลย เช่น <code>ประตูทางเข้าหลัก</code> หรือ <code>โรงอาหาร</code></li>
+          <li><strong>RTSP URL:</strong> นำลิงก์สัญญาณภาพจากกล้องของคุณ มาวางใส่ในช่อง <em>"RTSP URL (Main Stream)"</em></li>
+        </ul>
+        <p>กรอกเสร็จแล้ว ข้ามไปดูสไลด์ <strong>ขั้นตอนที่ 3: การตั้งค่า AI</strong> ได้เลยครับ</p>
+      </div>
+
+      <!-- Slide 4 -->
+      <div class="slide">
+        <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>แบบที่ 2: การดึงภาพกล้องจากหน่วยงานอื่น</h2>
+        <p>หากคุณต้องการดูกล้องของหน่วยงานอื่น ระบบเรามีตัวช่วยให้ไม่ต้องกรอกข้อมูลเองให้ยุ่งยากครับ!</p>
+        <ol>
+          <li>สังเกตด้านขวาของคำว่า "เพิ่มกล้องใหม่" จะมีกล่องเลือก <span class="highlight">[- หน่วยงานอื่น -]</span></li>
+          <li><strong>คลิกเลือกชื่อหน่วยงาน</strong> ที่คุณต้องการขอดูภาพ</li>
+          <li>รอสักครู่ จะมีกล่องใหม่โผล่ขึ้นมาให้ <span class="highlight">[- เลือกกล้อง -]</span> ให้คุณเลือกกล้องเป้าหมายที่ต้องการ</li>
+          <li>คลิกปุ่ม <strong>"ดึงข้อมูล"</strong></li>
+        </ol>
+        <div class="alert">
+          <span class="alert-title">มหัศจรรย์!</span>
+          ระบบจะทำการกรอกข้อมูลชื่อกล้องและลิงก์เชื่อมต่อ (RTSP) ข้ามเครือข่ายให้คุณอัตโนมัติทั้งหมดครับ
+        </div>
+      </div>
+
+      <!-- Slide 5 -->
+      <div class="slide">
+        <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:6px;"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16.01"/><line x1="16" y1="16" x2="16" y2="16.01"/></svg>ขั้นตอนที่ 3: การตั้งค่า AI และบันทึกภาพ</h2>
+        <p>ด้านล่างสุดของฟอร์ม จะมีกล่องให้ทำเครื่องหมายถูกสองกล่อง คือ <strong>เปิดระบบ AI</strong> และ <strong>บันทึกวิดีโอ</strong></p>
+        
+        <div class="alert alert-success">
+          <span class="alert-title">สำหรับกล้องของหน่วยงานเราเอง:</span>
+          แนะนำให้ <strong>ติ๊กถูกทั้งสองช่อง</strong> ครับ เพื่อให้ระบบบันทึกภาพ 24 ชั่วโมง และช่วยตรวจจับสิ่งผิดปกติให้เราอัตโนมัติ
+        </div>
+
+        <div class="alert alert-danger">
+          <span class="alert-title">สำหรับกล้องที่ดึงมาจากหน่วยงานอื่น:</span>
+          ระบบจะ <strong>เอาเครื่องหมายถูกออกให้</strong> เพื่อประหยัดอินเทอร์เน็ต! แนะนำว่าไม่ต้องไปติ๊กเปิดมันนะครับ ภาพจะยังโผล่มาให้ดูสดๆ ในหน้าหลักปกติ แต่จะไม่แอบสูบเน็ตตลอดเวลาครับ
+        </div>
+
+        <p>เมื่อตั้งค่าเสร็จแล้ว กดปุ่ม <span class="highlight">"ตกลง"</span> สีม่วงด้านล่างสุดได้เลยครับ</p>
+      </div>
+
+      <!-- Slide 6 -->
+      <div class="slide">
+        <h2><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px; margin-right:6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>เสร็จเรียบร้อย!</h2>
+        <p>เมื่อคุณกด "ตกลง" ระบบจะทำการบันทึกข้อมูลกล้องเข้าสู่ระบบทันที</p>
+        
+        <div class="alert alert-danger">
+          <span class="alert-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px; margin-right:5px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>หมายเหตุสำคัญ (โปรดอ่าน)</span>
+          ระบบจะทำการรีสตาร์ทตัวจัดการกล้องด่วน 1 ครั้ง (ใช้เวลาประมาณ 20-30 วินาที) ซึ่งอาจทำให้ภาพวิดีโอในหน้าจอหลัก (Dashboard) ด้านหลัง ขึ้นว่าหลุดการเชื่อมต่อหรือหายไปชั่วคราว... <strong>เป็นเรื่องปกตินะครับ ไม่ต้องตกใจ!</strong>
+        </div>
+
+        <div class="alert" style="background:rgba(168, 85, 247, 0.1); border-left:4px solid #a855f7;">
+          <span class="alert-title" style="color:#c084fc;">💡 ต้องการเชื่อมต่อกล้อง TP-Link VIGI, กล้อง Edge LPR หรือ NVR หน้างาน?</span>
+          สามารถอ่านคู่มือเชิงลึกและดาวน์โหลดโปรแกรมช่วยส่งสัญญาณ BPP NVR Bridge ได้ที่ <a href="user_guide.html#mod7" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:600;">คู่มือฉบับเต็ม หมวดที่ 7: กล้องภายนอก & Edge LPR (VIGI & Bridge)</a>
+        </div>
+
+        <p style="text-align: center; margin-top: 30px; font-size: 18px; color: #a855f7; font-weight: 600;">
+          ขอบคุณที่ใช้งานระบบ BPP-VMS ครับ
+        </p>
+      </div>
+
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-outline" id="btnPrev" disabled>กลับ</button>
+      <div class="progress" id="progressText">หน้า 1 / 6</div>
+      <button class="btn" id="btnNext">ถัดไป</button>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const btnNext = document.getElementById('btnNext');
+    const btnPrev = document.getElementById('btnPrev');
+    const progressText = document.getElementById('progressText');
+
+    function updateSlides() {
+      slides.forEach((slide, index) => {
+        if (index === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+
+      progressText.textContent = `หน้า ${currentSlide + 1} / ${slides.length}`;
+      
+      btnPrev.disabled = currentSlide === 0;
+      
+      if (currentSlide === slides.length - 1) {
+        btnNext.textContent = 'เสร็จสิ้น';
+        btnNext.classList.replace('btn-primary', 'btn-outline');
+      } else {
+        btnNext.textContent = 'ถัดไป';
+      }
+    }
+
+    btnNext.addEventListener('click', () => {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlides();
+      } else {
+        // You can close the window or redirect if needed when they click finished
+        if (window.bppConfirm) {
+          window.bppConfirm('ยินดีด้วย! คุณอ่านคู่มือการใช้งานระบบครบถ้วนแล้ว');
+        } else if (window.bppToast) {
+          window.bppToast('ยินดีด้วย! คุณอ่านคู่มือจบแล้ว');
+        } else {
+          alert('ยินดีด้วย! คุณอ่านคู่มือจบแล้ว');
+        }
+      }
+    });
+
+    btnPrev.addEventListener('click', () => {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlides();
+      }
+    });
+
+    // Initialize
+    updateSlides();
+  </script>
+</body>
+</html>

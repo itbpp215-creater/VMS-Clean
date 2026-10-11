@@ -1,0 +1,91 @@
+{
+  "schema": "bpp-release-policy/v1",
+  "releaseSchema": 1,
+  "currentVersion": "v1.0.0",
+  "stateSchema": 1,
+  "rollbackRetention": 3,
+  "excludedRuntimeRoots": [
+    "storage",
+    "lpr-data"
+  ],
+  "excludedVolumes": [
+    "frigate-db",
+    "cuda-cache"
+  ],
+  "siteOwnedPaths": [
+    ".env",
+    ".bpp-node.json",
+    ".bpp-autostart-ready",
+    "docker-compose.site.yml",
+    "config/config.yml",
+    "config/acme",
+    "config/certs",
+    "config/lpr",
+    "config/dashboard-settings",
+    "config/backups",
+    "storage",
+    "lpr-data"
+  ],
+  "requiredModels": [
+    "config/model_cache/yolo11m-640.onnx",
+    "LicensePlateRECOG/model/license_plate.pt",
+    "LicensePlateRECOG/model/data_plate.pt"
+  ],
+  "requiredState": [
+    "auth-db/auth.db",
+    "config/lpr/watchlist.db",
+    "nas-storage"
+  ],
+  "rollbackState": [
+    "auth-db",
+    "nas-storage",
+    "nas-bot-data",
+    "config/lpr",
+    "config/dashboard-settings"
+  ],
+  "excludedPathNames": [
+    ".git",
+    ".worktrees",
+    ".venv",
+    "venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "dist",
+    "cuda-cache"
+  ],
+  "excludedFileNames": [
+    "secret.key",
+    "backup.db"
+  ],
+  "excludedFileSuffixes": [
+    ".once",
+    ".pyc",
+    ".pyo"
+  ],
+  "externalSecretKeys": [
+    "DUCKDNS_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "DISCORD_WEBHOOK_URL",
+    "WATCHLIST_FEDERATION_SHARED_SECRET"
+  ],
+  "regeneratedSecretKeys": [
+    "JWT_SECRET_KEY",
+    "AUTH_AUDIT_SHARED_SECRET",
+    "WATCHLIST_PROXY_SHARED_SECRET",
+    "WATCHLIST_SERVICE_SHARED_SECRET"
+  ],
+  "capturedMediaExtensions": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".mov"
+  ]
+}
