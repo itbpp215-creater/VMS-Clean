@@ -109,12 +109,14 @@ foreach ($pattern in $itemsToPurge) {
 }
 Write-Host "  [+] Purged internal development dumps and scrape files." -ForegroundColor Green
 
-# B. Replace config.yml with config.clean.yml
+# B. Replace config.yml with config.clean.yml and create config.yml.example
 $cleanConfigSrc = Join-Path $FrigateDir "config\config.clean.yml"
 $stagingConfigDest = Join-Path $StagingDir "frigate-nvr\config\config.yml"
+$stagingConfigExampleDest = Join-Path $StagingDir "frigate-nvr\config\config.yml.example"
 if (Test-Path $cleanConfigSrc) {
     Copy-Item -LiteralPath $cleanConfigSrc -Destination $stagingConfigDest -Force
-    Write-Host "  [+] Replaced config.yml with Clean Template (zero BPP215 cameras)." -ForegroundColor Green
+    Copy-Item -LiteralPath $cleanConfigSrc -Destination $stagingConfigExampleDest -Force
+    Write-Host "  [+] Provided Clean Template & config.yml.example (zero BPP215 cameras)." -ForegroundColor Green
 } else {
     throw "Missing config.clean.yml template!"
 }
@@ -136,10 +138,13 @@ if (Test-Path $stagingEnv) {
     Write-Host "  [*] Removed .env from staging." -ForegroundColor Gray
 }
 
-# E. Sanitize camera and watchlist lists
+# E. Sanitize camera and watchlist lists & provide templates
 $blankJsonArr = "[]`r`n"
 $camSources = Join-Path $StagingDir "frigate-nvr\config\camera_sources.json"
 if (Test-Path $camSources) { [System.IO.File]::WriteAllText($camSources, $blankJsonArr, [System.Text.Encoding]::UTF8) }
+
+$camSourcesTemplate = Join-Path $StagingDir "frigate-nvr\config\camera_sources.json.template"
+[System.IO.File]::WriteAllText($camSourcesTemplate, "{}`r`n", [System.Text.Encoding]::UTF8)
 
 $camList = Join-Path $StagingDir "frigate-nvr\config\cam_list.tsv"
 if (Test-Path $camList) { [System.IO.File]::WriteAllText($camList, "camera_name`trtsp_url`tlocation`r`n", [System.Text.Encoding]::UTF8) }
@@ -152,6 +157,48 @@ if (Test-Path $suspectPlates) { [System.IO.File]::WriteAllText($suspectPlates, "
 
 $lprCams = Join-Path $StagingDir "frigate-nvr\config\lpr\lpr_cameras.txt"
 if (Test-Path $lprCams) { [System.IO.File]::WriteAllText($lprCams, "cam_sample`r`n", [System.Text.Encoding]::UTF8) }
+
+# Ensure .gitignore in staging ignores node-specific configurations
+$gitignoreEntries = @(
+    "frigate-nvr/config/config.yml",
+    "frigate-nvr/config/camera_sources.json",
+    "frigate-nvr/config/camera_credentials.env",
+    "frigate-nvr/config/cam_list.tsv",
+    "frigate-nvr/.env",
+    "config/config.yml",
+    "config/camera_sources.json",
+    "config/camera_credentials.env",
+    "config/cam_list.tsv"
+)
+
+$stagingRootGi = Join-Path $StagingDir ".gitignore"
+if (Test-Path $stagingRootGi) {
+    $giText = [System.IO.File]::ReadAllText($stagingRootGi, [System.Text.Encoding]::UTF8)
+    $toAppend = ""
+    foreach ($entry in $gitignoreEntries) {
+        if ($giText -notmatch [regex]::Escape($entry)) {
+            $toAppend += "`n$entry"
+        }
+    }
+    if ($toAppend) {
+        [System.IO.File]::AppendAllText($stagingRootGi, "`n# Node-specific runtime configs (Decoupled in Clean Release)$toAppend`n", [System.Text.Encoding]::UTF8)
+    }
+}
+
+$stagingFrigateGi = Join-Path $StagingDir "frigate-nvr\.gitignore"
+if (Test-Path $stagingFrigateGi) {
+    $fgiText = [System.IO.File]::ReadAllText($stagingFrigateGi, [System.Text.Encoding]::UTF8)
+    $fgiAppend = ""
+    foreach ($entry in @("config/config.yml", "config/camera_sources.json", "config/camera_credentials.env", "config/cam_list.tsv")) {
+        if ($fgiText -notmatch [regex]::Escape($entry)) {
+            $fgiAppend += "`n$entry"
+        }
+    }
+    if ($fgiAppend) {
+        [System.IO.File]::AppendAllText($stagingFrigateGi, "`n# Decoupled node-specific configs$fgiAppend`n", [System.Text.Encoding]::UTF8)
+    }
+}
+
 
 # F. Deep Pattern Scrubber across all text files in Staging
 Write-Host "  [*] Performing automated scrubbing of private domains, NAS IPs, and test credentials..." -ForegroundColor Gray
@@ -282,7 +329,7 @@ Write-Host "[6/6] Pushing clean tree to GitHub Clean Distribution Repo..." -Fore
 if ($SkipPush) {
     Write-Host "  [*] Push skipped via -SkipPush" -ForegroundColor DarkGray
 } else {
-    Write-Host "  [*] Preparing Git commit in clean staging..." -ForegroundColor Gray
+    Write-Host "  [*] Preparing Git commit in clean staging with continuous history..." -ForegroundColor Gray
     
     Push-Location $StagingDir
     try {
@@ -290,22 +337,71 @@ if ($SkipPush) {
         & git config user.name "itbpp215-creater"
         & git config user.email "itbpp215-creater@users.noreply.github.com"
         & git remote add origin $CleanRepoUrl
-        & git add -A
         
-        $commitDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $commitMsg = "Clean Release: $commitDate [Zero-BPP215 Leak Verified]"
-        & git commit -m "$commitMsg" | Out-Null
-        
-        Write-Host "  [*] Executing: git push -u origin main --force..." -ForegroundColor Cyan
+        Write-Host "  [*] Fetching remote commit history from $CleanRepoUrl..." -ForegroundColor Gray
         $prevEap = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
-        $pushOut = (& git push -u origin main --force 2>&1) | Out-String
+        $fetchOut = (& git fetch origin main --depth=1 2>&1) | Out-String
+        $hasRemoteHistory = ($LASTEXITCODE -eq 0)
         $ErrorActionPreference = $prevEap
-        Write-Host "  $pushOut" -ForegroundColor White
-        if ($LASTEXITCODE -ne 0) {
-            throw "git push exited with code $($LASTEXITCODE): $pushOut"
+        
+        if ($hasRemoteHistory) {
+            # Point HEAD to remote commit without modifying our sanitized working tree
+            & git reset --mixed origin/main | Out-Null
+            Write-Host "  [+] Staged on top of continuous remote history ($CleanRepoUrl)." -ForegroundColor Green
+        } else {
+            Write-Host "  [*] Remote repository empty or new; initializing clean branch." -ForegroundColor Yellow
         }
-        Write-Host "  [SUCCESS] Pushed to GitHub Clean Distribution Repo successfully!`n" -ForegroundColor Green
+        
+        # Untrack site-specific configurations in Clean Git Index if currently tracked
+        $trackedToUntrack = @(
+            "frigate-nvr/config/config.yml",
+            "frigate-nvr/config/camera_sources.json",
+            "frigate-nvr/config/camera_credentials.env",
+            "frigate-nvr/config/cam_list.tsv",
+            "frigate-nvr/.env"
+        )
+        foreach ($target in $trackedToUntrack) {
+            $isFound = ((& git ls-files $target 2>&1) | Out-String).Trim()
+            if ($isFound) {
+                & git rm --cached -f $target 2>&1 | Out-Null
+            }
+        }
+        
+        & git add -A
+        
+        # Re-verify untracked configs are not staged
+        foreach ($target in $trackedToUntrack) {
+            $isFound = ((& git ls-files $target 2>&1) | Out-String).Trim()
+            if ($isFound) {
+                & git rm --cached -f $target 2>&1 | Out-Null
+            }
+        }
+        
+        $gitStatus = (& git status --porcelain 2>&1) | Out-String
+        if ([string]::IsNullOrWhiteSpace($gitStatus)) {
+            Write-Host "  [*] No changes detected since last clean release. Working tree matches remote." -ForegroundColor Green
+        } else {
+            $commitDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+            $commitMsg = "Clean Release: $commitDate [Zero-BPP215 Leak Verified | Decoupled Configs]"
+            & git commit -m "$commitMsg" | Out-Null
+            
+            Write-Host "  [*] Executing: git push origin main..." -ForegroundColor Cyan
+            $ErrorActionPreference = 'Continue'
+            $pushOut = (& git push origin main 2>&1) | Out-String
+            $ErrorActionPreference = $prevEap
+            Write-Host "  $pushOut" -ForegroundColor White
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [*] Standard push rejected; attempting push with force-with-lease..." -ForegroundColor Yellow
+                $ErrorActionPreference = 'Continue'
+                $pushOut = (& git push origin main --force-with-lease 2>&1) | Out-String
+                $ErrorActionPreference = $prevEap
+                if ($LASTEXITCODE -ne 0) {
+                    throw "git push exited with code $($LASTEXITCODE): $pushOut"
+                }
+            }
+            Write-Host "  [SUCCESS] Pushed to GitHub Clean Distribution Repo successfully with continuous history!`n" -ForegroundColor Green
+        }
     } catch {
         Write-Host "  [!] Error pushing to GitHub: $_" -ForegroundColor Yellow
         Write-Host "  (Please ensure credentials/PAT have write access to $CleanRepoUrl)" -ForegroundColor Yellow

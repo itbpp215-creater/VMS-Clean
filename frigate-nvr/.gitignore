@@ -94,3 +94,8 @@ test-results/
 
 # ACME/Let's Encrypt state (มี private key ของบัญชี ACME + cert) — ห้าม commit
 config/acme/
+
+# Decoupled node-specific configs
+config/camera_sources.json
+config/camera_credentials.env
+config/cam_list.tsv

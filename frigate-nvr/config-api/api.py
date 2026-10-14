@@ -474,12 +474,6 @@ def validate_camera_request(camera: CameraConfig) -> None:
                 import urllib.parse
                 if parsed.username is None or parsed.password is None:
                     raise HTTPException(status_code=422, detail="Both username and password required if providing raw credentials")
-                
-                # We write raw credentials to config.yml to avoid needing docker compose up -d
-                try:
-                    open("/config/restart.trigger", "a").close()
-                except OSError:
-                    pass
         for query_key, query_value in parse_qsl(
             parsed.query,
             keep_blank_values=True,
@@ -1636,12 +1630,11 @@ def reconcile_cameras_internal() -> dict:
             save_camera_templates(templates)
             transaction.mark_changed()
 
-        # Trigger Frigate restart via trigger file
-        try:
-            with open("/config/restart.trigger", "a"):
-                pass
-        except Exception:
-            pass
+        # Incident 2.117: Demand reconciliation updates config.yml / templates for persistence.
+        # Live WebRTC streaming is handled independently on demand by go2rtc (all streams
+        # are already pre-loaded in go2rtc.streams). Do NOT trigger a Frigate restart here,
+        # which would sever all active WebSockets and cause mass "RECONNECT" drops across
+        # all viewing clients. Dynamic AI/record changes are handled via MQTT without restart.
 
         return {
             "status": "success",
@@ -1791,12 +1784,6 @@ def toggle_camera_detect(
             else:
                 raise HTTPException(status_code=404, detail="Camera not found")
 
-        # Only prevent enabling AI if administrator explicitly turned off the system stream in template
-        if new_detect and tmpl.get("enabled") is False:
-            raise HTTPException(
-                status_code=409,
-                detail="สตรีมระบบของกล้องนี้ถูกปิดอยู่ ต้องเปิดสตรีมระบบก่อนจึงจะเปิด AI ได้",
-            )
 
         detect = camera.setdefault("detect", {})
 

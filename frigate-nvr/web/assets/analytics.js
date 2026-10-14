@@ -1992,15 +1992,15 @@ function accountLabelText(username) {
                       ➕ ปักหมุดกล้อง
                     </button>
                     <select id="camProvinceSelect" class="analytics-cam-prov-select" title="เลือกกรองกล้องตามจังหวัด">
-                      <option value="all">ทุกจังหวัด (429 กล้อง)</option>
+                      <option value="all">ทุกจังหวัด (441 กล้อง)</option>
                       <option value="อุบลราชธานี">อุบลราชธานี (189)</option>
                       <option value="ร้อยเอ็ด">ร้อยเอ็ด (174)</option>
                       <option value="อุดรธานี">อุดรธานี (37)</option>
+                      <option value="ขอนแก่น">ขอนแก่น (14)</option>
                       <option value="บุรีรัมย์">บุรีรัมย์ (5)</option>
                       <option value="นครราชสีมา">นครราชสีมา (4)</option>
                       <option value="Unknown">Unknown (4)</option>
                       <option value="มหาสารคาม">มหาสารคาม (3)</option>
-                      <option value="ขอนแก่น">ขอนแก่น (2)</option>
                       <option value="กาฬสินธุ์">กาฬสินธุ์ (2)</option>
                       <option value="Nakhon Phanom">Nakhon Phanom (2)</option>
                       <option value="มุกดาหาร">มุกดาหาร (1)</option>

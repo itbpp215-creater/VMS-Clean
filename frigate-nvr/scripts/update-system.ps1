@@ -45,6 +45,49 @@ try {
 
 # 2. ตรวจสอบโค้ดอัปเดต
 Write-Host "[2/3] กำลังตรวจสอบสถานะการอัปเดต [Checking Update Status]..." -ForegroundColor Yellow
+
+# 2.0 สแนปช็อตสำรองข้อมูลและคอนฟิกเฉพาะสถานีอัตโนมัติ (Automated Safe Snapshot)
+$timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$backupDir = Join-Path $gitRoot ".bpp-backup\$timestamp"
+try {
+    if (-not (Test-Path $backupDir)) {
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    }
+
+    $siteFilesToBackup = @(
+        "frigate-nvr\.env",
+        "frigate-nvr\config\config.yml",
+        "frigate-nvr\config\camera_sources.json",
+        "frigate-nvr\config\camera_credentials.env",
+        "frigate-nvr\config\cam_list.tsv",
+        "frigate-nvr\config\nvr_groups.json",
+        "frigate-nvr\config\lpr\lpr_cameras.txt",
+        "frigate-nvr\config\lpr\suspect_plates.txt",
+        "frigate-nvr\config\lpr\blocked_webhook_cameras.json",
+        "frigate-nvr\config\auth\auth.db",
+        "frigate-nvr\config\lpr\watchlist.db",
+        "frigate-nvr\watchlist-api\data\watchlist.db",
+        "frigate-nvr\db\frigate.db"
+    )
+
+    $snapshotCount = 0
+    foreach ($rel in $siteFilesToBackup) {
+        $src = Join-Path $gitRoot $rel
+        if (Test-Path -LiteralPath $src) {
+            $dest = Join-Path $backupDir $rel
+            $destParent = Split-Path -Parent $dest
+            if (-not (Test-Path $destParent)) { New-Item -ItemType Directory -Path $destParent -Force | Out-Null }
+            Copy-Item -LiteralPath $src -Destination $dest -Force
+            $snapshotCount++
+        }
+    }
+    if ($snapshotCount -gt 0) {
+        Write-Host "  [*] สำรองข้อมูลคอนฟิกเฉพาะสถานีและฐานข้อมูล ($snapshotCount รายการ) -> .bpp-backup\$timestamp" -ForegroundColor DarkGray
+    }
+} catch {
+    Write-Host "  [!] คำเตือน: ไม่สามารถทำ Snapshot อัตโนมัติได้: $_" -ForegroundColor DarkYellow
+}
+
 $hasGitDir = Test-Path (Join-Path $gitRoot ".git")
 $gitCmd = Get-Command git -ErrorAction SilentlyContinue
 $gitSuccess = $false
@@ -53,9 +96,20 @@ if ($hasGitDir -and ($null -ne $gitCmd)) {
     Push-Location $gitRoot
     try {
         Write-Host '  [*] โหมด Git: ดึงโค้ดเวอร์ชันล่าสุดจาก GitHub [git pull origin main]...' -ForegroundColor Gray
+        
+        # ปลดการ track ไฟล์คอนฟิกเฉพาะเครื่องออกจาก git index ในเครื่องนี้ หากเคยถูก track ไว้เดิม
+        & git update-index --assume-unchanged "frigate-nvr/config/config.yml" 2>$null | Out-Null
+        & git update-index --assume-unchanged "frigate-nvr/config/camera_sources.json" 2>$null | Out-Null
+        & git update-index --assume-unchanged "frigate-nvr/config/camera_credentials.env" 2>$null | Out-Null
+        
         & git stash | Out-Null
         $pullOutput = (& git pull origin main 2>&1) | Out-String
         Write-Host "  $pullOutput" -ForegroundColor White
+        
+        # ดึง stash กลับมาหากมี
+        $stashList = (& git stash list 2>&1) | Out-String
+        if ($stashList) { & git stash pop 2>&1 | Out-Null }
+        
         $lastCommit = (& git log -1 --oneline 2>&1) | Out-String
         Write-Host "  [OK] เวอร์ชันโค้ดล่าสุด: $lastCommit" -ForegroundColor Green
         $gitSuccess = $true
@@ -298,6 +352,74 @@ if (-not $gitSuccess) {
     } else {
         Write-Host "  [!] ไม่สามารถดาวน์โหลดไฟล์อัปเดตจากอินเทอร์เน็ตได้ และไม่พบชุดติดตั้งในเครื่อง" -ForegroundColor Yellow
         Write-Host "  [*] กำลังนำการตั้งค่าและโค้ดที่มีอยู่ไปเริ่มการทำงานต่อ..." -ForegroundColor Gray
+    }
+}
+
+# ========================================================================
+# 2.3 ตรวจสอบความสมบูรณ์และคุ้มครองคอนฟิกสถานี (Config Safeguard & Restore Gate)
+# ========================================================================
+Write-Host "`n  [*] ตรวจสอบความสมบูรณ์ของคอนฟิกกล้องและข้อมูลสถานี [Verifying Node State]..." -ForegroundColor Gray
+
+# 1. ตรวจสอบ config.yml
+$destConfigYml = Join-Path $gitRoot "frigate-nvr\config\config.yml"
+$backupConfigYml = if ($backupDir) { Join-Path $backupDir "frigate-nvr\config\config.yml" } else { $null }
+$cleanConfigTemplate = Join-Path $gitRoot "frigate-nvr\config\config.clean.yml"
+$exampleConfigTemplate = Join-Path $gitRoot "frigate-nvr\config\config.yml.example"
+
+if ($backupConfigYml -and (Test-Path $backupConfigYml)) {
+    # หากไฟล์ปัจจุบันหายไป หรือมีขนาดเล็กผิดปกติ ให้กู้คืนจาก Backup ทันที
+    if (-not (Test-Path $destConfigYml) -or (Get-Item $destConfigYml).Length -lt 50) {
+        Copy-Item -LiteralPath $backupConfigYml -Destination $destConfigYml -Force
+        Write-Host "  [SAFEGUARD] กู้คืนไฟล์ config.yml เดิมของสถานีกลับคืนมาเรียบร้อยแล้ว (ไม่สูญหาย 100%)" -ForegroundColor Green
+    } else {
+        Write-Host "  [OK] การตั้งค่ากล้อง config.yml ปลอดภัยและสมบูรณ์" -ForegroundColor Green
+    }
+} elseif (-not (Test-Path $destConfigYml)) {
+    # ติดตั้งใหม่ครั้งแรก ยังไม่มี config.yml ให้คัดลอกจาก Template
+    if (Test-Path $cleanConfigTemplate) {
+        Copy-Item -LiteralPath $cleanConfigTemplate -Destination $destConfigYml -Force
+        Write-Host "  [INIT] สร้าง config.yml เริ่มต้นจากแม่แบบ config.clean.yml" -ForegroundColor Cyan
+    } elseif (Test-Path $exampleConfigTemplate) {
+        Copy-Item -LiteralPath $exampleConfigTemplate -Destination $destConfigYml -Force
+        Write-Host "  [INIT] สร้าง config.yml เริ่มต้นจากแม่แบบ config.yml.example" -ForegroundColor Cyan
+    }
+}
+
+# 2. ตรวจสอบ .env
+$destEnv = Join-Path $gitRoot "frigate-nvr\.env"
+$backupEnv = if ($backupDir) { Join-Path $backupDir "frigate-nvr\.env" } else { $null }
+$exampleEnv = Join-Path $gitRoot "frigate-nvr\.env.example"
+
+if ($backupEnv -and (Test-Path $backupEnv)) {
+    if (-not (Test-Path $destEnv) -or (Get-Item $destEnv).Length -lt 20) {
+        Copy-Item -LiteralPath $backupEnv -Destination $destEnv -Force
+        Write-Host "  [SAFEGUARD] กู้คืนไฟล์ .env เดิมของสถานีกลับคืนมาเรียบร้อยแล้ว" -ForegroundColor Green
+    }
+} elseif (-not (Test-Path $destEnv) -and (Test-Path $exampleEnv)) {
+    Copy-Item -LiteralPath $exampleEnv -Destination $destEnv -Force
+    Write-Host "  [INIT] สร้าง .env เริ่มต้นจากแม่แบบ .env.example" -ForegroundColor Cyan
+}
+
+# 3. ตรวจสอบกล้องและไฟล์ความลับอื่นๆ (camera_sources.json, camera_credentials.env, watchlist.db)
+if ($backupDir) {
+    $otherRestores = @(
+        "frigate-nvr\config\camera_sources.json",
+        "frigate-nvr\config\camera_credentials.env",
+        "frigate-nvr\config\lpr\watchlist.db",
+        "frigate-nvr\watchlist-api\data\watchlist.db",
+        "frigate-nvr\config\auth\auth.db"
+    )
+    foreach ($rel in $otherRestores) {
+        $bkFile = Join-Path $backupDir $rel
+        $targetFile = Join-Path $gitRoot $rel
+        if (Test-Path $bkFile) {
+            if (-not (Test-Path $targetFile) -or (Get-Item $targetFile).Length -lt 2) {
+                $destParent = Split-Path -Parent $targetFile
+                if (-not (Test-Path $destParent)) { New-Item -ItemType Directory -Path $destParent -Force | Out-Null }
+                Copy-Item -LiteralPath $bkFile -Destination $targetFile -Force
+                Write-Host "  [SAFEGUARD] กู้คืน $rel เดิมของสถานีเรียบร้อย" -ForegroundColor Green
+            }
+        }
     }
 }
 

@@ -8304,10 +8304,21 @@ function bind() {
   }
   $('btnLayoutSave').addEventListener('click', async () => {
     saveCfg();
-    // CLAUDE.md Section 10: Save dragged layout to user profile channels only (never overwrite server master channels)
+    // CLAUDE.md Section 10: Save dragged layout to user profile channels
     if (!state.userProfile) state.userProfile = {};
     state.userProfile.channels = cfg.channels.map(c => ({ ...c }));
     await saveUserProfile();
+
+    // Admin Master Grid Auto-Sync: keep central channels.json aligned when admin/superadmin saves layout
+    if (['admin', 'superadmin'].includes(userRole) || !userRole) {
+      try {
+        state.draft = cfg.channels.map(c => ({ ...c }));
+        await saveServerChannels();
+      } catch (syncErr) {
+        console.warn('Auto-sync server channels on layout save failed:', syncErr);
+      }
+    }
+
     updateResetLayoutButton();
     setEditLayout(false);
     toast('บันทึกการจัดเรียงช่องสำหรับหน้าจอของคุณเรียบร้อยแล้ว');

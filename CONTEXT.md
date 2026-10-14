@@ -173,3 +173,16 @@ _Avoid_: Clean filter, regex sanitizer
 A fully functional out-of-the-box installation package where all sensitive values are replaced with safe defaults and placeholders, allowing a new site administrator to configure their own cameras, storage, and bot without crashing.
 _Avoid_: Empty config, blank install
 
+**Clean Configuration Decoupling (การแยกคอนฟิกออกจากโค้ด)**:
+The architectural pattern where site-specific runtime configurations (`config.yml`, `.env`, `camera_sources.json`) are completely excluded from Git tracking in the Clean Distribution Repository, providing `.example` and `.template` files instead to prevent upstream updates from colliding with or wiping local node settings.
+_Avoid_: Config overwriting, hardcoded node config
+
+**Safe Node Update (การอัปเดตแบบสงวนคอนฟิก)**:
+An automated downstream update procedure that snapshots site configurations and databases, synchronizes core application code, and rebuilds services without mutating local camera definitions or credentials.
+_Avoid_: Blind git pull, forced reset update
+
+**Continuous Clean History (ประวัติการปล่อยเวอร์ชันสะอาดแบบต่อเนื่อง)**:
+A release publishing workflow that maintains unbroken, linear Git commit history on the Clean Distribution Repository, enabling downstream nodes to execute standard `git pull` without encountering unrelated history rejections.
+_Avoid_: Orphan push, force-init snapshot
+
+

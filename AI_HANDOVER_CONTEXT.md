@@ -1,4 +1,104 @@
-﻿## Update 2026-10-11 - Standalone Deployment: RTMP Push Ingest & WebRTC Candidate Patterns (Incident 2.110)
+﻿## Update 2026-10-14 - Clean Release Configuration Decoupling and Safe Node Update Pipeline (ADR 0033)
+- **Objective**: Enable downstream station nodes (e.g., ตชด.144) to seamlessly update their BPP-VMS system (frontend, backend services, bug fixes) from the Clean Distribution Repository (`itbpp215-creater/VMS-Clean`) without losing their station-specific configurations (`config.yml`, `.env`, `camera_sources.json`, `camera_credentials.env`, and SQLite databases).
+- **Decisions & Implementation**:
+  1. **Configuration Decoupling**:
+     - Live site configuration files (`config.yml`, `camera_sources.json`, `camera_credentials.env`, `cam_list.tsv`, `.env`) are untracked from Git in `VMS-Clean` and ignored via `.gitignore`.
+     - Baseline templates are tracked instead: `config.clean.yml`, `config.yml.example`, `camera_sources.json.template`, `.env.example`.
+  2. **Continuous Linear History**:
+     - Refactored `tools/release/Sync-CleanRelease.ps1` to fetch remote history from `VMS-Clean` and commit on top, eliminating orphan force-pushes so remote nodes can run standard `git pull origin main` without encountering `fatal: refusing to merge unrelated histories`.
+  3. **Safe Node Update Worker (`Update_BPP-VMS.bat` / `update-system.ps1`)**:
+     - Automated Snapshot: Copies existing site configs and SQLite databases to `.bpp-backup/<timestamp>/` prior to any code update.
+     - Local Untrack: Issues `git update-index --assume-unchanged` locally to prevent merge conflicts.
+     - Config Safeguard Gate: Verifies `config.yml` and `.env` after pull, immediately restoring them from snapshot if missing or reset. Initializes from `.example` only on fresh installs.
+     - Rebuilds and launches containers with `docker compose up -d --build`.
+  4. **Documentation**:
+     - Created ADR 0033 (`docs/adr/0033-clean-release-configuration-decoupling-and-safe-node-update.md`).
+     - Added domain glossary definitions in `CONTEXT.md`.
+
+## Update 2026-10-14 - Restore 12 Khon Kaen ITIC Cameras Lost in Purge Script (Incident 2.118)
+- **Problem**: All Khon Kaen city CCTV cameras (kk01–kk27, กล้องเทศบาลนครขอนแก่น) disappeared from the GIS map and the camera list panel. Province filter showed `ขอนแก่น (2)` instead of the expected 12+ cameras.
+- **Root Cause**: Commit `c57b6c9` (2026-10-10 15:40) ran purge scripts (`clean_gps.py`, `purge_broken.py`) to remove offline Longdo/DOH cameras. The purge script deleted all cameras whose URLs matched the domain `camerai1.iticfoundation.org`. The Khon Kaen city CCTV feeds (kk01–kk27) also stream through this ITIC CDN domain and were erroneously swept along with the DOH dead cameras.
+- **Fix**:
+  - Re-added 12 live camera entries to `camera_gps.json` (on-disk, gitignored): `kk01,kk02,kk04,kk06,kk07,kk08,kk12,kk13,kk14,kk25,kk26,kk27` — all with GPS coordinates, Thai names, and HLS URLs verified 200 OK.
+  - Restored Thai display names in `camera_names.json`.
+  - Restored group mapping in `nvr_groups.json`.
+  - Updated `analytics.js` province select: `ขอนแก่น (2) → (14)` and total `429 → 441`.
+  - Bumped `analytics.js` cache buster `v=82 → v=83`.
+  - Verified `config-api /api/public-config/hls-map` now returns all 12 kk cameras via camera_gps.json merge path.
+- **Live stream status** (probed directly 2026-10-14):
+  - 🟢 Online (200 OK): kk01, kk02, kk04, kk06, kk07, kk12, kk13, kk14, kk25, kk27
+  - 🔴 Offline (404): kk08, kk09, kk18, kk19, kk21, kk22, kk24, kk26 — upstream ITIC server issue, not BPP-VMS issue.
+- **Prevention**: The purge script must always whitelist `camerai1.iticfoundation.org/hls/kk*.m3u8` patterns (Khon Kaen Municipal CCTV) separately from Longdo DOH relay URLs.
+- **Commit**: `5d1cbf3`
+
+## Update 2026-10-12 - Frequent Multi-Camera Drops to '🟡 RECONNECT' Caused by Unchecked Frigate Container Restarts in Demand Reconciliation (Incident 2.117)
+- **Problem**: Operators reported that frequently all or most camera tiles (e.g. 7 out of 8 cameras) dropped simultaneously into `🟡 RECONNECT: กำลังเชื่อมต่อใหม่...` while navigating or viewing the dashboard grid.
+- **Root Cause & Fix**:
+  - `reconcile_cameras_internal()` in `frigate-nvr/config-api/api.py` was being called on page load, channel switch, grid change, and AI delta. Because the user's active grid cameras (8 tiles) differed from `config.yml`'s active camera set (20 cameras), `to_provision` / `to_deprovision` evaluated to True, and lines 1639-1644 unconditionally touched `/config/restart.trigger`.
+  - `system-restarter` detected the trigger and ran `docker restart config-validator frigate-nvr`. Because `go2rtc` runs inside `frigate-nvr`, restarting the container severed all active WebRTC/MSE WebSockets to the browser, causing every tile to display `🟡 RECONNECT`.
+  - When the browser reconnected, subsequent requests triggered another reconcile, causing cascading restarts (e.g. 6 restarts in 3 minutes). Additionally, line 480 touched `restart.trigger` during stream URL validation.
+  - Fix:
+    1. Removed `with open("/config/restart.trigger", "a"): pass` from `reconcile_cameras_internal()` in `config-api/api.py`. All 585 camera streams are already pre-loaded into `go2rtc.streams` and served on demand; camera metadata updates in `config.yml` must never restart the container and drop active viewers.
+    2. Removed rogue `open("/config/restart.trigger", "a").close()` from `_validate_stream_url`.
+    3. Dynamic AI detection and recording toggling remains fully operational via MQTT (`frigate/{name}/detect/set` and `record/set`) without container restarts.
+    4. Restarted `config-api`.
+  - Verified `POST /api/public-config/reconcile` returns 200 OK without creating `restart.trigger`, `system-restarter` triggered zero new restarts, and `frigate-nvr` uptime and WebRTC streams remain continuously stable.
+
+## Update 2026-10-12 - Camera Settings UI: AI Detection Toggle Reverting with 'สตรีมระบบของกล้องนี้ถูกปิดอยู่' (Incident 2.116)
+- **Problem**: In the Camera Settings modal, clicking `[ 🤖 AI ]` to turn on AI detection on a camera (e.g. CH05 ในบ้านหงอนไก่) immediately bounced back to off, displaying toast error `สตรีมระบบของกล้องนี้ถูกปิดอยู่ ต้องเปิดสตรีมระบบก่อนจึงจะเปิด AI ได้` (HTTP 409).
+- **Root Cause & Fix**:
+  - Under Demand-Driven CPU Preservation (ADR-0020), when AI and recording are disabled, `config-api` sets `camera['enabled'] = False` to stop the Frigate capture process while leaving go2rtc live streaming active.
+  - In `config-api/api.py:toggle_camera_detect`, a legacy check `if new_detect and tmpl.get("enabled") is False: raise 409` created a deadlock: because `enabled` was False when AI was off, turning AI back on was permanently blocked.
+  - Fix: Removed the deadlock check in `config-api/api.py`. When `new_detect` is True, `toggle_camera_detect` automatically activates `camera['enabled'] = True`, `record['enabled'] = True`, and attaches the detect role to the sub-stream. Restarted `config-api`.
+  - Verified `nongwang15` AI toggles on cleanly without error and YOLO11 detection is actively running.
+
+## Update 2026-10-12 - Public IP RTSP Cameras (HEVC/H.265) Black Screen / Green Buffer Corruption Fix (Incident 2.115)
+- **Problem**: Remote Public IP RTSP cameras (e.g. `118.172.151.7:45554`, CH04 สี่แยกบ้านหงอนไก่, CH05 ในบ้านหงอนไก่) connected with a green dot and REC indicator, but displayed solid black video on Dashboard/mobile.
+- **Root Cause & Fix**:
+  - The cameras stream H.265 (HEVC). The global `go2rtc.ffmpeg.rtsp` template had `-fflags nobuffer -flags low_delay`. Over WAN, packet jitter caused FFmpeg to drop packets and push incomplete P-frames to NVDEC before the IDR keyframe arrived, producing all-zero YUV frames (`RGB [0, 203, 0]` solid green screen) which browsers rendered as black.
+  - Fix: Changed `go2rtc.ffmpeg.rtsp` in `config.yml` from `-fflags nobuffer -flags low_delay` to `-fflags +genpts+discardcorrupt`. Restarted `frigate-nvr`.
+  - Verified frames now decode with full colors (>52,000 to >66,000 colors, RGB mean ~104). Both local LAN cameras and WAN public IP cameras stream crisp video smoothly.
+
+## Update 2026-10-11 - Cloudflare 502 Bad Gateway Caused by Duplicate Cloudflare Tunnel Token in Supabase Container (Incident 2.114)
+- **Problem**: When opening `https://vms.local` from external mobile devices (5G), Cloudflare intermittently/persistently failed with `Bad gateway Error code 502` (Host Error).
+- **Root Cause & Fix**:
+  - `D:\linebot\nas_linebot_system\supabase_docker\docker-compose.override.yml` defined an uncoordinated `supabase-tunnel` container using the **exact same Cloudflare Tunnel Token** as `cloudflared-tunnel` in `frigate-nvr/docker-compose.yml`.
+  - Cloudflare Zero Trust load-balanced traffic between both instances. Because `supabase-tunnel` was not attached to `frigate-nvr_edge`, it failed with `lookup nvr-dashboard on 127.0.0.11:53: no such host`, producing 502 Bad Gateway.
+  - Fix: Connected `cloudflared-tunnel` to `supabase_default` so one unified tunnel container handles both `vms.local` (`nvr-dashboard:443`) and `db.example.com` (`kong:8000`). Removed `supabase-tunnel` (`docker rm -f supabase-tunnel`) and commented out `tunnel:` in `supabase_docker/docker-compose.override.yml`.
+  - Verified 100% 200 OK responses on `https://vms.local`.
+
+## Update 2026-10-11 - Frigate Looping Crash (RestartCount=37) on Remote Node (ตชด.144) Resolved (Incident 2.113)
+- **Problem**: On remote NVR node (ตชด.144 on `BOSS PC`, `https://bpp144.duckdns.org/index.html`), all 10 cameras simultaneously disconnected every ~1-2 minutes with `🟡 RECONNECT: กำลังเชื่อมต่อใหม่...`. `docker inspect frigate-nvr` reported `RestartCount=37`, `ExitCode=0`, and `OOMKilled=false`.
+- **Root Cause & Fix**:
+  - `config.yml` on the node contained a `model:` block (`path: /config/model_cache/yolo11m-640.onnx`), but omitted `detectors:`.
+  - Frigate 0.17 defaulted to `cpu` detector (`cpu_tfl.py` using TensorFlow Lite), which threw `ValueError: Could not open ...` when attempting to load the non-existent ONNX model.
+  - Frigate Watchdog detected the dead detector process (`not is_alive()`), logged `"Detection appears to have stopped. Exiting Frigate..."`, and called `restart_frigate()` -> SIGTERM to PID 1 -> `go2rtc` and `frigate` exited (`ExitCode=0`) -> all active WebRTC connections severed simultaneously -> Docker restarted container.
+  - Fix: Removed `model:` and `objects:` blocks from `config.yml` (since all 10 cameras on 144 already have `detect: enabled: false`). Verified Frigate falls back to bundled `/cpu_model.tflite` without crashing.
+  - Confirmed `BOSS PC` has an active `NVIDIA GeForce RTX 3050 (6GB)` with NVDEC hardware decoding accelerating ffmpeg (`preset-nvidia`).
+  - Container restarted once; `RestartCount` stopped incrementing, Frigate stayed continuously healthy, and all 10 cameras stream smoothly with zero disconnect storms.
+
+## Update 2026-10-11 - Dashboard Toolbar Layout Revert Fix (Incident 2.112)
+- **Problem**: When rearranging camera tiles using the `🔀 จัดเรียง` toolbar button and clicking `💾 บันทึก`, the layout reverted to server default upon browser refresh.
+- **Fix**:
+  - Updated `frigate-nvr/web/assets/app.js` (`$('btnLayoutSave')` click handler) to automatically sync to `saveServerChannels()` (`PUT /settings/admin/channels`) when the user is an admin or superadmin.
+  - Committed and pushed to `origin main`.
+
+## Update 2026-10-11 - Web UI Modal: "Frigate rejected candidate configuration" / YAML Root Indentation Fix (Incident 2.111)
+- **Problem**: When adding/editing a camera via the BPP-VMS Web UI modal, the save request was rejected with `{"detail":"Frigate rejected the candidate configuration"}` (HTTP 422).
+- **Root Cause & Fix**:
+  - `config-api` runs candidate configurations through Frigate's Pydantic parser (`config-validator:5004/validate`) before saving.
+  - A previously edited camera block (`Nongtapod_144:`) was indented at the root level (0 spaces) instead of under `cameras:` (2 spaces), causing Pydantic to reject the entire document with `Extra inputs are not permitted [type=extra_forbidden]`.
+  - Fixing the indentation of the camera block under `cameras:` resolved the issue; subsequent camera additions through the Web UI succeeded immediately.
+
+## Update 2026-10-11 - BPP-215 Standby RTMP Push Slots & WebRTC Stream Alignment
+- **Verification on BPP-215**:
+  - Ports 1935 (RTMP ingest) and 8555 (WebRTC TCP/UDP) verified open and listening with Inbound firewall rules active.
+  - WebRTC candidates in `config.yml` confirmed optimal (`192.168.1.200:8555`, `127.0.0.1:8555`, `bpp215.duckdns.org:8555`, `stun:8555`) supporting both local LAN and remote DDNS connections.
+  - Added dedicated standby RTMP push slots (`rtmp_live_1:`, `rtmp_live_2:`, `drone_live:`) under `go2rtc.streams:` in `frigate-nvr/config/config.yml`.
+  - Tested RTMP ingest with live FFmpeg push to `rtmp://127.0.0.1:1935/live/rtmp_live_1`; go2rtc accepted push seamlessly with zero errors.
+  - Scope was strictly isolated: no existing cameras (`D_BPP215_1..3`, DOH feeds, provincial feeds) or system infrastructure were touched.
+
+## Update 2026-10-11 - Standalone Deployment: RTMP Push Ingest & WebRTC Candidate Patterns (Incident 2.110)
 - **Problem**: When deploying BPP-VMS to external stations (e.g., ตชด.144 on `BOSS PC`), incoming RTMP push cameras (4G cellular cameras pushed to port 1935) were rejected by go2rtc with `stream not found`, and remote WebRTC streams dropped due to missing ICE candidates.
 - **Root Cause & Fix**:
   - In `go2rtc`, incoming RTMP ingest streams must be declared under `streams:` with `<stream_name>:` and empty value (not `[]`).
@@ -269,5 +369,35 @@
 - **Issue:** When opening an HLS camera stream (like DOH cameras) on the AI Analytics Map modal, the video would play for a short moment and then turn completely black without any error message ("กล้องพับ/ดับลง"). 
 - **Root Cause:** `analytics.js` implemented a naive HLS player for the Leaflet popups. Unlike the main dashboard grid (`app.js`) which had proper `startLoad()` and `recoverMediaError()` handling, the map popup's HLS player just caught `Hls.Events.ERROR` and did nothing. Furthermore, since the `camPreviewLoading_` element was set to `display: none` when the stream started, the fatal error text was written to a hidden element, leaving a silent black rectangle.
 - **Fix:** Added proper `Hls.ErrorTypes.NETWORK_ERROR` and `MEDIA_ERROR` auto-recovery routines to `startPopupPreview` in `analytics.js`. Also ensured that if the player cannot recover, the loading element's display is set to `flex` to show the "สัญญาณขาดหาย" text. Bumped `analytics.js?v=81`.
+## Incident 2.110 - Standalone / Clean Deployment: RTMP Push Ingest Registration & WebRTC Candidates for Remote Cameras (2026-10-11)
+- **Symptom:** Incoming RTMP push failed with `stream not found`, WebRTC disconnected or delayed externally via DuckDNS, and Frigate watchdog killed containers when remote cellular streams lost frames.
+- **Fix:** Added RTMP Push placeholder slots in `go2rtc.streams:`, configured DDNS candidates with `stun:8555`, and disabled `detect` on cellular RTMP feeds.
+
+## Incident 2.111 - Web UI Modal: "Frigate rejected the candidate configuration" on Camera Add / YAML Root Indentation Error (2026-10-11)
+- **Symptom:** Web UI returned HTTP 422 `Frigate rejected the candidate configuration` when adding any camera due to `pydantic_core.ValidationError: Extra inputs are not permitted for FrigateConfig: Nongtapod_144`.
+- **Fix:** Fixed YAML indentation of `Nongtapod_144` under `cameras:`. Pydantic parser validated successfully and UI camera additions resumed.
+
+## Incident 2.112 - Dashboard Drag & Drop Layout Reverting on Refresh & Multi-Camera 4x4 Grid Streaming Optimization for Remote Sites (2026-10-11)
+- **Symptom 1 (Layout Revert):** Clicking `🔀 จัดเรียง` on Dashboard toolbar, dragging tiles, and saving (`btnLayoutSave`) reverted on F5 refresh.
+- **Root Cause 1:** `btnLayoutSave` only saved to user profile (`saveUserProfile()`), never syncing to server master grid (`saveServerChannels()`). On F5, `loadServerChannels()` overwrote channels with the server master grid.
+- **Fix 1:** Updated `btnLayoutSave` in `app.js` to auto-sync to `saveServerChannels()` for admin/superadmin roles. Workaround: Settings Modal -> Tab 2 -> Check `[✔] อัปเดตผังแม่แบบระบบด้วย (Master Grid)` -> Save.
+- **Symptom 2 (Multi-Camera Stream Lag & Simultaneous Drops to RECONNECT):** Remote site (144) dropped all 10 cameras to `🟡 RECONNECT` simultaneously, with high stream latency on 4x4 grid.
+- **Root Cause 2:** Frigate restart drops all WebSockets; `webrtc.candidates` lacked `127.0.0.1:8555` forcing NAT hairpinning; 10x 1080p Main streams on grid overloaded client decoding.
+- **Fix 2:** Added `127.0.0.1:8555` and LAN IP to `webrtc.candidates`, used sub-streams for grid tiles, and ensured `detect: enabled: false` on remote 4G feeds.
 
 
+## Incident 2.113 - Telegram Bot Pairing Fails ("ขอเลขสำหรับเชื่อมไม่ได้") & Edge LPR Webhook Dropped on Remote Node (ตชด.144) (2026-10-11)
+- **Symptom 1 (Telegram Pairing Code Unavailable):** Clicking "ขอรหัสผูก Telegram" (`#btnReqPairCode`) on Settings Tab 4 failed or hung on `...`. User unable to obtain the 6-digit OTP code to pair `@Sloth_bpp215bot`.
+- **Root Cause 1:** `nas-bot-service` runs in Docker with `network_mode: "service:tailscale"`. When `tailscale-service` restarted, `nas-bot-service` lost its container network namespace while still marked "Up 3 hours". As a result, Nginx reverse proxy returned `502 Bad Gateway` on `/api/nas-bot/pair/request` and `/api/nas-bot/user/profile`.
+- **Fix 1:** Run `docker restart nas-bot-service`. Once restarted, network stack is reattached, OTP code generation succeeds, and bot pairing via `/pair <6_digits>` functions normally.
+- **Symptom 2 (Settings / LPR Toggle Reverting on Dashboard):** Toggling camera LPR or AI on Dashboard settings immediately reverted on next poll/reload.
+- **Root Cause 2:** User preferences are persisted via `saveUserProfile()` to `PUT /api/nas-bot/user/profile`. The 502 Bad Gateway from the disconnected `nas-bot` container caused writes to fail silently in the background. Additionally, candidate YAML in Frigate config had duplicate `enabled: false` and syntax inconsistencies that failed strict Frigate validator (Pydantic) checks.
+- **Fix 2:** Restarted `nas-bot-service` and cleaned `config.yml` syntax.
+- **Symptom 3 (Edge Camera LPR / Alarm Webhook Not Arriving):** Edge cameras (Dahua ITC / TP-Link VIGI) sent LPR / alarm webhooks but zero events appeared in Watchlist or Dashboard.
+- **Root Cause 3:** 
+  1. The camera was sending via HTTP port 80. Nginx enforces `301 Moved Permanently` to HTTPS 443; embedded IP camera HTTP clients do not follow 301 redirects on HTTP POST requests, immediately dropping the payload.
+  2. The webhook URL lacked the `camera_id` query parameter. Watchlist API's `is_camera_ai_enabled()` gatekeeper checks if the incoming camera name matches a known dashboard channel or Frigate camera. An unnamed camera defaults to `external_camera`, which fails the gatekeeper check and is dropped (`[Gatekeeper] Dropped webhook for ...`).
+- **Fix 3:** Configured edge camera webhook to `HTTPS` on port `443` with full query parameters: `/api/lpr/camera-webhook?token=bpp_secret_2026&camera_id=<channel_name>` with image attachment enabled.
+- **Symptom 4 ("ปิด AI ผ่านหน้าตั้งค่ากล้องแล้ว AI ยังทำงานอยู่"):** User disabled AI in Frigate/Dashboard, but green detection bounding boxes were still visible moving on the live video stream.
+- **Root Cause 4:** The green bounding boxes are rendered by the camera's internal hardware DSP/OSD (In-Camera Smart Event / Target Graphic Overlay) burned into the video feed before RTSP encoding. Frigate server-side AI does not draw OSD on live WebRTC streams.
+- **Fix 4:** Must be disabled in the camera's own web UI under `Event` -> `Smart Event` -> Disable `Target Graphic Overlay` / `OSD Information`.

@@ -80,3 +80,13 @@ temp_*
 out.*
 *.tmp
 
+
+# Node-specific runtime configs (Decoupled in Clean Release)
+frigate-nvr/config/config.yml
+frigate-nvr/config/camera_sources.json
+frigate-nvr/config/camera_credentials.env
+frigate-nvr/config/cam_list.tsv
+frigate-nvr/.env
+config/camera_sources.json
+config/camera_credentials.env
+config/cam_list.tsv
