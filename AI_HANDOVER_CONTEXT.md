@@ -1,4 +1,19 @@
-﻿## Update 2026-10-23 (Early Morning 2) - 1-Click PC Program Client Updater (`#bppWinUpdateBtn` in `BPP-VMS.exe`) + Cloud/Local Dual-Mode Client & Mobile URL Architecture (Incident 2.199)
+﻿## Update 2026-10-23 (Early Morning 3) - Separate Server vs PC Client Installation Modes (`BPP-VMS-Setup.exe`, `client_mode.json`, & `D:\SLOTH-BPP-VMS-Client`) (Incident 2.200)
+- **Problem / User Request**:
+  - User requested: *"แล้วจะแยกติดตั้งได้ยังไงระหว่าง server กับ client"* ("Then how do we install them separately between server and client?").
+- **Architecture & Features Implemented**:
+  1. **Dual-Role Support in `BPP-VMS.exe` (`frigate-nvr/tools/native-exe/BppVmsShell.cs`)**:
+     - Added `LoadRoleConfiguration()` and `SaveRoleConfiguration(string role, string serverUrl)` reading/writing `config/client_mode.json` (`{"role": "client"|"server", "server_url": "..."}`).
+     - In **PC Client Mode (`role: "client"`)**, `BPP-VMS.exe` skips starting local `native_gateway.py` and `go2rtc.exe` (0% background AI/database overhead on the client PC), connects directly to `server_url` (`https://vms.local` or LAN `http://192.168.1.200:8443`), and provides the same top-right **`🔄 อัปเดต` (`#bppWinUpdateBtn`)** button and System Tray role switchers.
+     - In **Server Mode (`role: "server"`)**, `BPP-VMS.exe` starts and supervises local `native_gateway.py` (`:8443`, `:80`, `:443`), `go2rtc.exe`, `mediamtx.exe`, and `cloudflared.exe`.
+  2. **Explicit Client vs Server Choice in `BPP-VMS-Setup.exe` & `Setup-PortableBppVms.ps1` (`frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `Setup-PortableBppVms.ps1`)**:
+     - Added Option 1 in `BPP-VMS-Setup.exe`: **`💻 1. ติดตั้งเป็นเครื่องลูกข่าย (PC Client Mode — เชื่อมต่อเครื่องแม่ข่าย)`** with Server URL input (`https://vms.local` or `http://192.168.1.200:8443`), completing installation in 3 seconds without installing Python/ONNX on the client PC.
+     - Kept Options 2–4 for **Server Mode** (`clean`, `custom`, `full`), writing `{"role": "server", "server_url": "http://127.0.0.1:8443"}` to `native/config/client_mode.json`.
+  3. **Standalone Lightweight Client Package (`D:\SLOTH-BPP-VMS-Client` & `D:\SLOTH-BPP-VMS-Client.zip`)**:
+     - Created a ready-to-copy `167 KB` client package (`D:\SLOTH-BPP-VMS-Client` + `D:\SLOTH-BPP-VMS-Client.zip`) containing `BPP-VMS.exe`, WebView2 DLLs, `config\client_mode.json`, and `Install-Client.bat`.
+- **Files Changed**: `frigate-nvr/tools/native-exe/BppVmsShell.cs`, `frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `frigate-nvr/tools/native-exe/Setup-PortableBppVms.ps1`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-23 (Early Morning 2) - 1-Click PC Program Client Updater (`#bppWinUpdateBtn` in `BPP-VMS.exe`) + Cloud/Local Dual-Mode Client & Mobile URL Architecture (Incident 2.199)
 - **Problem / User Request**:
   - User requested: *"สำหรับมือถือถ้าจะเข้าดูภายนอกเข้าผ่าน url แต่สำหรับคอมอยากให้เป็น program client ที่กดอัพเดทได้เหมือนกันได้ไหมครับจะได้ไม่มีบัค"* ("For mobile phones, if accessing from outside, access via URL, while for PCs, I want it to be a program client that can also click to update in the same way so there are no bugs").
 - **Architecture & Features Implemented**:

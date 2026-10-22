@@ -155,6 +155,7 @@ namespace BppVmsSetup
             bool stm = GetFlagValue(payload, "stm", "1") == "1";
             bool aut = GetFlagValue(payload, "aut", "0") == "1";
             string title = GetFlagValue(payload, "title", "SLOTH BPP-VMS").Replace("\"", "");
+            string srvUrl = GetFlagValue(payload, "srv", "https://sloth.bpp215.com").Replace("\"", "");
 
             string scriptPath = Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "tools", "native-exe", "Setup-PortableBppVms.ps1");
 
@@ -163,6 +164,7 @@ namespace BppVmsSetup
             args.Append("-WorkspaceRoot \"").Append(_workspaceRoot).Append("\" ");
             args.Append("-MigrationMode ").Append(mode).Append(" ");
             args.Append("-CustomSystemTitle \"").Append(title).Append("\" ");
+            args.Append("-ServerUrl \"").Append(srvUrl).Append("\" ");
             if (cam) args.Append("-MigrateCameras ");
             if (usr) args.Append("-MigrateUsers ");
             if (gps) args.Append("-MigrateGps ");
@@ -485,31 +487,48 @@ namespace BppVmsSetup
       <!-- PAGE 1: Select Migration Mode -->
       <div class='page active' id='page1'>
         <div>
-          <h2>เลือกรูปแบบการติดตั้งและโอนย้ายข้อมูล (Setup & Migration Mode)</h2>
-          <p class='desc'>คุณสามารถเลือกเริ่มต้นเป็นเครื่องใหม่ทั้งหมด หรือเลือกนำรายการกล้อง บัญชีผู้ใช้ และการตั้งค่าจากเครื่องต้นทางมาใช้งานต่อได้ทันที</p>
+          <h2>เลือกบทบาทของเครื่องนี้: เครื่องลูกข่าย (Client) หรือ เครื่องแม่ข่าย (Server)</h2>
+          <p class='desc'>คุณสามารถแยกติดตั้งได้ทั้งแบบ <b>โปรแกรมลูกข่ายสำหรับเปิดดูกล้อง (PC Client)</b> หรือ <b>เครื่องเซิร์ฟเวอร์ประมวลผลหลัก (Server)</b></p>
         </div>
 
         <div class='mode-cards'>
-          <!-- Option 1: Clean -->
-          <div class='mode-card selected' id='cardClean' onclick=""selectMode('clean')"">
+          <!-- Option 0: PC Client Mode -->
+          <div class='mode-card selected' id='cardClient' onclick=""selectMode('client')"">
             <div class='mode-head'>
-              <div class='mode-title'>🆕 1. ติดตั้งแบบเครื่องใหม่ทั้งหมด (Clean New Machine)</div>
-              <span class='mode-tag'>สำหรับจุดติดตั้งใหม่</span>
+              <div class='mode-title'>💻 1. ติดตั้งเป็นเครื่องลูกข่าย (PC Client Mode — เชื่อมต่อเครื่องแม่ข่าย)</div>
+              <span class='mode-tag' style='background:rgba(52,211,153,0.18);color:#6ee7b7;border-color:#10b981;'>สำหรับคอมลูกข่าย / ห้องทำงานอื่น</span>
             </div>
-            <div class='mode-sub'>เริ่มต้นระบบใหม่จากศูนย์ (0 กล้อง, ไม่มีข้อมูลของเครื่องเดิมติดมา) พร้อมกำหนดชื่อหน่วยงานของเครื่องใหม่ได้เอง</div>
+            <div class='mode-sub'>ติดตั้งเฉพาะตัวโปรแกรม SLOTH × BPP-VMS Desktop Client สำหรับเชื่อมต่อดูกล้องจากเครื่องแม่ข่าย (ไม่รัน AI ในเครื่องนี้ กินสเปกต่ำมาก และกดปุ่ม 🔄 อัปเดตที่มุมขวาบนได้เหมือนกัน)</div>
             <div class='sub-panel' onclick='event.stopPropagation()'>
-              <label style='font-size:12px;color:#cbd5e1;font-weight:600;'>ตั้งชื่อระบบ / ชื่อหน่วยงานสำหรับเครื่องนี้:</label>
+              <label style='font-size:12px;color:#cbd5e1;font-weight:600;'>URL หรือ IP ของเครื่องแม่ข่าย (Server URL):</label>
+              <input type='text' id='inpServerUrl' class='inp-box' value='https://sloth.bpp215.com' placeholder='เช่น https://sloth.bpp215.com หรือ http://192.168.1.200:8443' />
+              <div style='display:flex;gap:8px;margin-top:4px;'>
+                <button type='button' class='btn' style='padding:4px 10px;font-size:11.5px;' onclick=""document.getElementById('inpServerUrl').value='https://sloth.bpp215.com'"">🌐 ดูผ่านเน็ต (https://sloth.bpp215.com)</button>
+                <button type='button' class='btn' style='padding:4px 10px;font-size:11.5px;' onclick=""document.getElementById('inpServerUrl').value='http://192.168.1.200:8443'"">🖧 ดูผ่านวงแลนภายใน (http://192.168.1.200:8443)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Option 1: Clean Server -->
+          <div class='mode-card' id='cardClean' onclick=""selectMode('clean')"">
+            <div class='mode-head'>
+              <div class='mode-title'>🖥️ 2. ติดตั้งเป็นเครื่องแม่ข่ายใหม่ทั้งหมด (Server: Clean New Machine)</div>
+              <span class='mode-tag'>เซิร์ฟเวอร์จุดติดตั้งใหม่</span>
+            </div>
+            <div class='mode-sub'>เริ่มต้นระบบเซิร์ฟเวอร์ใหม่จากศูนย์ (รันระบบกล้อง + AI + บันทึกภาพในเครื่องนี้ โดยไม่มีข้อมูลของเครื่องเดิมติดมา)</div>
+            <div class='sub-panel' onclick='event.stopPropagation()'>
+              <label style='font-size:12px;color:#cbd5e1;font-weight:600;'>ตั้งชื่อระบบ / ชื่อหน่วยงานสำหรับเซิร์ฟเวอร์เครื่องนี้:</label>
               <input type='text' id='inpSystemTitle' class='inp-box' value='SLOTH BPP-VMS' placeholder='เช่น SLOTH BPP 215 หรือชื่อหน่วยงานของคุณ' />
             </div>
           </div>
 
-          <!-- Option 2: Custom Selective Migration -->
+          <!-- Option 2: Custom Selective Server Migration -->
           <div class='mode-card' id='cardCustom' onclick=""selectMode('custom')"">
             <div class='mode-head'>
-              <div class='mode-title'>🎛️ 2. เลือกนำข้อมูลบางส่วนจากเครื่องเดิมไปด้วย (Custom Migration)</div>
-              <span class='mode-tag' style='background:rgba(168,85,247,0.2);color:#e9d5ff;border-color:#a855f7;'>เลือกติ๊กเองได้</span>
+              <div class='mode-title'>🎛️ 3. ติดตั้งเป็นเครื่องแม่ข่าย + เลือกนำข้อมูลบางส่วนมาด้วย (Server: Custom Migration)</div>
+              <span class='mode-tag' style='background:rgba(168,85,247,0.2);color:#e9d5ff;border-color:#a855f7;'>เซิร์ฟเวอร์เลือกข้อมูลได้</span>
             </div>
-            <div class='mode-sub'>เลือกรายการข้อมูลจากเครื่องต้นทางที่ต้องการนำติดไปใช้บนเครื่องใหม่ได้ตามต้องการ:</div>
+            <div class='mode-sub'>ติดตั้งเป็นเครื่องแม่ข่าย พร้อมเลือกรายการข้อมูลจากเครื่องต้นทางที่ต้องการนำติดไปใช้บนเซิร์ฟเวอร์เครื่องนี้:</div>
             <div class='sub-panel' onclick='event.stopPropagation()'>
               <label class='chk-row'><input type='checkbox' id='chkCam' checked /> 📹 นำ <b>รายการกล้อง CCTV, รหัสเชื่อมต่อ, กลุ่ม NVR และช่องสัญญาณทั้งหมด</b> ไปด้วย</label>
               <label class='chk-row'><input type='checkbox' id='chkUsr' checked /> 👥 นำ <b>บัญชีผู้ใช้งาน รหัสผ่าน และระดับสิทธิ์ (User Accounts & Roles)</b> ไปด้วย</label>
@@ -519,13 +538,13 @@ namespace BppVmsSetup
             </div>
           </div>
 
-          <!-- Option 3: Full Clone -->
+          <!-- Option 3: Full Server Clone -->
           <div class='mode-card' id='cardFull' onclick=""selectMode('full')"">
             <div class='mode-head'>
-              <div class='mode-title'>📦 3. นำการตั้งค่าเดิมทั้งหมดไปด้วย 100% (Full System Clone)</div>
-              <span class='mode-tag' style='background:rgba(16,185,129,0.18);color:#6ee7b7;border-color:#10b981;'>โคลนครบ 100%</span>
+              <div class='mode-title'>📦 4. ติดตั้งเป็นเครื่องแม่ข่ายโคลน 100% (Server: Full System Clone)</div>
+              <span class='mode-tag' style='background:rgba(56,189,248,0.18);color:#7dd3fc;border-color:#38bdf8;'>โคลนเซิร์ฟเวอร์ 100%</span>
             </div>
-            <div class='mode-sub'>ยกการตั้งค่าทุกอย่างจากเครื่องเดิมมาทั้งหมด (กล้อง 36 ตัว + บัญชีผู้ใช้ทั้งหมด + อุปกรณ์ GPS + ทะเบียนเฝ้าระวัง + โลโก้หน่วยงาน) เปิดโปรแกรมแล้วใช้งานต่อได้เหมือนเครื่องต้นทางทันที</div>
+            <div class='mode-sub'>ยกการตั้งค่าเซิร์ฟเวอร์ทุกอย่างจากเครื่องเดิมมาทั้งหมด (กล้อง 36 ตัว + บัญชีผู้ใช้ทั้งหมด + อุปกรณ์ GPS + ทะเบียนเฝ้าระวัง + โลโก้หน่วยงาน)</div>
           </div>
         </div>
 
@@ -536,7 +555,7 @@ namespace BppVmsSetup
         </div>
 
         <div class='footer-nav'>
-          <div style='font-size:12px;color:#94a3b8;'>💡 การกดอัปเดตโปรแกรมในอนาคตจะไม่ทับการตั้งค่าที่เลือกไว้ในขั้นตอนนี้</div>
+          <div style='font-size:12px;color:#94a3b8;'>💡 ทั้งเครื่องแม่ข่ายและเครื่องลูกข่ายสามารถกดปุ่ม 🔄 อัปเดตที่มุมขวาบนได้เหมือนกัน</div>
           <button class='btn btn-primary' onclick='startInstall()'>⚡ เริ่มติดตั้งระบบ (Install Now) ➔</button>
         </div>
       </div>
@@ -545,7 +564,7 @@ namespace BppVmsSetup
       <div class='page' id='page2'>
         <div>
           <h2>กำลังติดตั้งและกำหนดค่าระบบ SLOTH × BPP-VMS...</h2>
-          <p class='desc'>กรุณารอสักครู่ ระบบกำลังเตรียมสภาพแวดล้อมการ์ดจอ คอมไพล์โปรแกรมหลัก และจัดเตรียมฐานข้อมูลตามที่คุณเลือก</p>
+          <p class='desc'>กรุณารอสักครู่ ระบบกำลังเตรียมสภาพแวดล้อมและตั้งค่าโหมดที่คุณเลือก</p>
         </div>
 
         <div class='progress-wrap'>
@@ -564,7 +583,7 @@ namespace BppVmsSetup
           <div style='width:68px;height:68px;border-radius:50%;background:rgba(16,185,129,0.2);border:2px solid #34d399;display:inline-flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:16px;'>✓</div>
           <h2 style='font-size:23px;color:#34d399;'>ติดตั้ง SLOTH × BPP-VMS 215 เสร็จสมบูรณ์!</h2>
           <p class='desc' style='margin-top:8px;max-width:520px;margin-left:auto;margin-right:auto;'>
-            ระบบพร้อมใช้งานบนเครื่อง <b>" + pcName + @"</b> เรียบร้อยแล้ว พร้อมระบบซิงค์อัปเดตหน้าเว็บอัตโนมัติโดยไม่กระทบการตั้งค่าของเครื่อง
+            ระบบพร้อมใช้งานบนเครื่อง <b>" + pcName + @"</b> เรียบร้อยแล้ว พร้อมปุ่มกด 🔄 อัปเดตที่มุมขวาบนของโปรแกรม
           </p>
           <div style='margin-top:26px;'>
             <button class='btn btn-success' style='font-size:15px;padding:12px 28px;' onclick=""window.chrome.webview.postMessage('LAUNCH_AND_CLOSE')"">
@@ -577,9 +596,10 @@ namespace BppVmsSetup
   </div>
 
 <script>
-  var currentMode = 'clean';
+  var currentMode = 'client';
   function selectMode(m) {
     currentMode = m;
+    document.getElementById('cardClient').classList.toggle('selected', m === 'client');
     document.getElementById('cardClean').classList.toggle('selected', m === 'clean');
     document.getElementById('cardCustom').classList.toggle('selected', m === 'custom');
     document.getElementById('cardFull').classList.toggle('selected', m === 'full');
@@ -601,10 +621,11 @@ namespace BppVmsSetup
     var stm = document.getElementById('chkStartMenu').checked ? '1' : '0';
     var aut = document.getElementById('chkAutoStart').checked ? '1' : '0';
     var title = (document.getElementById('inpSystemTitle').value || 'SLOTH BPP-VMS').replace(/\|/g, ' ');
+    var srv = (document.getElementById('inpServerUrl').value || 'https://sloth.bpp215.com').replace(/\|/g, '');
 
     var payload = 'INSTALL:mode=' + currentMode +
                   '|cam=' + cam + '|usr=' + usr + '|gps=' + gps + '|lpr=' + lpr + '|brd=' + brd +
-                  '|dsk=' + dsk + '|stm=' + stm + '|aut=' + aut + '|title=' + title;
+                  '|dsk=' + dsk + '|stm=' + stm + '|aut=' + aut + '|title=' + title + '|srv=' + srv;
     window.chrome.webview.postMessage(payload);
   }
 

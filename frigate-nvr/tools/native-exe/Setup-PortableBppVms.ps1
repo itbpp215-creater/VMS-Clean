@@ -1,6 +1,6 @@
 ﻿param(
     [string]$WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path,
-    [ValidateSet("clean", "custom", "full", "keep")]
+    [ValidateSet("client", "clean", "custom", "full", "keep")]
     [string]$MigrationMode = "keep",
     [switch]$MigrateCameras = $false,
     [switch]$MigrateUsers = $false,
@@ -8,6 +8,7 @@
     [switch]$MigrateWatchlist = $false,
     [switch]$MigrateBranding = $false,
     [string]$CustomSystemTitle = "SLOTH BPP-VMS",
+    [string]$ServerUrl = "https://vms.local",
     [switch]$CreateDesktopShortcut = $true,
     [switch]$CreateStartMenuShortcut = $true,
     [switch]$AutoStartWithWindows = $false,
@@ -87,130 +88,146 @@ function Initialize-CleanConfig([string]$TargetCfg, [string]$SystemTitle) {
 $srcPool = if (Test-Path $SnapshotDir) { $SnapshotDir } else { $FrigateCfg }
 
 # 1. Apply Data & Configuration Migration Mode
-if ($MigrationMode -eq "clean") {
-    Write-Step 15 "กำลังตั้งค่าระบบแบบเครื่องใหม่ทั้งหมด (Clean New Installation)..."
-    Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
-}
-elseif ($MigrationMode -eq "full") {
-    Write-Step 15 "กำลังโคลนการตั้งค่าเดิมทั้งหมด 100% (กล้อง, ผู้ใช้, GPS, ทะเบียนเฝ้าระวัง, แบรนด์)..."
-    Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
-    if (Test-Path $srcPool) {
-        Copy-Item "$srcPool\*" $ConfigDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
-elseif ($MigrationMode -eq "custom") {
-    Write-Step 15 "กำลังคัดลอกเฉพาะข้อมูลที่เลือกจากเครื่องต้นทาง (Custom Selective Migration)..."
-    Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
-
-    if ($MigrateCameras) {
-        Write-Step 20 "-> กำลังนำเข้า รายการกล้อง CCTV, กลุ่ม NVR และพิกัดกล้อง..."
-        foreach ($cf in @("config.yml", "camera_credentials.env", "camera_templates.json", "camera_sources.json", "nvr_groups.json", "ai_schedules.json", "manual_recordings.json")) {
-            if (Test-Path "$srcPool\$cf") { Copy-Item "$srcPool\$cf" "$ConfigDir\$cf" -Force }
-        }
-        foreach ($df in @("channels.json", "camera_names.json", "camera_gps.json", "nodes.json")) {
-            if (Test-Path "$srcPool\dashboard-settings\$df") {
-                Copy-Item "$srcPool\dashboard-settings\$df" "$ConfigDir\dashboard-settings\$df" -Force
-            }
-        }
-    }
-
-    if ($MigrateUsers) {
-        Write-Step 24 "-> กำลังนำเข้า บัญชีผู้ใช้งานและสิทธิ์การเข้าถึง (User Accounts)..."
-        if (Test-Path "$srcPool\auth") {
-            Copy-Item "$srcPool\auth\*" "$ConfigDir\auth\" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    if ($MigrateGps) {
-        Write-Step 28 "-> กำลังนำเข้า อุปกรณ์ติดตามพิกัด GPS และเส้นทางย้อนหลัง..."
-        foreach ($gf in @("gpsone_devices.local.json", "gpsone_history.local.db")) {
-            if (Test-Path "$srcPool\$gf") { Copy-Item "$srcPool\$gf" "$ConfigDir\$gf" -Force }
-        }
-    }
-
-    if ($MigrateWatchlist) {
-        Write-Step 32 "-> กำลังนำเข้า บัญชีดำป้ายทะเบียนเฝ้าระวัง, ฐานข้อมูลใบหน้าหมายจับ (187 แฟ้ม) และโซน AI..."
-        if (Test-Path "$srcPool\lpr") {
-            Copy-Item "$srcPool\lpr\*" "$ConfigDir\lpr\" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path "$srcPool\faces") {
-            Copy-Item "$srcPool\faces\*" "$ConfigDir\faces\" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    if ($MigrateBranding) {
-        Write-Step 35 "-> กำลังนำเข้า ชื่อหน่วยงาน โลโก้ และการตั้งค่าหน้าแดชบอร์ดเดิม..."
-        foreach ($bf in @("branding.json", "logo.png")) {
-            if (Test-Path "$srcPool\dashboard-settings\$bf") {
-                Copy-Item "$srcPool\dashboard-settings\$bf" "$ConfigDir\dashboard-settings\$bf" -Force
-            }
-        }
-    }
+if ($MigrationMode -eq "client") {
+    $safeSrv = if ($ServerUrl -and $ServerUrl.Trim()) { $ServerUrl.Trim().TrimEnd('/') } else { "https://vms.local" }
+    Write-Step 25 "กำลังตั้งค่าเครื่องนี้เป็นโปรแกรมลูกข่าย (PC Client Mode -> $safeSrv)..."
+    $clientCfgObj = @{ role = "client"; server_url = $safeSrv } | ConvertTo-Json -Compress
+    Write-Utf8File (Join-Path $ConfigDir "client_mode.json") $clientCfgObj
+    Write-Utf8File (Join-Path $ConfigDir ".machine_id") $env:COMPUTERNAME
+    Write-Step 60 "บันทึกการตั้งค่าลูกข่าย ($safeSrv) สำหรับเครื่อง $env:COMPUTERNAME เรียบร้อยแล้ว"
 }
 else {
-    Write-Step 15 "กำลังตรวจสอบไฟล์ตั้งค่าปัจจุบันของเครื่อง ($env:COMPUTERNAME)..."
-    if (-not (Test-Path (Join-Path $ConfigDir "config.yml"))) {
+    $serverCfgObj = @{ role = "server"; server_url = "http://127.0.0.1:8443" } | ConvertTo-Json -Compress
+    Write-Utf8File (Join-Path $ConfigDir "client_mode.json") $serverCfgObj
+
+    if ($MigrationMode -eq "clean") {
+        Write-Step 15 "กำลังตั้งค่าระบบแบบเครื่องแม่ข่ายใหม่ทั้งหมด (Clean New Server)..."
         Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
     }
-}
-
-# Stamp current PC's COMPUTERNAME into .machine_id so native_gateway.py recognizes this PC
-Write-Utf8File (Join-Path $ConfigDir ".machine_id") $env:COMPUTERNAME
-Write-Step 40 "ผูกสิทธิ์การตั้งค่าเข้ากับเครื่อง $env:COMPUTERNAME เรียบร้อยแล้ว"
-
-# 2. Verify Python & Create/Update Local venv (All-GPU: CUDA / DirectML / CPU)
-Write-Step 45 "กำลังตรวจสอบ Python Runtime และสภาพแวดล้อม AI..."
-$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCmd) {
-    Write-Step 48 "ไม่พบ Python ในระบบ กำลังติดตั้ง Python 3.11 อัตโนมัติผ่าน winget..."
-    winget install -e --id Python.Python.3.11 --accept-package-agreements --accept-source-agreements
-}
-
-$venvPython = Join-Path $VenvDir "Scripts\python.exe"
-$pyvenvCfg  = Join-Path $VenvDir "pyvenv.cfg"
-$venvValid = $false
-if ((Test-Path $venvPython) -and (Test-Path $pyvenvCfg)) {
-    try {
-        $cfgText = Get-Content $pyvenvCfg -Raw -ErrorAction Stop
-        if ($cfgText -like "*$VenvDir*") {
-            & $venvPython --version *> $null
-            if ($LASTEXITCODE -eq 0) { $venvValid = $true }
+    elseif ($MigrationMode -eq "full") {
+        Write-Step 15 "กำลังโคลนการตั้งค่าเครื่องแม่ข่ายทั้งหมด 100% (กล้อง, ผู้ใช้, GPS, ทะเบียนเฝ้าระวัง, แบรนด์)..."
+        Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
+        if (Test-Path $srcPool) {
+            Copy-Item "$srcPool\*" $ConfigDir -Recurse -Force -ErrorAction SilentlyContinue
         }
-    } catch { $venvValid = $false }
-}
-
-if (-not $venvValid) {
-    Write-Step 55 "กำลังสร้าง Python Virtual Environment สำหรับเครื่อง $env:COMPUTERNAME ..."
-    if (Test-Path $VenvDir) {
-        Remove-Item -Path $VenvDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Utf8File (Join-Path $ConfigDir "client_mode.json") $serverCfgObj
     }
-    python -m venv --system-site-packages $VenvDir
-}
+    elseif ($MigrationMode -eq "custom") {
+        Write-Step 15 "กำลังคัดลอกเฉพาะข้อมูลที่เลือกจากเครื่องต้นทาง (Custom Selective Migration)..."
+        Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
 
-Write-Step 65 "กำลังตรวจสอบไลบรารีระบบและเอนจิน All-GPU ONNX Runtime..."
-$depsReady = $false
-try {
-    & $venvPython -c "import fastapi, uvicorn, yaml, ruamel.yaml, websockets, cv2, numpy, PIL, pydantic, multipart, httpx, onnxruntime" *> $null
-    if ($LASTEXITCODE -eq 0) { $depsReady = $true }
-} catch { $depsReady = $false }
+        if ($MigrateCameras) {
+            Write-Step 20 "-> กำลังนำเข้า รายการกล้อง CCTV, กลุ่ม NVR และพิกัดกล้อง..."
+            foreach ($cf in @("config.yml", "camera_credentials.env", "camera_templates.json", "camera_sources.json", "nvr_groups.json", "ai_schedules.json", "manual_recordings.json")) {
+                if (Test-Path "$srcPool\$cf") { Copy-Item "$srcPool\$cf" "$ConfigDir\$cf" -Force }
+            }
+            foreach ($df in @("channels.json", "camera_names.json", "camera_gps.json", "nodes.json")) {
+                if (Test-Path "$srcPool\dashboard-settings\$df") {
+                    Copy-Item "$srcPool\dashboard-settings\$df" "$ConfigDir\dashboard-settings\$df" -Force
+                }
+            }
+        }
 
-if (-not $depsReady) {
-    Write-Step 68 "กำลังติดตั้งไลบรารีระบบและเอนจิน All-GPU ONNX Runtime..."
-    & $venvPython -m pip install --upgrade pip --quiet
-    & $venvPython -m pip install fastapi uvicorn pyyaml "ruamel.yaml" websockets opencv-python-headless numpy pillow pydantic python-multipart httpx onnxruntime-directml --quiet
-} else {
-    Write-Step 72 "ตรวจพบไลบรารี AI และ ONNX Runtime ครบถ้วนพร้อมใช้งานแล้ว"
-}
+        if ($MigrateUsers) {
+            Write-Step 24 "-> กำลังนำเข้า บัญชีผู้ใช้งานและสิทธิ์การเข้าถึง (User Accounts)..."
+            if (Test-Path "$srcPool\auth") {
+                Copy-Item "$srcPool\auth\*" "$ConfigDir\auth\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
 
-# 3. Check go2rtc.exe in native\ or native\bin\
-Write-Step 78 "กำลังตรวจสอบเอนจินสตรีมมิ่งความหน่วงต่ำ (go2rtc.exe)..."
-$go2rtcRoot = Join-Path $NativeDir "go2rtc.exe"
-$go2rtcBin  = Join-Path $BinDir "go2rtc.exe"
-if (-not (Test-Path $go2rtcRoot) -and -not (Test-Path $go2rtcBin)) {
-    Write-Step 80 "กำลังดาวน์โหลด go2rtc_win64.zip..."
-    $zipPath = Join-Path $RuntimeDir "go2rtc_win64.zip"
-    Invoke-WebRequest -Uri "https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_win64.zip" -OutFile $zipPath -UseBasicParsing
-    Expand-Archive -Path $zipPath -DestinationPath $BinDir -Force
+        if ($MigrateGps) {
+            Write-Step 28 "-> กำลังนำเข้า อุปกรณ์ติดตามพิกัด GPS และเส้นทางย้อนหลัง..."
+            foreach ($gf in @("gpsone_devices.local.json", "gpsone_history.local.db")) {
+                if (Test-Path "$srcPool\$gf") { Copy-Item "$srcPool\$gf" "$ConfigDir\$gf" -Force }
+            }
+        }
+
+        if ($MigrateWatchlist) {
+            Write-Step 32 "-> กำลังนำเข้า บัญชีดำป้ายทะเบียนเฝ้าระวัง, ฐานข้อมูลใบหน้าหมายจับ (187 แฟ้ม) และโซน AI..."
+            if (Test-Path "$srcPool\lpr") {
+                Copy-Item "$srcPool\lpr\*" "$ConfigDir\lpr\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path "$srcPool\faces") {
+                Copy-Item "$srcPool\faces\*" "$ConfigDir\faces\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if ($MigrateBranding) {
+            Write-Step 35 "-> กำลังนำเข้า ชื่อหน่วยงาน โลโก้ และการตั้งค่าหน้าแดชบอร์ดเดิม..."
+            foreach ($bf in @("branding.json", "logo.png")) {
+                if (Test-Path "$srcPool\dashboard-settings\$bf") {
+                    Copy-Item "$srcPool\dashboard-settings\$bf" "$ConfigDir\dashboard-settings\$bf" -Force
+                }
+            }
+        }
+        Write-Utf8File (Join-Path $ConfigDir "client_mode.json") $serverCfgObj
+    }
+    else {
+        Write-Step 15 "กำลังตรวจสอบไฟล์ตั้งค่าปัจจุบันของเครื่อง ($env:COMPUTERNAME)..."
+        if (-not (Test-Path (Join-Path $ConfigDir "config.yml"))) {
+            Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
+        }
+        Write-Utf8File (Join-Path $ConfigDir "client_mode.json") $serverCfgObj
+    }
+
+    # Stamp current PC's COMPUTERNAME into .machine_id so native_gateway.py recognizes this PC
+    Write-Utf8File (Join-Path $ConfigDir ".machine_id") $env:COMPUTERNAME
+    Write-Step 40 "ผูกสิทธิ์การตั้งค่าเข้ากับเครื่อง $env:COMPUTERNAME เรียบร้อยแล้ว"
+
+    # 2. Verify Python & Create/Update Local venv (All-GPU: CUDA / DirectML / CPU)
+    Write-Step 45 "กำลังตรวจสอบ Python Runtime และสภาพแวดล้อม AI..."
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) {
+        Write-Step 48 "ไม่พบ Python ในระบบ กำลังติดตั้ง Python 3.11 อัตโนมัติผ่าน winget..."
+        winget install -e --id Python.Python.3.11 --accept-package-agreements --accept-source-agreements
+    }
+
+    $venvPython = Join-Path $VenvDir "Scripts\python.exe"
+    $pyvenvCfg  = Join-Path $VenvDir "pyvenv.cfg"
+    $venvValid = $false
+    if ((Test-Path $venvPython) -and (Test-Path $pyvenvCfg)) {
+        try {
+            $cfgText = Get-Content $pyvenvCfg -Raw -ErrorAction Stop
+            if ($cfgText -like "*$VenvDir*") {
+                & $venvPython --version *> $null
+                if ($LASTEXITCODE -eq 0) { $venvValid = $true }
+            }
+        } catch { $venvValid = $false }
+    }
+
+    if (-not $venvValid) {
+        Write-Step 55 "กำลังสร้าง Python Virtual Environment สำหรับเครื่อง $env:COMPUTERNAME ..."
+        if (Test-Path $VenvDir) {
+            Remove-Item -Path $VenvDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        python -m venv --system-site-packages $VenvDir
+    }
+
+    Write-Step 65 "กำลังตรวจสอบไลบรารีระบบและเอนจิน All-GPU ONNX Runtime..."
+    $depsReady = $false
+    try {
+        & $venvPython -c "import fastapi, uvicorn, yaml, ruamel.yaml, websockets, cv2, numpy, PIL, pydantic, multipart, httpx, onnxruntime" *> $null
+        if ($LASTEXITCODE -eq 0) { $depsReady = $true }
+    } catch { $depsReady = $false }
+
+    if (-not $depsReady) {
+        Write-Step 68 "กำลังติดตั้งไลบรารีระบบและเอนจิน All-GPU ONNX Runtime..."
+        & $venvPython -m pip install --upgrade pip --quiet
+        & $venvPython -m pip install fastapi uvicorn pyyaml "ruamel.yaml" websockets opencv-python-headless numpy pillow pydantic python-multipart httpx onnxruntime-directml --quiet
+    } else {
+        Write-Step 72 "ตรวจพบไลบรารี AI และ ONNX Runtime ครบถ้วนพร้อมใช้งานแล้ว"
+    }
+
+    # 3. Check go2rtc.exe in native\ or native\bin\
+    Write-Step 78 "กำลังตรวจสอบเอนจินสตรีมมิ่งความหน่วงต่ำ (go2rtc.exe)..."
+    $go2rtcRoot = Join-Path $NativeDir "go2rtc.exe"
+    $go2rtcBin  = Join-Path $BinDir "go2rtc.exe"
+    if (-not (Test-Path $go2rtcRoot) -and -not (Test-Path $go2rtcBin)) {
+        Write-Step 80 "กำลังดาวน์โหลด go2rtc_win64.zip..."
+        $zipPath = Join-Path $RuntimeDir "go2rtc_win64.zip"
+        Invoke-WebRequest -Uri "https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_win64.zip" -OutFile $zipPath -UseBasicParsing
+        Expand-Archive -Path $zipPath -DestinationPath $BinDir -Force
+    }
 }
 
 # 4. Sync native scripts & compile BPP-VMS.exe

@@ -5,6 +5,8 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -41,13 +43,17 @@ namespace BppVmsNative
         private ContextMenuStrip _trayMenu;
         private Process _gatewayProcess;
         private readonly string _baseDir;
-        private readonly string _gatewayUrl = "http://127.0.0.1:8443";
+        private string _gatewayUrl = "http://127.0.0.1:8443";
+        private bool _isClientMode = false;
         private bool _allowExit = false;
 
         public MainForm()
         {
             _baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            Text = "SLOTH × BPP-VMS 215 — Intelligent Surveillance Platform";
+            LoadRoleConfiguration();
+            Text = _isClientMode
+                ? "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")"
+                : "SLOTH × BPP-VMS 215 — Intelligent Surveillance Platform (Server)";
             Width = 1540;
             Height = 920;
             MinimumSize = new Size(1080, 700);
@@ -120,6 +126,67 @@ namespace BppVmsNative
             }
         }
 
+        private void LoadRoleConfiguration()
+        {
+            try
+            {
+                string cfgPath = Path.Combine(_baseDir, "config", "client_mode.json");
+                if (!File.Exists(cfgPath))
+                {
+                    cfgPath = Path.Combine(_baseDir, "client_mode.json");
+                }
+
+                string gwScript1 = Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "tools", "native-exe", "native_gateway.py");
+                string gwScript2 = Path.Combine(_baseDir, "native_gateway.py");
+                bool hasLocalServerFiles = File.Exists(gwScript1) || File.Exists(gwScript2);
+
+                if (File.Exists(cfgPath))
+                {
+                    string json = File.ReadAllText(cfgPath, Encoding.UTF8);
+                    var mRole = Regex.Match(json, "\"role\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase);
+                    var mUrl = Regex.Match(json, "\"server_url\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase);
+                    string role = mRole.Success ? mRole.Groups[1].Value.Trim().ToLowerInvariant() : "server";
+                    string url = mUrl.Success ? mUrl.Groups[1].Value.Trim().TrimEnd('/') : "";
+
+                    if (role == "client" || !hasLocalServerFiles)
+                    {
+                        _isClientMode = true;
+                        _gatewayUrl = string.IsNullOrEmpty(url) ? "https://sloth.bpp215.com" : url;
+                        return;
+                    }
+                }
+                else if (!hasLocalServerFiles)
+                {
+                    _isClientMode = true;
+                    _gatewayUrl = "https://sloth.bpp215.com";
+                    SaveRoleConfiguration("client", _gatewayUrl);
+                    return;
+                }
+            }
+            catch
+            {
+            }
+
+            _isClientMode = false;
+            _gatewayUrl = "http://127.0.0.1:8443";
+        }
+
+        private void SaveRoleConfiguration(string role, string serverUrl)
+        {
+            try
+            {
+                string cfgDir = Path.Combine(_baseDir, "config");
+                Directory.CreateDirectory(cfgDir);
+                string cfgPath = Path.Combine(cfgDir, "client_mode.json");
+                string safeUrl = (serverUrl ?? "https://sloth.bpp215.com").Trim().TrimEnd('/');
+                string json = "{\n  \"role\": \"" + role + "\",\n  \"server_url\": \"" + safeUrl + "\"\n}\n";
+                File.WriteAllText(cfgPath, json, new UTF8Encoding(false));
+            }
+            catch
+            {
+            }
+        }
+
         private void InitializeTrayIcon()
         {
             _trayMenu = new ContextMenuStrip();
@@ -127,15 +194,32 @@ namespace BppVmsNative
             _trayMenu.Items.Add("🔄 อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุด (1-Click Program Update)", null, async (s, e) => await TriggerFullProgramUpdateAsync());
             _trayMenu.Items.Add("⚡ ซิงค์หน้าเว็บทันที (Zero-Downtime Web Sync)", null, async (s, e) => await TriggerWebSyncAsync());
             _trayMenu.Items.Add(new ToolStripSeparator());
-            _trayMenu.Items.Add("🏠 โหมด Local Engine (http://127.0.0.1:8443)", null, (s, e) =>
+            _trayMenu.Items.Add("🌐 สลับเป็นโหมดลูกข่ายผ่านเน็ต (Client: https://sloth.bpp215.com)", null, (s, e) =>
             {
+                _isClientMode = true;
+                _gatewayUrl = "https://sloth.bpp215.com";
+                SaveRoleConfiguration("client", _gatewayUrl);
+                Text = "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")";
                 if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
             });
-            _trayMenu.Items.Add("🌐 โหมด Remote PC Client (https://sloth.bpp215.com)", null, (s, e) =>
+            _trayMenu.Items.Add("🖧 สลับเป็นโหมดลูกข่ายผ่านวงแลน (Client LAN: http://192.168.1.200:8443)", null, (s, e) =>
             {
-                if (_coreWebView != null) _coreWebView.Navigate("https://sloth.bpp215.com/");
+                _isClientMode = true;
+                _gatewayUrl = "http://192.168.1.200:8443";
+                SaveRoleConfiguration("client", _gatewayUrl);
+                Text = "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")";
+                if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
             });
-            _trayMenu.Items.Add("เปิดในเบราว์เซอร์ (http://127.0.0.1:8443)", null, (s, e) =>
+            _trayMenu.Items.Add("🏠 สลับเป็นโหมดแม่ข่ายในเครื่องนี้ (Local Server: http://127.0.0.1:8443)", null, async (s, e) =>
+            {
+                _isClientMode = false;
+                _gatewayUrl = "http://127.0.0.1:8443";
+                SaveRoleConfiguration("server", _gatewayUrl);
+                Text = "SLOTH × BPP-VMS 215 — Intelligent Surveillance Platform (Server)";
+                await StartGatewayIfNeededAsync();
+                if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
+            });
+            _trayMenu.Items.Add("เปิดในเบราว์เซอร์ (" + _gatewayUrl + ")", null, (s, e) =>
             {
                 Process.Start(new ProcessStartInfo(_gatewayUrl) { UseShellExecute = true });
             });
@@ -145,7 +229,7 @@ namespace BppVmsNative
             _trayIcon = new NotifyIcon
             {
                 Icon = Icon,
-                Text = "SLOTH × BPP-VMS 215 Native Engine (:8443)",
+                Text = _isClientMode ? "SLOTH × BPP-VMS 215 Desktop Client" : "SLOTH × BPP-VMS 215 Native Server (:8443)",
                 ContextMenuStrip = _trayMenu,
                 Visible = true
             };
@@ -198,6 +282,13 @@ namespace BppVmsNative
 
                 // Show Futuristic SLOTH x BPP-215 Cyber Splash Screen immediately while gateway boots
                 _coreWebView.NavigateToString(GetCyberSplashHtml());
+
+                if (_isClientMode)
+                {
+                    await Task.Delay(550);
+                    _coreWebView.Navigate(_gatewayUrl + "/");
+                    return;
+                }
 
                 await StartGatewayIfNeededAsync();
 
@@ -845,11 +936,23 @@ namespace BppVmsNative
             try
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string clientCfg = Path.Combine(baseDir, "config", "client_mode.json");
+                if (!File.Exists(clientCfg)) clientCfg = Path.Combine(baseDir, "client_mode.json");
+                bool isExplicitClient = false;
+                if (File.Exists(clientCfg))
+                {
+                    string cJson = File.ReadAllText(clientCfg, Encoding.UTF8);
+                    if (Regex.IsMatch(cJson, "\"role\"\\s*:\\s*\"client\"", RegexOptions.IgnoreCase))
+                    {
+                        isExplicitClient = true;
+                    }
+                }
+
                 string machineIdPath = Path.Combine(baseDir, "config", ".machine_id");
                 string storedPc = File.Exists(machineIdPath) ? File.ReadAllText(machineIdPath, System.Text.Encoding.UTF8).Trim() : "";
                 string currentPc = Environment.MachineName.Trim();
 
-                if (string.IsNullOrEmpty(storedPc) || !string.Equals(storedPc, currentPc, StringComparison.OrdinalIgnoreCase))
+                if (!isExplicitClient && (string.IsNullOrEmpty(storedPc) || !string.Equals(storedPc, currentPc, StringComparison.OrdinalIgnoreCase)))
                 {
                     string setupExe = Path.Combine(baseDir, "BPP-VMS-Setup.exe");
                     if (!File.Exists(setupExe))
