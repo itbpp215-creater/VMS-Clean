@@ -2397,11 +2397,12 @@ async def upload_manual_clip(request: Request, identity: TrustedIdentity = Depen
     camera = str(body.get("camera") or "").strip()
     if not camera:
         raise HTTPException(status_code=400, detail="camera is required")
-    camera_name = str(body.get("camera_name") or camera).strip()
+    camera_name = str(body.get("camera_name") or _get_camera_display_name(camera) or camera).strip()
     start_time = float(body.get("start_time") or (time.time() - 5.0))
     end_time = float(body.get("end_time") or time.time())
     mime_type = str(body.get("mime_type") or "video/mp4")
     description = str(body.get("description") or "").strip()
+    clip_id = str(body.get("clip_id") or "").strip() or None
 
     video_b64 = str(body.get("video_b64") or "").strip()
     if "," in video_b64:
@@ -2413,25 +2414,13 @@ async def upload_manual_clip(request: Request, identity: TrustedIdentity = Depen
         snap_b64 = snap_b64.split(",", 1)[1]
     snap_bytes = base64.b64decode(snap_b64) if snap_b64 else b""
 
-    # If client did not send video bytes (e.g. fallback), try fetching NVR clip from Frigate
-    if not video_bytes:
-        s_int = max(0, int(start_time) - 2)
-        e_int = int(end_time) + 2
-        for host in ("http://frigate:5000", "http://127.0.0.1:5000"):
-            try:
-                req = urllib.request.Request(
-                    f"{host}/api/{urllib.parse.quote(camera)}/start/{s_int}/end/{e_int}/clip.mp4",
-                    method="GET",
-                )
-                with urllib.request.urlopen(req, timeout=12) as resp:
-                    if resp.status == 200:
-                        data = resp.read()
-                        if data and len(data) > 1000:
-                            video_bytes = data
-                            mime_type = "video/mp4"
-                            break
-            except Exception:
-                pass
+    if not video_bytes or not snap_bytes:
+        srv_video, srv_snap = _stop_watchlist_manual_recorder(camera, start_time, end_time)
+        if not video_bytes and srv_video:
+            video_bytes = srv_video
+            mime_type = "video/mp4"
+        if not snap_bytes and srv_snap:
+            snap_bytes = srv_snap
 
     entry = _store_manual_clip_files(
         camera=camera,
@@ -2442,6 +2431,8 @@ async def upload_manual_clip(request: Request, identity: TrustedIdentity = Depen
         snapshot_bytes=snap_bytes,
         mime_type=mime_type,
         description=description,
+        clip_id=clip_id,
+        sub_label="บันทึกด้วยมือ",
     )
     return {"status": "ok", "clip": entry}
 
@@ -2518,6 +2509,8 @@ def delete_manual_clip(clip_id: str, identity: TrustedIdentity = Depends(require
 @operator_router.post("/cameras/{name}/record_toggle")
 def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity = Depends(require_authenticated)):
     """Toggle manual continuous recording on NVR for one camera."""
+    import secrets
+
     if not os.path.exists(CONFIG_PATH):
         raise HTTPException(status_code=404, detail="config.yml not found")
 
@@ -2527,9 +2520,11 @@ def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity 
     new_state = not current_state
     now_ts = time.time()
     prev_start_ts = prev_val.get("start_time", now_ts - 10.0) if isinstance(prev_val, dict) else (now_ts - 10.0)
+    prev_clip_id = prev_val.get("clip_id") if isinstance(prev_val, dict) else None
+    new_clip_id = f"mrec_{int(now_ts)}_{secrets.token_hex(3)}" if new_state else (prev_clip_id or f"mrec_{int(prev_start_ts)}_{secrets.token_hex(3)}")
 
     if new_state:
-        manual_recs[name] = {"active": True, "start_time": now_ts}
+        manual_recs[name] = {"active": True, "start_time": now_ts, "clip_id": new_clip_id}
     else:
         manual_recs.pop(name, None)
     save_manual_recordings(manual_recs)
@@ -2561,12 +2556,45 @@ def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity 
 
     _sync_camera_to_frigate_runtime(name, cam_enabled, bool(detect_on), rec_enabled)
 
+    cam_display = _get_camera_display_name(name)
+    clip_entry = None
+    if new_state:
+        init_snap = _start_watchlist_manual_recorder(name, now_ts)
+        clip_entry = _store_manual_clip_files(
+            camera=name,
+            camera_name=cam_display,
+            start_time=now_ts,
+            end_time=now_ts + 1.0,
+            video_bytes=b"",
+            snapshot_bytes=init_snap,
+            mime_type="video/mp4",
+            description=f"กำลังบันทึกวิดีโอด้วยมือ ({cam_display})",
+            clip_id=new_clip_id,
+            sub_label="กำลังบันทึก...",
+        )
+    else:
+        srv_video, srv_snap = _stop_watchlist_manual_recorder(name, float(prev_start_ts), now_ts)
+        clip_entry = _store_manual_clip_files(
+            camera=name,
+            camera_name=cam_display,
+            start_time=float(prev_start_ts),
+            end_time=now_ts,
+            video_bytes=srv_video,
+            snapshot_bytes=srv_snap,
+            mime_type="video/mp4",
+            description=f"บันทึกวิดีโอด้วยมือ ({cam_display})",
+            clip_id=new_clip_id,
+            sub_label="บันทึกด้วยมือ",
+        )
+
     return {
         "status": "success",
         "camera": name,
         "recording": new_state,
         "start_time": now_ts if new_state else float(prev_start_ts),
         "end_time": now_ts,
+        "clip_id": new_clip_id,
+        "clip": clip_entry,
         "message": f"NVR recording {'started' if new_state else 'stopped'} for {name}"
     }
 

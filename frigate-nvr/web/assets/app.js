@@ -5404,8 +5404,12 @@ function enableEmgrLazyThumbs(body) {
       thumb.style.backgroundImage = `url("${url}")`;
     };
     img.onerror = () => {
-      // Smart Media Integrity: Hide card completely if media file is absent
       const card = thumb.closest('.emgr-card');
+      if (card && card.dataset.manualRec === '1') {
+        thumb.style.background = 'linear-gradient(135deg, #0f172a, #1e293b)';
+        return;
+      }
+      // Smart Media Integrity: Hide card completely if media file is absent
       if (card) card.style.display = 'none';
     };
     img.src = url;
@@ -5602,6 +5606,9 @@ function renderEventMgr() {
     group.events.forEach(ev => {
       const card = document.createElement('button');
       card.className = 'emgr-card';
+      if (ev.source === 'manual_rec' || ev.label === 'manual_rec') {
+        card.dataset.manualRec = '1';
+      }
       const d = new Date(ev.startTime * 1000);
       const exactTimeStr = fmtTime(d) + ' น.';
       const exactDateStr = fmtDate(d);
@@ -7274,7 +7281,40 @@ function _blobToDataUrl(blob) {
   });
 }
 
-function _startManualClipRecorder(camSrc, startTs) {
+function _upsertManualClipEventInUi(rawClip) {
+  const emgrEv = normalizeManualClipToEmgrEvent(rawClip);
+  if (!emgrEv) return;
+  if (!Array.isArray(state.emgrEvents)) state.emgrEvents = [];
+  state.emgrEvents = [emgrEv, ...state.emgrEvents.filter(e => e.id !== emgrEv.id)];
+  if (Array.isArray(state.events)) {
+    const railEv = {
+      id: emgrEv.id,
+      camera: emgrEv.camera,
+      camIdx: emgrEv.camIdx,
+      type: 'manual_rec',
+      label: 'manual_rec',
+      startTime: emgrEv.startTime,
+      mins: 0,
+      dur: emgrEv.dur,
+      conf: 100,
+      hasClip: emgrEv.has_clip,
+      has_clip: emgrEv.has_clip,
+      has_snapshot: emgrEv.has_snapshot,
+      thumb: emgrEv.customSnapUrl,
+      description: emgrEv.description,
+      source: 'manual_rec',
+      customClipUrl: emgrEv.customClipUrl,
+      customSnapUrl: emgrEv.customSnapUrl,
+    };
+    state.events = [railEv, ...state.events.filter(e => e.id !== railEv.id)];
+    renderEvents();
+  }
+  if ($('eventMgrOverlay') && !$('eventMgrOverlay').hidden) {
+    renderEventMgr();
+  }
+}
+
+function _startManualClipRecorder(camSrc, startTs, clipId) {
   if (!state.manualClipRecorders) state.manualClipRecorders = new Map();
   const prev = state.manualClipRecorders.get(camSrc);
   if (prev && prev.rec && prev.rec.state === 'recording') {
@@ -7284,6 +7324,7 @@ function _startManualClipRecorder(camSrc, startTs) {
   const snapB64 = _captureVideoSnapshotB64(videoEl);
   const session = {
     camSrc,
+    clipId: clipId || null,
     startTime: startTs || (Date.now() / 1000),
     snapB64,
     chunks: [],
@@ -7338,7 +7379,7 @@ function _startManualClipRecorder(camSrc, startTs) {
   state.manualClipRecorders.set(camSrc, session);
 }
 
-async function _stopAndSaveManualClip(camSrc, camName, startTs, endTs) {
+async function _stopAndSaveManualClip(camSrc, camName, startTs, endTs, clipIdFromServer, serverClipObj) {
   const session = state.manualClipRecorders ? state.manualClipRecorders.get(camSrc) : null;
   if (state.manualClipRecorders) state.manualClipRecorders.delete(camSrc);
   let videoB64 = '';
@@ -7346,6 +7387,11 @@ async function _stopAndSaveManualClip(camSrc, camName, startTs, endTs) {
   let mimeType = session ? session.mimeType : 'video/mp4';
   const effectiveStart = (session && session.startTime) || startTs || ((Date.now() / 1000) - 5);
   const effectiveEnd = endTs || (Date.now() / 1000);
+  const effectiveClipId = clipIdFromServer || (session && session.clipId) || (serverClipObj && serverClipObj.id) || null;
+
+  if (serverClipObj) {
+    _upsertManualClipEventInUi(serverClipObj);
+  }
 
   if (session && session.rec) {
     if (session.rec.state === 'recording') {
@@ -7370,6 +7416,7 @@ async function _stopAndSaveManualClip(camSrc, camName, startTs, endTs) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        clip_id: effectiveClipId,
         camera: camSrc,
         camera_name: camTitle,
         start_time: effectiveStart,
@@ -7383,37 +7430,7 @@ async function _stopAndSaveManualClip(camSrc, camName, startTs, endTs) {
     if (res.ok) {
       const out = await res.json();
       if (out && out.clip) {
-        const emgrEv = normalizeManualClipToEmgrEvent(out.clip);
-        if (emgrEv) {
-          if (!Array.isArray(state.emgrEvents)) state.emgrEvents = [];
-          state.emgrEvents = [emgrEv, ...state.emgrEvents.filter(e => e.id !== emgrEv.id)];
-          if (Array.isArray(state.events)) {
-            const railEv = {
-              id: emgrEv.id,
-              camera: emgrEv.camera,
-              camIdx: emgrEv.camIdx,
-              type: 'manual_rec',
-              label: 'manual_rec',
-              startTime: emgrEv.startTime,
-              mins: 0,
-              dur: emgrEv.dur,
-              conf: 100,
-              hasClip: emgrEv.has_clip,
-              has_clip: emgrEv.has_clip,
-              has_snapshot: emgrEv.has_snapshot,
-              thumb: emgrEv.customSnapUrl,
-              description: emgrEv.description,
-              source: 'manual_rec',
-              customClipUrl: emgrEv.customClipUrl,
-              customSnapUrl: emgrEv.customSnapUrl,
-            };
-            state.events = [railEv, ...state.events.filter(e => e.id !== railEv.id)];
-            renderEvents();
-          }
-          if ($('eventMgrOverlay') && !$('eventMgrOverlay').hidden) {
-            renderEventMgr();
-          }
-        }
+        _upsertManualClipEventInUi(out.clip);
       }
     }
   } catch (err) {
@@ -7437,7 +7454,8 @@ async function toggleNvrManualRecord(camSrc, btnEl, camName) {
       const isRec = !!data.recording;
       if (isRec) {
         state.activeNvrRecordings.add(camSrc);
-        _startManualClipRecorder(camSrc, data.start_time);
+        _startManualClipRecorder(camSrc, data.start_time, data.clip_id);
+        if (data.clip) _upsertManualClipEventInUi(data.clip);
       } else {
         state.activeNvrRecordings.delete(camSrc);
       }
@@ -7450,7 +7468,7 @@ async function toggleNvrManualRecord(camSrc, btnEl, camName) {
         if (window.bppToast) {
           window.bppToast(`⏳ กำลังบันทึกคลิปของ ${displayCameraName(camSrc, camName)} เข้าสู่คลังวิดีโอเหตุการณ์...`);
         }
-        await _stopAndSaveManualClip(camSrc, camName, data.start_time, data.end_time);
+        await _stopAndSaveManualClip(camSrc, camName, data.start_time, data.end_time, data.clip_id, data.clip);
         if (window.bppToast) {
           window.bppToast(`✅ บันทึกวิดีโอ ${displayCameraName(camSrc, camName)} เข้าสู่ "คลังวิดีโอเหตุการณ์" เรียบร้อยแล้ว`);
         }

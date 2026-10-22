@@ -3757,6 +3757,10 @@ def _frigate_put_config_set(query: str, update_topic: str, timeout: float = 12.0
         return resp.status == 200
 
 
+import threading
+import time
+
+
 @app.post("/internal/frigate-runtime-sync")
 def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequest):
     """Internal bridge for config-api to sync go2rtc streams and Frigate runtime camera state."""
@@ -3770,13 +3774,14 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
         raise HTTPException(status_code=422, detail="Invalid camera name")
 
     actions = []
+    existing_streams = {}
+    try:
+        with urllib.request.urlopen("http://frigate:1984/api/streams", timeout=4) as gs_resp:
+            existing_streams = json.loads(gs_resp.read().decode("utf-8")) or {}
+    except Exception:
+        pass
+
     if body.go2rtc_streams:
-        existing_streams = {}
-        try:
-            with urllib.request.urlopen("http://frigate:1984/api/streams", timeout=4) as gs_resp:
-                existing_streams = json.loads(gs_resp.read().decode("utf-8")) or {}
-        except Exception:
-            pass
         for s_name, s_src in body.go2rtc_streams.items():
             if not s_name or not s_src or s_name in existing_streams:
                 continue
@@ -3797,6 +3802,10 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
             except Exception:
                 pass
 
+    is_push_only = not bool(body.go2rtc_streams)
+    stream_info = existing_streams.get(name) if isinstance(existing_streams, dict) else None
+    has_active_producer = bool(isinstance(stream_info, dict) and stream_info.get("producers"))
+
     try:
         stats_req = urllib.request.Request(f"{FRIGATE_URL}/api/stats", method="GET")
         with urllib.request.urlopen(stats_req, timeout=5) as sr:
@@ -3809,15 +3818,44 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
         has_capture = bool(cam_stats.get("capture_pid"))
         f_cam = (f_cfg.get("cameras") or {}).get(name)
 
+        # If a push-only camera (e.g. RTMP drone/bodycam) currently has no active producer,
+        # do not spawn a crashing ffmpeg loop; if one is running, remove it cleanly.
+        if is_push_only and not has_active_producer:
+            if has_capture:
+                try:
+                    _frigate_put_config_set(
+                        f"cameras.{name}.enabled=False",
+                        f"config/cameras/{name}/remove",
+                    )
+                    actions.append("remove_idle_push")
+                except Exception:
+                    pass
+            return {"status": "ok", "camera": name, "actions": actions, "note": "push_stream_offline"}
+
         if body.enabled and not has_capture:
+            # Frigate 0.17.2 bug workaround: CameraConfigUpdateSubscriber.__update_config uses
+            # `self.config.cameras.setdefault(camera, updated_config)` on `add`, which keeps the
+            # stale startup `enabled_in_config=False` object unless `remove` pops it first.
+            try:
+                _frigate_put_config_set(
+                    f"cameras.{name}.enabled=True",
+                    f"config/cameras/{name}/remove",
+                )
+                actions.append("remove_stale")
+                time.sleep(1.2)
+            except Exception:
+                pass
+
+            combined_q = (
+                f"cameras.{name}.enabled=True"
+                f"&cameras.{name}.record.enabled={'True' if body.record_enabled else 'False'}"
+                f"&cameras.{name}.detect.enabled={'True' if body.detect_enabled else 'False'}"
+            )
             _frigate_put_config_set(
-                f"cameras.{name}.enabled=True",
+                combined_q,
                 f"config/cameras/{name}/add",
             )
             actions.append("add")
-            # Also force enabled/record/detect topics so Frigate's persisted SQLite
-            # runtime state (e.g. Restored runtime state: camera.enabled=OFF) never
-            # blocks capture or recording startup after `add`.
             try:
                 _frigate_put_config_set(
                     f"cameras.{name}.enabled=True",
@@ -3844,6 +3882,14 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
                 pass
             return {"status": "ok", "camera": name, "actions": actions}
 
+        if not body.enabled and has_capture:
+            _frigate_put_config_set(
+                f"cameras.{name}.enabled=False",
+                f"config/cameras/{name}/remove",
+            )
+            actions.append("remove")
+            return {"status": "ok", "camera": name, "actions": actions}
+
         if f_cam is not None:
             if body.objects_track is not None:
                 _frigate_put_config_set(
@@ -3866,7 +3912,7 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
                     f"config/cameras/{name}/record",
                 )
                 actions.append("record")
-            if cur_en != body.enabled or (not body.enabled and has_capture):
+            if cur_en != body.enabled:
                 _frigate_put_config_set(
                     f"cameras.{name}.enabled={'True' if body.enabled else 'False'}",
                     f"config/cameras/{name}/enabled",
@@ -3876,6 +3922,218 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
         return {"status": "warning", "camera": name, "error": str(exc), "actions": actions}
 
     return {"status": "ok", "camera": name, "actions": actions}
+
+
+import threading
+
+_active_manual_recorders: Dict[str, Dict[str, Any]] = {}
+_manual_rec_lock = threading.Lock()
+
+
+def _fetch_camera_jpeg_bytes(cam_name: str) -> bytes:
+    q_cam = urllib.parse.quote(cam_name, safe="")
+    urls = [
+        f"{FRIGATE_URL}/api/{q_cam}/latest.jpg?quality=85",
+        f"http://frigate:1984/api/frame.jpeg?src={urllib.parse.quote(cam_name + '_sub', safe='')}",
+        f"http://frigate:1984/api/frame.jpeg?src={q_cam}",
+    ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                if resp.status == 200:
+                    data = resp.read()
+                    if data and len(data) > 600:
+                        return data
+        except Exception:
+            pass
+    return b""
+
+
+def _start_go2rtc_mp4_recorder(cam_name: str) -> Dict[str, Any]:
+    safe_cam = re.sub(r"[^A-Za-z0-9_-]", "_", cam_name)
+    stop_evt = threading.Event()
+    video_path = f"/tmp/mrec_{safe_cam}.mp4"
+    snap_path = f"/tmp/mrec_{safe_cam}.jpg"
+
+    with _manual_rec_lock:
+        old = _active_manual_recorders.pop(cam_name, None)
+        if old and old.get("stop_evt"):
+            old["stop_evt"].set()
+
+    for p in (video_path, snap_path):
+        try:
+            if os.path.exists(p):
+                os.remove(p)
+        except Exception:
+            pass
+
+    init_snap = _fetch_camera_jpeg_bytes(cam_name)
+    if init_snap:
+        try:
+            with open(snap_path, "wb") as sf:
+                sf.write(init_snap)
+        except Exception:
+            pass
+
+    def _worker():
+        t_start = time.time()
+        candidates = [f"{cam_name}_sub", f"{cam_name}_hd", cam_name]
+        try:
+            with urllib.request.urlopen("http://frigate:1984/api/streams", timeout=3) as sr:
+                st_map = json.loads(sr.read().decode("utf-8")) or {}
+                avail = [c for c in candidates if c in st_map]
+                if avail:
+                    candidates = avail
+        except Exception:
+            pass
+
+        while not stop_evt.is_set() and (time.time() - t_start) < 900.0:
+            wrote_any = False
+            for src_name in candidates:
+                if stop_evt.is_set():
+                    break
+                url = f"http://frigate:1984/api/stream.mp4?src={urllib.parse.quote(src_name, safe='')}"
+                try:
+                    req = urllib.request.Request(url, method="GET")
+                    with urllib.request.urlopen(req, timeout=5.0) as resp:
+                        if resp.status != 200:
+                            continue
+                        with open(video_path, "wb") as vf:
+                            while not stop_evt.is_set() and (time.time() - t_start) < 900.0:
+                                chunk = resp.read(32768)
+                                if not chunk:
+                                    break
+                                vf.write(chunk)
+                                wrote_any = True
+                        if wrote_any:
+                            break
+                except Exception:
+                    continue
+            if wrote_any:
+                if not os.path.isfile(snap_path) or os.path.getsize(snap_path) < 600:
+                    snap_b = _fetch_camera_jpeg_bytes(cam_name)
+                    if snap_b:
+                        try:
+                            with open(snap_path, "wb") as sf:
+                                sf.write(snap_b)
+                        except Exception:
+                            pass
+                break
+            stop_evt.wait(1.0)
+
+    thr = threading.Thread(target=_worker, daemon=True)
+    rec_info = {
+        "camera": cam_name,
+        "stop_evt": stop_evt,
+        "thread": thr,
+        "video_path": video_path,
+        "snap_path": snap_path,
+        "start_time": time.time(),
+    }
+    with _manual_rec_lock:
+        _active_manual_recorders[cam_name] = rec_info
+    thr.start()
+    return {
+        "status": "ok",
+        "camera": cam_name,
+        "snapshot_b64": base64.b64encode(init_snap).decode("ascii") if init_snap else "",
+    }
+
+
+def _stop_go2rtc_mp4_recorder(cam_name: str, start_time: float, end_time: float) -> Dict[str, Any]:
+    safe_cam = re.sub(r"[^A-Za-z0-9_-]", "_", cam_name)
+    video_path = f"/tmp/mrec_{safe_cam}.mp4"
+    snap_path = f"/tmp/mrec_{safe_cam}.jpg"
+
+    with _manual_rec_lock:
+        rec_info = _active_manual_recorders.pop(cam_name, None)
+
+    if rec_info:
+        stop_evt = rec_info.get("stop_evt")
+        thr = rec_info.get("thread")
+        if stop_evt:
+            stop_evt.set()
+        if thr and thr.is_alive():
+            thr.join(timeout=2.5)
+
+    video_bytes = b""
+    snap_bytes = b""
+    if os.path.isfile(video_path):
+        try:
+            with open(video_path, "rb") as vf:
+                video_bytes = vf.read()
+        except Exception:
+            pass
+    if os.path.isfile(snap_path):
+        try:
+            with open(snap_path, "rb") as sf:
+                snap_bytes = sf.read()
+        except Exception:
+            pass
+
+    if len(video_bytes) < 1000:
+        s_int = max(0, int(start_time) - 2)
+        e_int = int(end_time) + 2
+        try:
+            clip_url = f"{FRIGATE_URL}/api/{urllib.parse.quote(cam_name, safe='')}/start/{s_int}/end/{e_int}/clip.mp4"
+            req = urllib.request.Request(clip_url, method="GET")
+            with urllib.request.urlopen(req, timeout=10.0) as resp:
+                if resp.status == 200:
+                    data = resp.read()
+                    if data and len(data) > 1000:
+                        video_bytes = data
+        except Exception:
+            pass
+
+    if len(snap_bytes) < 600:
+        snap_bytes = _fetch_camera_jpeg_bytes(cam_name)
+
+    for p in (video_path, snap_path):
+        try:
+            if os.path.exists(p):
+                os.remove(p)
+        except Exception:
+            pass
+
+    return {
+        "status": "ok",
+        "camera": cam_name,
+        "video_b64": base64.b64encode(video_bytes).decode("ascii") if video_bytes else "",
+        "snapshot_b64": base64.b64encode(snap_bytes).decode("ascii") if snap_bytes else "",
+        "video_size": len(video_bytes),
+        "snapshot_size": len(snap_bytes),
+    }
+
+
+class ManualRecordActionRequest(BaseModel):
+    camera: str
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+
+
+@app.post("/internal/manual-record/start")
+def internal_manual_record_start(request: Request, body: ManualRecordActionRequest):
+    secret = get_federation_secret()
+    provided = request.headers.get("X-BPP-Federation", "")
+    if not secret or not hmac.compare_digest(provided, secret):
+        raise HTTPException(status_code=401, detail="Unauthorized internal request")
+    return _start_go2rtc_mp4_recorder(body.camera)
+
+
+@app.post("/internal/manual-record/stop")
+def internal_manual_record_stop(request: Request, body: ManualRecordActionRequest):
+    secret = get_federation_secret()
+    provided = request.headers.get("X-BPP-Federation", "")
+    if not secret or not hmac.compare_digest(provided, secret):
+        raise HTTPException(status_code=401, detail="Unauthorized internal request")
+    now_ts = time.time()
+    return _stop_go2rtc_mp4_recorder(
+        body.camera,
+        float(body.start_time or (now_ts - 10.0)),
+        float(body.end_time or now_ts),
+    )
+
 
 
 class HistoryPullCandidateRequest(BaseModel):

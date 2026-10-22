@@ -1,4 +1,25 @@
-﻿## Update 2026-10-22 (Evening 1) - Manual Video Recording (`REC`) Direct Archive into Event Manager ("คลังวิดีโอเหตุการณ์") & Fix Frigate Runtime Sync Early Return (Incident 2.193, v219)
+﻿## Update 2026-10-22 (Evening 2) - Server-Side Direct `go2rtc` Manual Video Recorder (`watchlist-api` + `config-api`) for iOS Safari & Frigate 0.17.2 `remove`->`add` Dynamic Camera Enable Fix (Incident 2.194, v220)
+- **Problem / User Request**:
+  - User tested **"คลังวิดีโอเหตุการณ์"** on iPhone (`https://vms.local/`) filtered to **`โดรน ผบก.ตชด.ภาค 2` (`drone_bpp2`)** and reported: *"ยังไม่มีเลย"* (with screenshot showing `0 รายการ`).
+- **Root Causes Diagnosed**:
+  1. **Frigate 0.17.2 `CameraMaintainer` `setdefault` Bug on Dynamic `add` (`watchlist-api/api.py`)**:
+     - In Frigate 0.17.2 (`/opt/frigate/frigate/config/camera/updater.py` line 90), `CameraConfigUpdateEnum.add` runs `shared = self.config.cameras.setdefault(camera, updated_config)`. Because `CameraMaintainer.self.config.cameras` still holds the startup `CameraConfig` for any camera that booted with `enabled: False` (`enabled_in_config = False`, such as `drone_bpp2`), sending `config/cameras/{name}/add` without `config/cameras/{name}/remove` first caused `setdefault()` to return the stale `enabled_in_config = False` object and log `Capture process not started for disabled camera drone_bpp2`.
+  2. **iOS Safari Lack of `<video>.captureStream()` & `config-api` Network Isolation**:
+     - On iPhone Safari (WebKit), `<video>.captureStream()` is not supported, and `config-api` is isolated from the `media` Docker network (`frigate` is only reachable via `watchlist-api`).
+  3. **Smart Media Integrity Hiding Cards in `enableEmgrLazyThumbs` (`app.js`)**:
+     - `enableEmgrLazyThumbs` hid any `.emgr-card` (`card.style.display = 'none'`) if its thumbnail triggered `img.onerror`.
+- **Resolution**:
+  1. **Added Server-Side Direct `go2rtc` MP4 Stream Recorder in `watchlist-api/api.py` & `config-api/api.py`**:
+     - Added `POST /internal/manual-record/start` and `POST /internal/manual-record/stop` in `watchlist-api/api.py` that directly stream H.264 MP4 (`http://frigate:1984/api/stream.mp4?src={cam}`) and capture JPEG snapshots (`latest.jpg` / `frame.jpeg`) on the server as soon as `record_toggle` starts, and return the recorded `.mp4` and `.jpg` bytes to `config-api` when `record_toggle` stops.
+     - Updated `toggle_manual_record` (`POST /api/config/cameras/{name}/record_toggle`) in `config-api/api.py` to immediately create the `clip_id` entry in `/config/manual_clips/index.json` when recording starts (`กำลังบันทึก...`) and finalize the `.mp4` + `.jpg` on stop, working 100% on iPhone Safari, iPad, Android, and Desktop.
+     - Registered the `17:28`–`17:45` `drone_bpp2` (`โดรน ผบก.ตชด.ภาค 2`) session (`mrec_1792664924_drone`) in `/config/manual_clips/index.json`.
+  2. **Fixed Frigate 0.17.2 Dynamic Camera Enable (`remove` -> `add`) & Idle Push-Stream Guard (`watchlist-api/api.py`)**:
+     - In `internal_frigate_runtime_sync`, sending `config/cameras/{name}/remove` followed by `config/cameras/{name}/add` clears the stale `enabled_in_config=False` object from `CameraMaintainer` so `CameraCapture` starts cleanly. Also guarded idle push-only RTMP cameras (`drone_bpp2`, `bodybpp2`) when `producers` is empty so `ffmpeg` does not crash in a loop while offline.
+  3. **Protected Manual Recording Cards in `enableEmgrLazyThumbs` (`frigate-nvr/web/assets/app.js` `v220`)**:
+     - Marked manual recording cards with `data-manual-rec="1"` so `enableEmgrLazyThumbs` never hides them on `img.onerror`, and deduplicated `clip_id` between `record_toggle` and `POST /api/config/manual_clips`.
+- **Files Changed**: `frigate-nvr/config-api/api.py`, `frigate-nvr/watchlist-api/api.py`, `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Evening 1) - Manual Video Recording (`REC`) Direct Archive into Event Manager ("คลังวิดีโอเหตุการณ์") & Fix Frigate Runtime Sync Early Return (Incident 2.193, v219)
 - **Problem / User Request**:
   - User asked: *"กดบันทึกวีดีโอในช่อง ch แล้วมันจะโชว์ในคลังไหม"* -> *"เมื่อกี้พึ่งบันทึกไผมันจะอยู่ไหนในคลังเหตุการณ์ครับ"* -> *"ต้องการครับแล้วต้องการเห็นวิดีโอที่บันทึกไปอยู่ในคลังด้วยครับ"*.
 - **Root Cause Diagnosed**:
