@@ -1,4 +1,28 @@
-﻿## Update 2026-10-22 (Evening 3) - Full System End-to-End Debug & Stability Hardening Across `BPP-VMS` (`vms.local`) & `Sloth-BPP215` (`:8443`) (Incident 2.195)
+﻿## Update 2026-10-22 (Evening 4) - Unified Program & Activity Log Engine, Drag-and-Drop / 1-Click User Groups Management & Dual-Mode `CH` Camera Picker (List + Pure Camera Pin Map) (Incident 2.196)
+- **Problem / User Request**:
+  - User requested: *"ทำระบบเก็บ log ของโปรแกรมด้วย และทำให้สามารถสร้างกลุ่มของผู้ใช้ได้ด้วย และสามารถลากผู้ใช้หรือกดเพิ่มเข้ากลุ่มได้ทันที การเลือกกล้องจาก ch ให้เลือกได้จากรายการและให้มีขึ้นแผนที่เพียวๆที่มีแต่หมุดกล้องมาให้เลือกได้ด้วย"*
+- **Features & Architecture Implemented Across `BPP-VMS` (`https://vms.local`) & `Sloth-BPP215` (`http://127.0.0.1:8443`)**:
+  1. **Unified Program & User Activity Log Engine (`frigate-nvr/config-api/api.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/web/assets/admin.js`, `frigate-nvr/web/assets/app.js`)**:
+     - Added persistent `/config/program_logs.json` (thread-safe `_append_program_log()`, capped at 2,000 entries) and `program_log_router` mounted on both `/api/public-config/program-logs` and `/api/config/program-logs` (`GET`, `POST`, `DELETE`) so it works through existing Nginx reverse-proxy routes without touching infrastructure.
+     - Added global frontend logger `window.bppLogProgramEvent(category, action, details)` in `admin.js` and hooked automatic logging into channel camera selection/clearing (`assignCameraToChannel`), manual video recording (`toggleNvrManualRecord`), user CRUD, and user group changes.
+     - Upgraded `#tabAudit` (`ระบบเก็บ Log โปรแกรม & ผู้ใช้`) in `admin.js` to merge `/api/public-config/program-logs` + `/auth/audit`, adding category filter (`ทั้งหมด`, `เลือกกล้อง/CH`, `กลุ่มผู้ใช้`, `ผู้ใช้งาน/Auth`, `บันทึกวิดีโอ`, `ตั้งค่ากล้อง/AI`, `โดรน/QCS`, `ระบบ`), instant keyword search (`#inpLogSearch`), `🔄 รีเฟรช`, `📥 ส่งออก CSV`, and `🗑️ ล้าง Log`.
+  2. **User Groups Management with HTML5 Drag-and-Drop + 1-Click Add/Remove (`frigate-nvr/config-api/api.py`, `frigate-nvr/web/assets/admin.js`)**:
+     - Added persistent `/config/user_groups.json` with default tactical groups (`ศูนย์สั่งการ ตชด.215`, `ชุดลาดตระเวนและจุดตรวจ`, `ชุดสืบสวนและวิเคราะห์ข่าว`, `ชุดปฏิบัติการโดรน (UAV/QCS)`) and endpoints:
+       - `GET/POST /api/public-config/user-groups` & `/api/config/user-groups` (create/edit group name, badge color, description)
+       - `DELETE /api/public-config/user-groups/{group_id}`
+       - `POST /api/public-config/user-groups/{group_id}/members` (`add`, `remove`, `move`)
+     - Upgraded `#usersOverlay` in `admin.js` with:
+       - Quick Drag-and-Drop Group Strip inside `#tabUsers` + `กลุ่มสังกัด` column with group badges (`×` to remove) and 1-click `+ เข้ากลุ่ม...` dropdown on every user row.
+       - Dedicated **`🗂️ จัดกลุ่มผู้ใช้ (ลากวาง / กดเพิ่มทันที)`** tab (`#tabGroups`) featuring a draggable User Pool on the left and Drop-Zone Group Cards on the right (supporting both drag-and-drop AND 1-click `+ กดเลือกผู้ใช้เพื่อเพิ่มเข้ากลุ่มนี้ทันที...` dropdowns).
+     - Updated `native_gateway.py` so `GET /auth/users` returns a flat `List[Dict]` matching `auth-service` and added `POST/PUT/DELETE /auth/users*` and `GET /auth/audit`.
+  3. **Dual-Mode Channel (`CH`) Camera Picker — List View + Pure Camera Pin Map View (`frigate-nvr/web/assets/app.js`)**:
+     - Upgraded `window.openCameraPickerForSlot(slotIdx, initialMode)` in `app.js` with two selectable tabs:
+       - **`📋 เลือกจากรายการกล้อง (List View)`**: searchable grouped camera accordion list.
+       - **`🗺️ เลือกจากแผนที่หมุดกล้องเพียวๆ (Pure Camera Map)`**: a dedicated Leaflet map (`#slotPickerPureMapCanvas`) displaying **ONLY camera pins** (zero heatmap clutter, zero arrest markers, zero trackers) with group/province filter (`#slotPickerGroupFilter`), search filter, Street/Satellite toggle, `🎯 ซูมดูทุกหมุด`, and `⚡ คลิกหมุดเพื่อเลือกเข้า CHxx ทันที` (1-click pin assignment).
+     - Added quick `📋 เลือกจากรายการ` and `🗺️ แผนที่หมุดกล้อง` buttons on empty `CH` tiles, made `.ch-chip` (`CH01`..`CH16`) clickable to open the picker, and added `🗺️ เลือกกล้องจากแผนที่หมุดกล้องเพียวๆ` inside Settings Tab 2 (`populateCamSelect()`).
+- **Files Changed**: `frigate-nvr/config-api/api.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/web/assets/admin.js`, `frigate-nvr/web/assets/app.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Evening 3) - Full System End-to-End Debug & Stability Hardening Across `BPP-VMS` (`vms.local`) & `Sloth-BPP215` (`:8443`) (Incident 2.195)
 - **Problem / User Request**:
   - User requested: *"Debug ทั้งระบบ"* ("Debug the entire system").
 - **Root Causes Diagnosed & Fixed**:

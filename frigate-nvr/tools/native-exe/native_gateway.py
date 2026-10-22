@@ -524,6 +524,8 @@ try:
     app.include_router(_config_api_mod.config_router)
     app.include_router(_config_api_mod.operator_router)
     app.include_router(_config_api_mod.public_router)
+    if hasattr(_config_api_mod, "program_log_router"):
+        app.include_router(_config_api_mod.program_log_router)
     logger.info("Mounted real config-api routers (/api/config/* & /api/public-config/*)")
 except Exception as _cfg_exc:
     logger.warning("Failed to mount config-api routers: %s", _cfg_exc)
@@ -715,21 +717,24 @@ _native_active_mission: Dict[str, Any] = {"active": False, "mission": None}
 AUTH_DB = CONFIG_DIR / "auth" / "auth.db"
 
 
-def _load_real_auth_users() -> List[Dict[str, Any]]:
+def _load_real_auth_users(include_inactive: bool = False) -> List[Dict[str, Any]]:
     users: List[Dict[str, Any]] = []
     if AUTH_DB.is_file():
         conn = sqlite3.connect(str(AUTH_DB))
         conn.row_factory = sqlite3.Row
         try:
-            rows = conn.execute("SELECT username, role, active FROM users WHERE active = 1").fetchall()
+            q = "SELECT username, role, active FROM users" if include_inactive else "SELECT username, role, active FROM users WHERE active = 1"
+            rows = conn.execute(q).fetchall()
             for idx, r in enumerate(rows):
                 uname = r["username"]
+                is_active = bool(r["active"])
                 users.append(
                     {
                         "username": uname,
                         "display_name": "BPP-VMS Native Operator" if uname == "arm215" else uname,
                         "role": r["role"] or "user",
-                        "online": idx == 0 or uname == "arm215",
+                        "active": is_active,
+                        "online": (idx == 0 or uname == "arm215") and is_active,
                         "last_seen": int(time.time()),
                     }
                 )
@@ -743,6 +748,7 @@ def _load_real_auth_users() -> List[Dict[str, Any]]:
                 "username": "arm215",
                 "display_name": "BPP-VMS Native Operator",
                 "role": "superadmin",
+                "active": True,
                 "online": True,
                 "last_seen": int(time.time()),
             }
@@ -789,8 +795,106 @@ def native_auth_presence() -> Dict[str, Any]:
 
 
 @app.get("/auth/users")
-def native_auth_users() -> Dict[str, Any]:
-    return {"users": _load_real_auth_users()}
+def native_auth_users() -> List[Dict[str, Any]]:
+    return _load_real_auth_users(include_inactive=True)
+
+
+@app.post("/auth/users")
+async def native_auth_create_user(request: Request) -> Dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    username = str((body or {}).get("username") or "").strip()
+    role = str((body or {}).get("role") or "user").strip()
+    if not username:
+        return JSONResponse({"detail": "กรุณาระบุ Username"}, status_code=400)
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        try:
+            exists = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
+            if exists:
+                return JSONResponse({"detail": f"มีผู้ใช้งาน {username} อยู่แล้ว"}, status_code=400)
+            conn.execute(
+                "INSERT INTO users (username, password_hash, role, active) VALUES (?, ?, ?, 1)",
+                (username, "native_managed", role),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return {"status": "ok", "username": username, "role": role}
+
+
+@app.put("/auth/users/{username}")
+async def native_auth_update_user(username: str, request: Request) -> Dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        try:
+            if "role" in body and body["role"]:
+                conn.execute("UPDATE users SET role = ? WHERE username = ?", (str(body["role"]), username))
+            if "active" in body:
+                conn.execute("UPDATE users SET active = ? WHERE username = ?", (1 if body["active"] else 0, username))
+            conn.commit()
+        finally:
+            conn.close()
+    return {"status": "ok", "username": username}
+
+
+@app.delete("/auth/users/{username}")
+def native_auth_delete_user(username: str) -> Dict[str, Any]:
+    if username.lower() in ("arm215", "admin"):
+        return JSONResponse({"detail": "ไม่สามารถลบบัญชีหลักของระบบได้"}, status_code=400)
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        try:
+            conn.execute("DELETE FROM users WHERE username = ?", (username,))
+            conn.commit()
+        finally:
+            conn.close()
+    return {"status": "ok", "deleted": username}
+
+
+@app.get("/auth/audit")
+def native_auth_audit(limit: int = 200) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    prog_fp = CONFIG_DIR / "program_logs.json"
+    if prog_fp.is_file():
+        try:
+            pdata = json.loads(prog_fp.read_text(encoding="utf-8"))
+            if isinstance(pdata, list):
+                for item in pdata:
+                    if isinstance(item, dict):
+                        out.append(item)
+        except Exception:
+            pass
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT timestamp, username, action, details, ip_address FROM audit_log ORDER BY id DESC LIMIT ?",
+                (max(1, min(limit, 500)),),
+            ).fetchall()
+            for r in rows:
+                out.append(
+                    {
+                        "timestamp": r["timestamp"],
+                        "username": r["username"] or "system",
+                        "category": "ผู้ใช้งาน/Auth",
+                        "action": r["action"] or "AUTH",
+                        "details": r["details"] or "",
+                        "ip_address": r["ip_address"] or "127.0.0.1",
+                    }
+                )
+        except Exception:
+            pass
+        finally:
+            conn.close()
+    return out[: max(1, min(limit, 500))]
 
 
 @app.get("/auth/locations")

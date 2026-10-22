@@ -3921,6 +3921,403 @@ except Exception as _drn_err:
     print(f"[config-api] DroneQCS router init warning: {_drn_err}")
 
 
+# ===========================================================================
+# PROGRAM LOG ENGINE & USER GROUPS MANAGEMENT (Docker + Native Unified)
+# ===========================================================================
+import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+_PROG_LOG_LOCK = threading.RLock()
+_USER_GRP_LOCK = threading.RLock()
+
+
+def _program_logs_file() -> Path:
+    base = Path(CONFIG_PATH).parent if CONFIG_PATH else Path("/config")
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "program_logs.json"
+
+
+def _user_groups_file() -> Path:
+    base = Path(CONFIG_PATH).parent if CONFIG_PATH else Path("/config")
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "user_groups.json"
+
+
+def _now_thai_str() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+
+DEFAULT_USER_GROUPS: List[Dict[str, Any]] = [
+    {
+        "id": "grp_cmd",
+        "name": "ศูนย์สั่งการ ตชด.215",
+        "color": "#a855f7",
+        "description": "ผู้ดูแลระบบและเจ้าหน้าที่ศูนย์ปฏิบัติการกล้องวงจรปิด",
+        "members": ["arm215"],
+        "updated_at": _now_thai_str(),
+    },
+    {
+        "id": "grp_patrol",
+        "name": "ชุดลาดตระเวนและจุดตรวจ",
+        "color": "#38bdf8",
+        "description": "เจ้าหน้าที่ประจำจุดตรวจและชุดปฏิบัติการสนาม",
+        "members": [],
+        "updated_at": _now_thai_str(),
+    },
+    {
+        "id": "grp_investigate",
+        "name": "ชุดสืบสวนและวิเคราะห์ข่าว",
+        "color": "#34e2a8",
+        "description": "เจ้าหน้าที่สืบสวน ตรวจสอบทะเบียนรถ LPR และใบหน้า",
+        "members": [],
+        "updated_at": _now_thai_str(),
+    },
+    {
+        "id": "grp_drone",
+        "name": "ชุดปฏิบัติการโดรน (UAV/QCS)",
+        "color": "#f59e0b",
+        "description": "ชุดนักบินโดรนลาดตระเวนทางอากาศและรีโมทสนาม",
+        "members": [],
+        "updated_at": _now_thai_str(),
+    },
+]
+
+
+def _load_program_logs() -> List[Dict[str, Any]]:
+    fp = _program_logs_file()
+    with _PROG_LOG_LOCK:
+        if fp.is_file():
+            try:
+                data = json.loads(fp.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                pass
+        seed = [
+            {
+                "id": f"log_{int(time.time() * 1000)}",
+                "timestamp": _now_thai_str(),
+                "epoch": int(time.time()),
+                "username": "system",
+                "category": "ระบบ",
+                "action": "SYSTEM_READY",
+                "details": "เริ่มต้นระบบบันทึกประวัติการทำงาน (Program & Activity Log Engine) พร้อมใช้งาน",
+                "ip_address": "127.0.0.1",
+            }
+        ]
+        try:
+            fp.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        return seed
+
+
+def _append_program_log(
+    category: str,
+    action: str,
+    details: str = "",
+    username: str = "system",
+    ip_address: str = "127.0.0.1",
+) -> Dict[str, Any]:
+    fp = _program_logs_file()
+    entry = {
+        "id": f"log_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}",
+        "timestamp": _now_thai_str(),
+        "epoch": int(time.time()),
+        "username": str(username or "system").strip(),
+        "category": str(category or "ระบบ").strip(),
+        "action": str(action or "EVENT").strip(),
+        "details": str(details or "").strip(),
+        "ip_address": str(ip_address or "127.0.0.1").strip(),
+    }
+    with _PROG_LOG_LOCK:
+        logs = _load_program_logs()
+        logs.insert(0, entry)
+        if len(logs) > 2000:
+            logs = logs[:2000]
+        try:
+            fp.write_text(json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+    return entry
+
+
+def _load_user_groups() -> List[Dict[str, Any]]:
+    fp = _user_groups_file()
+    with _USER_GRP_LOCK:
+        if fp.is_file():
+            try:
+                data = json.loads(fp.read_text(encoding="utf-8"))
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+            except Exception:
+                pass
+        groups = [dict(g, members=list(g.get("members", []))) for g in DEFAULT_USER_GROUPS]
+        try:
+            fp.write_text(json.dumps(groups, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        return groups
+
+
+def _save_user_groups(groups: List[Dict[str, Any]]) -> None:
+    fp = _user_groups_file()
+    with _USER_GRP_LOCK:
+        try:
+            fp.write_text(json.dumps(groups, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+
+def _client_ip_from_req(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    xri = request.headers.get("x-real-ip")
+    if xri:
+        return xri.strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+program_log_router = APIRouter()
+
+
+@program_log_router.get("/api/public-config/program-logs")
+@program_log_router.get("/api/config/program-logs")
+def api_get_program_logs(limit: int = 300, category: str = "", q: str = "") -> Dict[str, Any]:
+    logs = _load_program_logs()
+    cat_norm = (category or "").strip().lower()
+    q_norm = (q or "").strip().lower()
+    filtered: List[Dict[str, Any]] = []
+    for item in logs:
+        if cat_norm and cat_norm not in ("all", "ทั้งหมด"):
+            if (item.get("category") or "").strip().lower() != cat_norm:
+                continue
+        if q_norm:
+            hay = " ".join(
+                [
+                    str(item.get("username") or ""),
+                    str(item.get("category") or ""),
+                    str(item.get("action") or ""),
+                    str(item.get("details") or ""),
+                    str(item.get("ip_address") or ""),
+                ]
+            ).lower()
+            if q_norm not in hay:
+                continue
+        filtered.append(item)
+        if len(filtered) >= max(1, min(limit, 2000)):
+            break
+    return {
+        "ok": True,
+        "total": len(logs),
+        "count": len(filtered),
+        "logs": filtered,
+    }
+
+
+@program_log_router.post("/api/public-config/program-logs")
+@program_log_router.post("/api/config/program-logs")
+async def api_post_program_log(request: Request) -> Dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    username = str(body.get("username") or request.headers.get("x-auth-user") or "operator").strip()
+    category = str(body.get("category") or "ผู้ใช้งาน").strip()
+    action = str(body.get("action") or "USER_ACTION").strip()
+    details = str(body.get("details") or "").strip()
+    ip_addr = _client_ip_from_req(request)
+    entry = _append_program_log(
+        category=category,
+        action=action,
+        details=details,
+        username=username,
+        ip_address=ip_addr,
+    )
+    return {"ok": True, "entry": entry}
+
+
+@program_log_router.delete("/api/config/program-logs")
+@program_log_router.delete("/api/public-config/program-logs")
+def api_clear_program_logs(request: Request) -> Dict[str, Any]:
+    fp = _program_logs_file()
+    ip_addr = _client_ip_from_req(request)
+    actor = request.headers.get("x-auth-user") or "admin"
+    with _PROG_LOG_LOCK:
+        seed = [
+            {
+                "id": f"log_{int(time.time() * 1000)}",
+                "timestamp": _now_thai_str(),
+                "epoch": int(time.time()),
+                "username": actor,
+                "category": "ระบบ",
+                "action": "CLEAR_PROGRAM_LOGS",
+                "details": "ล้างประวัติการทำงานของโปรแกรม (Clear Program Logs)",
+                "ip_address": ip_addr,
+            }
+        ]
+        try:
+            fp.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+    return {"ok": True, "logs": seed}
+
+
+@program_log_router.get("/api/public-config/user-groups")
+@program_log_router.get("/api/config/user-groups")
+def api_get_user_groups() -> Dict[str, Any]:
+    groups = _load_user_groups()
+    return {"ok": True, "groups": groups}
+
+
+@program_log_router.post("/api/public-config/user-groups")
+@program_log_router.post("/api/config/user-groups")
+async def api_upsert_user_group(request: Request) -> Dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="รูปแบบข้อมูลกลุ่มผู้ใช้ไม่ถูกต้อง")
+
+    name = str(body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="กรุณาระบุชื่อกลุ่มผู้ใช้งาน")
+    color = str(body.get("color") or "#a855f7").strip()
+    description = str(body.get("description") or "").strip()
+    group_id = str(body.get("id") or "").strip()
+    actor = str(body.get("actor") or request.headers.get("x-auth-user") or "admin").strip()
+    ip_addr = _client_ip_from_req(request)
+
+    with _USER_GRP_LOCK:
+        groups = _load_user_groups()
+        target = None
+        if group_id:
+            target = next((g for g in groups if g.get("id") == group_id), None)
+        if target:
+            target["name"] = name
+            target["color"] = color
+            target["description"] = description
+            if isinstance(body.get("members"), list):
+                target["members"] = list(dict.fromkeys(str(m).strip() for m in body["members"] if str(m).strip()))
+            target["updated_at"] = _now_thai_str()
+            action_code = "UPDATE_USER_GROUP"
+            action_desc = f"แก้ไขกลุ่มผู้ใช้ '{name}' ({target['id']})"
+        else:
+            new_id = group_id or f"grp_{uuid.uuid4().hex[:8]}"
+            init_members = []
+            if isinstance(body.get("members"), list):
+                init_members = list(dict.fromkeys(str(m).strip() for m in body["members"] if str(m).strip()))
+            target = {
+                "id": new_id,
+                "name": name,
+                "color": color,
+                "description": description,
+                "members": init_members,
+                "updated_at": _now_thai_str(),
+            }
+            groups.append(target)
+            action_code = "CREATE_USER_GROUP"
+            action_desc = f"สร้างกลุ่มผู้ใช้ใหม่ '{name}' (สมาชิกเริ่มต้น {len(init_members)} บัญชี)"
+        _save_user_groups(groups)
+
+    _append_program_log(
+        category="กลุ่มผู้ใช้",
+        action=action_code,
+        details=action_desc,
+        username=actor,
+        ip_address=ip_addr,
+    )
+    return {"ok": True, "group": target, "groups": groups}
+
+
+@program_log_router.delete("/api/public-config/user-groups/{group_id}")
+@program_log_router.delete("/api/config/user-groups/{group_id}")
+def api_delete_user_group(group_id: str, request: Request) -> Dict[str, Any]:
+    actor = str(request.headers.get("x-auth-user") or "admin").strip()
+    ip_addr = _client_ip_from_req(request)
+    with _USER_GRP_LOCK:
+        groups = _load_user_groups()
+        target = next((g for g in groups if g.get("id") == group_id), None)
+        if not target:
+            raise HTTPException(status_code=404, detail="ไม่พบกลุ่มผู้ใช้งานที่ระบุ")
+        groups = [g for g in groups if g.get("id") != group_id]
+        _save_user_groups(groups)
+
+    _append_program_log(
+        category="กลุ่มผู้ใช้",
+        action="DELETE_USER_GROUP",
+        details=f"ลบกลุ่มผู้ใช้ '{target.get('name', group_id)}'",
+        username=actor,
+        ip_address=ip_addr,
+    )
+    return {"ok": True, "deleted_id": group_id, "groups": groups}
+
+
+@program_log_router.post("/api/public-config/user-groups/{group_id}/members")
+@program_log_router.post("/api/config/user-groups/{group_id}/members")
+async def api_modify_user_group_member(group_id: str, request: Request) -> Dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="ข้อมูลสมาชิกไม่ถูกต้อง")
+
+    username = str(body.get("username") or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="กรุณาระบุชื่อบัญชีผู้ใช้งาน (username)")
+    action = str(body.get("action") or "add").strip().lower()
+    from_group_id = str(body.get("from_group_id") or "").strip()
+    actor = str(body.get("actor") or request.headers.get("x-auth-user") or "admin").strip()
+    ip_addr = _client_ip_from_req(request)
+
+    with _USER_GRP_LOCK:
+        groups = _load_user_groups()
+        target = next((g for g in groups if g.get("id") == group_id), None)
+        if not target:
+            raise HTTPException(status_code=404, detail="ไม่พบกลุ่มผู้ใช้งานที่ระบุ")
+
+        members: List[str] = list(target.get("members") or [])
+        if action == "remove":
+            members = [m for m in members if m != username]
+            target["members"] = members
+            target["updated_at"] = _now_thai_str()
+            log_action = "GROUP_REMOVE_MEMBER"
+            log_detail = f"นำผู้ใช้ '{username}' ออกจากกลุ่ม '{target.get('name')}'"
+        else:
+            if from_group_id and from_group_id != group_id:
+                src_grp = next((g for g in groups if g.get("id") == from_group_id), None)
+                if src_grp:
+                    src_grp["members"] = [m for m in (src_grp.get("members") or []) if m != username]
+                    src_grp["updated_at"] = _now_thai_str()
+            if username not in members:
+                members.append(username)
+            target["members"] = members
+            target["updated_at"] = _now_thai_str()
+            log_action = "GROUP_ADD_MEMBER"
+            log_detail = f"เพิ่มผู้ใช้ '{username}' เข้ากลุ่ม '{target.get('name')}'"
+
+        _save_user_groups(groups)
+
+    _append_program_log(
+        category="กลุ่มผู้ใช้",
+        action=log_action,
+        details=log_detail,
+        username=actor,
+        ip_address=ip_addr,
+    )
+    return {"ok": True, "group": target, "groups": groups}
+
+
+app.include_router(program_log_router)
+
+
+
 
 
 

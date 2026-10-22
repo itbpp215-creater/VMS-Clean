@@ -8,6 +8,26 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Global Program & Activity Logger — persists user & program actions to /api/public-config/program-logs
+window.bppLogProgramEvent = async function(category, action, details) {
+  try {
+    const username = (window.bppSession && window.bppSession.username) || 'operator';
+    await fetch('/api/public-config/program-logs', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        category: String(category || 'ระบบ'),
+        action: String(action || 'ACTION'),
+        details: String(details || '')
+      })
+    });
+  } catch (e) {
+    // Non-blocking background log
+  }
+};
 // Global UI Helpers for replacing native alert() and confirm() with Cyber Purple Glassmorphism
 
 // bppToast displays temporary toast notifications.
@@ -227,30 +247,33 @@ const initAdminModule = async () => {
   
   // Create Modals dynamically to save space in index.html
   const modalHTML = `
-    <!-- Users, Profile & Audit Modal -->
+    <!-- Users, Profile, Groups & Program Logs Modal -->
     <div id="usersOverlay" class="overlay" hidden>
-      <div class="modal" style="width: 850px; max-width: 95vw; background:linear-gradient(180deg, #13172e 0%, #0d1021 100%); border:1px solid rgba(168,85,247,0.35); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,0.8);">
-        <div class="modal-head" style="padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+      <div class="modal" style="width: 1020px; max-width: 96vw; background:linear-gradient(180deg, #13172e 0%, #0d1021 100%); border:1px solid rgba(168,85,247,0.35); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,0.8);">
+        <div class="modal-head" style="padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; gap:10px; flex-wrap:wrap;">
           <div class="modal-title" style="display:flex; align-items:center; gap:8px; font-size:1.1rem; font-weight:700; color:#fff; font-family:var(--font-ui);">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            <span>ข้อมูลบัญชีและจัดการสิทธิ์ (Profile & Permissions)</span>
+            <span>จัดการผู้ใช้งาน กลุ่มผู้ใช้ และระบบเก็บ Log โปรแกรม (Profile, Groups & Logs)</span>
           </div>
-          <button id="btnOpenAddUser" class="btn-primary" style="padding: 6px 14px; font-size: 13px; border-radius: 8px; font-family:var(--font-ui);" hidden>+ เพิ่มผู้ใช้งาน</button>
-          <button id="btnCloseUsers" class="modal-close" style="margin-left:auto; display:flex !important; align-items:center !important; justify-content:center !important; width:34px !important; height:34px !important; min-width:34px !important; min-height:34px !important; padding:0 !important; line-height:1 !important; cursor:pointer;" aria-label="ปิด">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin:auto; pointer-events:none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+            <button id="btnOpenAddGroupTop" class="btn-ghost" style="padding: 6px 12px; font-size: 12.5px; border-radius: 8px; font-family:var(--font-ui); border:1px solid rgba(56,189,248,0.45); color:#38bdf8;" hidden>+ สร้างกลุ่มผู้ใช้</button>
+            <button id="btnOpenAddUser" class="btn-primary" style="padding: 6px 14px; font-size: 13px; border-radius: 8px; font-family:var(--font-ui);" hidden>+ เพิ่มผู้ใช้งาน</button>
+            <button id="btnCloseUsers" class="modal-close" style="display:flex !important; align-items:center !important; justify-content:center !important; width:34px !important; height:34px !important; min-width:34px !important; min-height:34px !important; padding:0 !important; line-height:1 !important; cursor:pointer;" aria-label="ปิด">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin:auto; pointer-events:none;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
 
-        <div class="modal-body" style="padding: 18px 20px; flex-direction:column; gap:16px;">
+        <div class="modal-body" style="padding: 18px 20px; flex-direction:column; gap:14px;">
           
           <!-- MY PROFILE & USER MANUAL BANNER (Available for all roles) -->
-          <div style="background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(56,189,248,0.06) 100%); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(56,189,248,0.06) 100%); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
               <div style="display: flex; align-items: center; gap: 14px;">
                 <div id="profAvatarWrap" style="width: 46px; height: 46px; flex-shrink:0; box-shadow:0 0 14px rgba(168,85,247,0.25); border-radius:50%;"></div>
                 <div>
                   <div style="font-size: 16px; font-weight: 700; color: #fff; font-family: var(--font-ui);" id="profUsernameDisplay">${escapeHtml(session.username || '-')}</div>
-                  <div style="font-size: 12.5px; color: #cbd5e1; display: flex; align-items: center; gap: 8px; margin-top: 3px;">
+                  <div style="font-size: 12.5px; color: #cbd5e1; display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap:wrap;">
                     <span>สิทธิ์:</span>
                     <span id="profRoleBadge" style="font-weight: 600; padding: 2px 9px; border-radius: 10px; font-size: 11.5px; display:inline-flex; align-items:center; gap:4px; background:${session.role === 'superadmin' ? 'rgba(234,179,8,0.2)' : session.role === 'admin' ? 'rgba(168,85,247,0.2)' : 'rgba(34,197,94,0.2)'}; color:${session.role === 'superadmin' ? '#facc15' : session.role === 'admin' ? '#c084fc' : '#4ade80'}; border:1px solid ${session.role === 'superadmin' ? 'rgba(234,179,8,0.4)' : session.role === 'admin' ? 'rgba(168,85,247,0.4)' : 'rgba(34,197,94,0.4)'};">
                       ${session.role === 'superadmin' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path></svg> ผู้ดูแลระบบสูงสุด (Superadmin)' : session.role === 'admin' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> ผู้ดูแลระบบ (Admin)' : '<svg width="8" height="8" viewBox="0 0 24 24" fill="#34e2a8" stroke="none"><circle cx="12" cy="12" r="10"/></svg> ผู้ใช้งานทั่วไป (User)'}
@@ -316,13 +339,59 @@ const initAdminModule = async () => {
           </div>
 
           <!-- ADMIN SECTION: TAB HEADER (Only for admin / superadmin) -->
-          <div id="adminTabHeader" style="display:${isAdmin ? 'flex' : 'none'}; border-bottom:1px solid #3b4261; margin-bottom:0; flex:none;">
-            <button id="btnTabUsers" type="button" style="flex:1; padding:12px; background:transparent; color:#fff; border:none; border-bottom:2px solid #a855f7; cursor:pointer; font-family:var(--font-ui); font-size:14px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>จัดการผู้ใช้งานทั้งหมด</button>
-            <button id="btnTabAudit" type="button" style="flex:1; padding:12px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:14px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg>ประวัติการใช้งาน (Audit Logs)</button>
+          <div id="adminTabHeader" style="display:${isAdmin ? 'flex' : 'none'}; border-bottom:1px solid #3b4261; margin-bottom:0; flex:none; gap:4px;">
+            <button id="btnTabUsers" type="button" style="flex:1; padding:11px 10px; background:transparent; color:#fff; border:none; border-bottom:2px solid #a855f7; cursor:pointer; font-family:var(--font-ui); font-size:13.5px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              <span>ผู้ใช้งาน & กลุ่มสังกัด</span>
+            </button>
+            <button id="btnTabGroups" type="button" style="flex:1; padding:11px 10px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:13.5px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="3" rx="1"></rect><rect width="7" height="7" x="14" y="14" rx="1"></rect><rect width="7" height="7" x="3" y="14" rx="1"></rect></svg>
+              <span>จัดกลุ่มผู้ใช้ (ลากวาง / กดเพิ่มทันที)</span>
+            </button>
+            <button id="btnTabAudit" type="button" style="flex:1; padding:11px 10px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:13.5px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg>
+              <span>ระบบเก็บ Log โปรแกรม & ผู้ใช้</span>
+            </button>
           </div>
 
-          <!-- ADMIN TAB 1: USERS LIST & CRUD -->
-          <div id="tabUsers" style="display:${isAdmin ? 'block' : 'none'}; flex:1; overflow:auto; max-height:45vh;">
+          <!-- SHARED GROUP CREATE / EDIT FORM (Collapsible, usable in Tab 1 or Tab 2) -->
+          <div id="groupFormArea" style="background: rgba(56, 189, 248, 0.07); padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.35); box-shadow: 0 4px 14px rgba(0,0,0,0.25); font-family:var(--font-body);" hidden>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+              <h3 id="groupFormTitle" style="margin:0; color:#e0f2fe; font-size:14.5px; font-family:var(--font-ui); display:flex; align-items:center; gap:6px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                <span>สร้างกลุ่มผู้ใช้งานใหม่</span>
+              </h3>
+              <button id="btnCancelGroupForm" type="button" class="btn-ghost" style="padding:3px 10px; font-size:12px;">ปิด</button>
+            </div>
+            <div style="display:grid; grid-template-columns: 1.3fr 140px 1.5fr auto; gap:10px; align-items:end;">
+              <div>
+                <label style="display:block; font-size:11.5px; color:#9aa0bd; margin-bottom:4px;">ชื่อกลุ่มผู้ใช้งาน</label>
+                <input type="text" id="inpGroupName" class="inp" maxlength="60" placeholder="เช่น ชุดสืบสวน / ชุดลาดตระเวนชายแดน" style="width:100%;">
+              </div>
+              <div>
+                <label style="display:block; font-size:11.5px; color:#9aa0bd; margin-bottom:4px;">สีป้ายกลุ่ม</label>
+                <select id="inpGroupColor" class="inp" style="width:100%;">
+                  <option value="#a855f7">🟣 ม่วง (Command)</option>
+                  <option value="#38bdf8">🔵 ฟ้า (Patrol)</option>
+                  <option value="#34e2a8">🟢 เขียว (Intel)</option>
+                  <option value="#f59e0b">🟠 ส้ม (UAV/Drone)</option>
+                  <option value="#f43f5e">🔴 แดง (Tactical)</option>
+                  <option value="#6366f1">靛 คราม (Support)</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block; font-size:11.5px; color:#9aa0bd; margin-bottom:4px;">รายละเอียด / หน้าที่ภารกิจ</label>
+                <input type="text" id="inpGroupDesc" class="inp" maxlength="120" placeholder="อธิบายหน้าที่ของกลุ่มนี้ (เว้นว่างได้)" style="width:100%;">
+              </div>
+              <div>
+                <button id="btnSaveGroup" type="button" class="btn-primary" style="padding:8px 18px; font-size:12.5px; white-space:nowrap;">💾 บันทึกกลุ่ม</button>
+              </div>
+            </div>
+            <input type="hidden" id="inpGroupEditId" value="">
+          </div>
+
+          <!-- ADMIN TAB 1: USERS LIST & QUICK GROUP DROP BAR -->
+          <div id="tabUsers" style="display:${isAdmin ? 'block' : 'none'}; flex:1; overflow:auto; max-height:52vh;">
             
             <!-- Add / Edit User Form (Hidden by default) -->
             <div id="userFormArea" style="background: rgba(157, 78, 221, 0.05); padding: 18px; border-radius: 12px; margin-bottom: 16px; border: 1px solid rgba(157, 78, 221, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family:var(--font-body);" hidden>
@@ -360,19 +429,78 @@ const initAdminModule = async () => {
               <input type="hidden" id="inpEditMode" value="">
             </div>
 
+            <!-- QUICK DRAG-AND-DROP GROUP STRIP INSIDE USERS TAB -->
+            <div style="background:rgba(15,23,42,0.75); border:1px solid rgba(168,85,247,0.25); border-radius:10px; padding:10px 12px; margin-bottom:12px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                <div style="font-size:12px; color:#cbd5e1; font-family:var(--font-ui); display:flex; align-items:center; gap:6px;">
+                  <span style="color:#38bdf8; font-weight:700;">💡 จัดกลุ่มด่วน:</span>
+                  <span>ลากแถวผู้ใช้งานด้านล่างไปวางทับกล่องกลุ่ม หรือกด <b>"+ เข้ากลุ่ม"</b> ในตารางได้ทันที</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <button id="btnQuickNewGroup" type="button" class="btn-ghost" style="padding:3px 10px; font-size:11.5px; color:#38bdf8; border-color:rgba(56,189,248,0.4);">+ สร้างกลุ่มใหม่</button>
+                  <button id="btnGoFullGroups" type="button" class="btn-ghost" style="padding:3px 10px; font-size:11.5px; color:#c084fc;">เปิดกระดานจัดกลุ่มเต็มรูปแบบ →</button>
+                </div>
+              </div>
+              <div id="quickGroupDropStrip" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px;"></div>
+            </div>
+
             <table class="wl-table" style="font-family:var(--font-body); width: 100%;">
               <thead>
-                <tr><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>Username (ลากเข้ากลุ่มได้)</th><th>Role</th><th>กลุ่มสังกัด (กด + เพิ่มได้ทันที)</th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody id="usersTableBody"></tbody>
             </table>
           </div>
 
-          <!-- ADMIN TAB 2: AUDIT LOGS -->
-          <div id="tabAudit" style="display:none; flex:1; overflow:auto; max-height:45vh;">
+          <!-- ADMIN TAB 2: DEDICATED DRAG & DROP + 1-CLICK USER GROUPS BOARD -->
+          <div id="tabGroups" style="display:none; flex:1; overflow:auto; max-height:52vh;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+              <div style="font-size:12.5px; color:#cbd5e1;">
+                ลากชื่อผู้ใช้งานจากฝั่งซ้ายไปวางในกล่องกลุ่มฝั่งขวา <b>หรือกดปุ่ม "+ เพิ่มเข้ากลุ่ม"</b> เพื่อจัดสังกัดได้ทันที
+              </div>
+              <button id="btnCreateGroupInTab" type="button" class="btn-primary" style="padding:6px 14px; font-size:12.5px; border-radius:8px;">+ สร้างกลุ่มผู้ใช้งานใหม่</button>
+            </div>
+            <div style="display:grid; grid-template-columns: 270px 1fr; gap:14px; align-items:start;">
+              <!-- Draggable User Pool -->
+              <div style="background:rgba(15,23,42,0.85); border:1px solid rgba(148,163,184,0.2); border-radius:12px; padding:12px;">
+                <div style="font-size:13px; font-weight:700; color:#f1f5f9; font-family:var(--font-ui); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                  <span>👤 รายชื่อผู้ใช้ทั้งหมด</span>
+                  <span id="groupPoolUserCount" style="font-size:11px; color:#94a3b8; font-weight:500;">0 บัญชี</span>
+                </div>
+                <div style="font-size:11px; color:#94a3b8; margin-bottom:8px;">✋ ลากการ์ดผู้ใช้ไปวางที่กลุ่ม หรือเลือกกลุ่มจากเมนู +</div>
+                <div id="groupUserPoolList" style="display:flex; flex-direction:column; gap:6px; max-height:38vh; overflow-y:auto;"></div>
+              </div>
+              <!-- Dropzone Group Cards -->
+              <div id="groupsBoardGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;"></div>
+            </div>
+          </div>
+
+          <!-- ADMIN TAB 3: UNIFIED PROGRAM & AUDIT LOGS -->
+          <div id="tabAudit" style="display:none; flex:1; overflow:auto; max-height:52vh;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; flex-wrap:wrap; background:rgba(15,23,42,0.75); padding:10px 12px; border-radius:10px; border:1px solid rgba(168,85,247,0.22);">
+              <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:240px;">
+                <select id="selLogCategory" class="inp" style="width:170px; padding:6px 10px; font-size:12.5px;">
+                  <option value="all">📂 หมวดหมู่: ทั้งหมด</option>
+                  <option value="เลือกกล้อง/CH">📺 เลือกกล้อง / ช่อง CH</option>
+                  <option value="กลุ่มผู้ใช้">🗂️ จัดกลุ่มผู้ใช้งาน</option>
+                  <option value="ผู้ใช้งาน/Auth">🔐 ผู้ใช้งาน / เข้าระบบ</option>
+                  <option value="บันทึกวิดีโอ">🔴 บันทึกวิดีโอด่วน (REC)</option>
+                  <option value="ตั้งค่ากล้อง/AI">⚙️ ตั้งค่ากล้อง / AI</option>
+                  <option value="โดรน/QCS">🛸 โดรน / QCS</option>
+                  <option value="ระบบ">🖥️ ระบบทั่วไป</option>
+                </select>
+                <input type="text" id="inpLogSearch" class="inp" placeholder="🔍 ค้นหาชื่อผู้ใช้, กิจกรรม, รหัสกล้อง, รายละเอียด..." style="flex:1; padding:6px 12px; font-size:12.5px;">
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span id="txtLogTotalBadge" style="font-size:11.5px; color:#94a3b8; margin-right:4px;">0 รายการ</span>
+                <button id="btnRefreshLogs" type="button" class="btn-ghost" style="padding:5px 11px; font-size:12px;">🔄 รีเฟรช</button>
+                <button id="btnExportLogsCsv" type="button" class="btn-ghost" style="padding:5px 11px; font-size:12px; color:#38bdf8; border-color:rgba(56,189,248,0.35);">📥 ส่งออก CSV</button>
+                <button id="btnClearProgramLogs" type="button" class="btn-ghost del" style="padding:5px 11px; font-size:12px;">🗑️ ล้าง Log</button>
+              </div>
+            </div>
             <table class="wl-table" style="font-family:var(--font-body); width: 100%;">
               <thead>
-                <tr><th>Time</th><th>User</th><th>Action</th><th>Details</th><th>IP</th></tr>
+                <tr><th style="width:145px;">วัน-เวลา</th><th style="width:110px;">ผู้ใช้งาน</th><th style="width:115px;">หมวดหมู่</th><th style="width:155px;">คำสั่ง/กิจกรรม</th><th>รายละเอียดการทำงาน</th><th style="width:105px;">IP Address</th></tr>
               </thead>
               <tbody id="logsTableBody"></tbody>
             </table>
@@ -523,161 +651,419 @@ const initAdminModule = async () => {
 
   if (isAdmin) {
     document.getElementById('btnOpenAddUser').hidden = false;
+    const btnAddGrpTop = document.getElementById('btnOpenAddGroupTop');
+    if (btnAddGrpTop) btnAddGrpTop.hidden = false;
   }
+
+  let _cachedAdminUsers = [];
+  let _cachedUserGroups = [];
+  let _cachedUnifiedLogs = [];
+  let _draggedUsername = null;
+  let _draggedFromGroupId = '';
 
   const formArea = document.getElementById('userFormArea');
-  document.getElementById('btnOpenAddUser').addEventListener('click', () => {
-    document.getElementById('btnTabUsers').click();
-    document.getElementById('userFormTitle').innerText = 'เพิ่มผู้ใช้งานใหม่';
-    document.getElementById('inpUsername').value = '';
-    document.getElementById('inpUsername').disabled = false;
-    document.getElementById('inpPassword').value = '';
-    syncRoleOptions();
-    document.getElementById('inpRole').disabled = false;
-    document.getElementById('inpRole').value = 'user';
-    document.getElementById('inpActive').disabled = false;
-    document.getElementById('inpActive').value = '1';
-    document.getElementById('inpEditMode').value = '';
-    formArea.hidden = false;
-    formArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const groupFormArea = document.getElementById('groupFormArea');
+
+  function openGroupCreator(editGrp = null) {
+    if (!groupFormArea) return;
+    document.getElementById('groupFormTitle').innerHTML = editGrp
+      ? `✏️ แก้ไขกลุ่มผู้ใช้งาน: ${escapeHtml(editGrp.name)}`
+      : `✨ สร้างกลุ่มผู้ใช้งานใหม่`;
+    document.getElementById('inpGroupName').value = editGrp ? (editGrp.name || '') : '';
+    document.getElementById('inpGroupColor').value = editGrp ? (editGrp.color || '#a855f7') : '#a855f7';
+    document.getElementById('inpGroupDesc').value = editGrp ? (editGrp.description || '') : '';
+    document.getElementById('inpGroupEditId').value = editGrp ? (editGrp.id || '') : '';
+    groupFormArea.hidden = false;
+    document.getElementById('inpGroupName').focus();
+  }
+
+  ['btnOpenAddGroupTop', 'btnQuickNewGroup', 'btnCreateGroupInTab'].forEach(btnId => {
+    const el = document.getElementById(btnId);
+    if (el) el.addEventListener('click', () => openGroupCreator(null));
   });
 
-  document.getElementById('btnCancelUserForm').addEventListener('click', () => {
-    formArea.hidden = true;
-  });
+  const btnCancelGroupForm = document.getElementById('btnCancelGroupForm');
+  if (btnCancelGroupForm) {
+    btnCancelGroupForm.addEventListener('click', () => {
+      groupFormArea.hidden = true;
+    });
+  }
 
-  document.getElementById('btnSaveUser').addEventListener('click', async () => {
-    const username = document.getElementById('inpUsername').value.trim();
-    const password = document.getElementById('inpPassword').value;
-    const role = document.getElementById('inpRole').value;
-    const isEdit = document.getElementById('inpEditMode').value !== '';
+  const btnGoFullGroups = document.getElementById('btnGoFullGroups');
+  if (btnGoFullGroups) {
+    btnGoFullGroups.addEventListener('click', () => {
+      const btnTabGroups = document.getElementById('btnTabGroups');
+      if (btnTabGroups) btnTabGroups.click();
+    });
+  }
 
-    if (!username) return window.bppToast('กรุณาระบุ Username', true);
-    if (!/^[A-Za-z0-9_.-]{3,64}$/.test(username)) {
-      return window.bppToast('Username ต้องเป็นภาษาอังกฤษ ตัวเลข หรือ . _ - ความยาว 3-64 ตัวอักษร (ห้ามมีภาษาไทยหรือช่องว่าง)', true);
-    }
-    if (!isEdit && !password) return window.bppToast('กรุณาระบุ Password สำหรับผู้ใช้ใหม่', true);
-    // Match the server enrollment floor (minimum 8 characters) before issuing a user-management request.
-    // Password complexity check was relaxed per user requirement.
-    if (password && password.length < 8) return window.bppToast('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร', true);
-
-    try {
-      if (isEdit) {
-        const body = {};
-        if (password) body.password = password;
-        if (role) body.role = role;
-        body.active = document.getElementById('inpActive').value === '1';
-        const res = await fetch(`/auth/users/${encodeURIComponent(username)}`, {
-          method: 'PUT',
-          credentials: 'same-origin',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(body)
-        });
-        if (!res.ok) {
-          throw new Error(await parseErrorResponse(res, 'แก้ไขผู้ใช้ไม่สำเร็จ'));
-        }
-        window.bppToast('แก้ไขสำเร็จ');
-      } else {
-        const res = await fetch('/auth/users', {
+  const btnSaveGroup = document.getElementById('btnSaveGroup');
+  if (btnSaveGroup) {
+    btnSaveGroup.addEventListener('click', async () => {
+      const name = document.getElementById('inpGroupName').value.trim();
+      const color = document.getElementById('inpGroupColor').value || '#a855f7';
+      const description = document.getElementById('inpGroupDesc').value.trim();
+      const editId = document.getElementById('inpGroupEditId').value.trim();
+      if (!name) return window.bppToast('กรุณาระบุชื่อกลุ่มผู้ใช้งาน', true);
+      try {
+        const res = await fetch('/api/public-config/user-groups', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({username, password, role})
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editId || undefined,
+            name,
+            color,
+            description,
+            actor: session.username || 'admin'
+          })
         });
-        if (!res.ok) {
-          throw new Error(await parseErrorResponse(res, 'เพิ่มผู้ใช้ไม่สำเร็จ'));
-        }
-        window.bppToast('เพิ่มสำเร็จ');
+        if (!res.ok) throw new Error(await parseErrorResponse(res, 'บันทึกกลุ่มผู้ใช้ไม่สำเร็จ'));
+        const data = await res.json();
+        _cachedUserGroups = Array.isArray(data.groups) ? data.groups : _cachedUserGroups;
+        groupFormArea.hidden = true;
+        window.bppToast(editId ? `แก้ไขกลุ่ม "${name}" สำเร็จ` : `สร้างกลุ่ม "${name}" สำเร็จ`);
+        renderAllGroupViews();
+      } catch (e) {
+        window.bppToast('เกิดข้อผิดพลาด: ' + e.message, true);
       }
-      formArea.hidden = true;
-      openUsers();
-    } catch (e) {
-      window.bppToast('เกิดข้อผิดพลาด: ' + e.message, true);
-    }
-  });
-
-  // Users Logic
-  if (isAdmin) {
-    document.getElementById('btnTabUsers').addEventListener('click', () => {
-      document.getElementById('tabUsers').style.display = 'block'; document.getElementById('tabAudit').style.display = 'none';
-      document.getElementById('btnTabUsers').style.borderBottomColor = '#a855f7'; document.getElementById('btnTabUsers').style.color = '#fff';
-      document.getElementById('btnTabAudit').style.borderBottomColor = 'transparent'; document.getElementById('btnTabAudit').style.color = '#9aa0bd';
-      openUsers();
-    });
-    document.getElementById('btnTabAudit').addEventListener('click', () => {
-      document.getElementById('tabAudit').style.display = 'block'; document.getElementById('tabUsers').style.display = 'none';
-      document.getElementById('btnTabAudit').style.borderBottomColor = '#a855f7'; document.getElementById('btnTabAudit').style.color = '#fff';
-      document.getElementById('btnTabUsers').style.borderBottomColor = 'transparent'; document.getElementById('btnTabUsers').style.color = '#9aa0bd';
-      openLogs();
     });
   }
 
-  function openProfileModal() {
-    const currentSession = window.bppSession || session;
-    const currentIsAdmin = ['admin', 'superadmin'].includes(currentSession?.role);
-    const userDisp = document.getElementById('profUsernameDisplay');
-    if (userDisp && currentSession?.username) userDisp.textContent = currentSession.username;
-    const roleBadge = document.getElementById('profRoleBadge');
-    if (roleBadge && currentSession?.role) {
-      roleBadge.innerHTML = currentSession.role === 'superadmin' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path></svg> ผู้ดูแลระบบสูงสุด (Superadmin)' : currentSession.role === 'admin' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> ผู้ดูแลระบบ (Admin)' : '<svg width="8" height="8" viewBox="0 0 24 24" fill="#34e2a8" stroke="none"><circle cx="12" cy="12" r="10"/></svg> ผู้ใช้งานทั่วไป (User)';
-      roleBadge.style.background = currentSession.role === 'superadmin' ? 'rgba(234,179,8,0.2)' : currentSession.role === 'admin' ? 'rgba(168,85,247,0.2)' : 'rgba(34,197,94,0.2)';
-      roleBadge.style.color = currentSession.role === 'superadmin' ? '#facc15' : currentSession.role === 'admin' ? '#c084fc' : '#4ade80';
-      roleBadge.style.border = '1px solid ' + (currentSession.role === 'superadmin' ? 'rgba(234,179,8,0.4)' : currentSession.role === 'admin' ? 'rgba(168,85,247,0.4)' : 'rgba(34,197,94,0.4)');
-    }
-    const adminTabHeader = document.getElementById('adminTabHeader');
-    if (adminTabHeader) adminTabHeader.style.display = currentIsAdmin ? 'flex' : 'none';
-    const tabUsers = document.getElementById('tabUsers');
-    if (tabUsers) tabUsers.style.display = currentIsAdmin ? 'block' : 'none';
-    const btnOpenAddUser = document.getElementById('btnOpenAddUser');
-    if (btnOpenAddUser) btnOpenAddUser.hidden = !currentIsAdmin;
-
-    document.getElementById('usersOverlay').hidden = false;
-    if (window.__refreshSelfLabel) window.__refreshSelfLabel();
-    if (currentIsAdmin) {
-      openUsers();
-    }
-  }
-
-  /**
-   * Fetch the admin-only account list and rebuild the modal with text nodes.
-   * The function changes only modal DOM and reports authorization/API errors.
-   */
-  function syncRoleOptions() {
-    // Only root accounts may grant/revoke superadmin (ADR-0025).
-    const sel = document.getElementById('inpRole');
-    if (!sel) return;
-    const has = [...sel.options].some(o => o.value === 'superadmin');
-    if (sessionIsRoot && !has) {
-      const opt = document.createElement('option');
-      opt.value = 'superadmin';
-      opt.textContent = 'Superadmin (ผู้ดูแลระบบสูงสุด)';
-      sel.appendChild(opt);
-    } else if (!sessionIsRoot && has) {
-      [...sel.options].filter(o => o.value === 'superadmin').forEach(o => o.remove());
-    }
-  }
-
-  async function openUsers() {
-    if (!isAdmin) return;
+  async function fetchUserGroups() {
     try {
-      const res = await fetch('/auth/users');
-      if (!res.ok) {
-        window.bppToast(await parseErrorResponse(res, 'ไม่สามารถโหลดรายชื่อผู้ใช้ได้'), true);
-        return;
+      const res = await fetch('/api/public-config/user-groups?t=' + Date.now(), { credentials: 'same-origin' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.groups)) {
+          _cachedUserGroups = data.groups;
+        }
       }
-      const users = await res.json();
-      const tbody = document.getElementById('usersTableBody');
-      tbody.replaceChildren();
+    } catch (e) {
+      console.warn('Failed to fetch user groups:', e);
+    }
+    return _cachedUserGroups;
+  }
 
-    // Every value in these rows comes from persisted user records. Create
-    // elements explicitly and assign textContent so account data cannot inject
-    // markup, inline handlers, or script into the administrator session.
-    users.forEach(u => {
+  window.modifyUserGroupMember = async function(groupId, username, action = 'add', fromGroupId = '') {
+    if (!groupId || !username) return;
+    try {
+      const res = await fetch(`/api/public-config/user-groups/${encodeURIComponent(groupId)}/members`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          action,
+          from_group_id: fromGroupId || '',
+          actor: session.username || 'admin'
+        })
+      });
+      if (!res.ok) throw new Error(await parseErrorResponse(res, 'อัปเดตสมาชิกกลุ่มไม่สำเร็จ'));
+      const data = await res.json();
+      if (data && Array.isArray(data.groups)) {
+        _cachedUserGroups = data.groups;
+      }
+      const grpName = (data.group && data.group.name) || groupId;
+      window.bppToast(
+        action === 'remove'
+          ? `นำ "${username}" ออกจากกลุ่ม "${grpName}" แล้ว`
+          : `เพิ่ม "${username}" เข้ากลุ่ม "${grpName}" เรียบร้อย`
+      );
+      renderAllGroupViews();
+    } catch (e) {
+      window.bppToast('ผิดพลาด: ' + e.message, true);
+    }
+  };
+
+  window.deleteUserGroupById = async function(groupId, groupName) {
+    if (!(await window.bppConfirm(`ยืนยันการลบกลุ่มผู้ใช้งาน "${groupName}" ?\n(บัญชีผู้ใช้ในกลุ่มจะไม่ถูกลบออกจากระบบ)`))) return;
+    try {
+      const res = await fetch(`/api/public-config/user-groups/${encodeURIComponent(groupId)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
+      if (!res.ok) throw new Error(await parseErrorResponse(res, 'ลบกลุ่มไม่สำเร็จ'));
+      const data = await res.json();
+      if (data && Array.isArray(data.groups)) {
+        _cachedUserGroups = data.groups;
+      }
+      window.bppToast(`ลบกลุ่ม "${groupName}" แล้ว`);
+      renderAllGroupViews();
+    } catch (e) {
+      window.bppToast('ผิดพลาด: ' + e.message, true);
+    }
+  };
+
+  function wireGroupDropZone(el, groupId) {
+    el.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      el.style.borderColor = '#38bdf8';
+      el.style.boxShadow = '0 0 18px rgba(56,189,248,0.45)';
+      el.style.transform = 'translateY(-1px)';
+    });
+    el.addEventListener('dragleave', () => {
+      el.style.borderColor = el.getAttribute('data-base-border') || 'rgba(168,85,247,0.3)';
+      el.style.boxShadow = 'none';
+      el.style.transform = 'none';
+    });
+    el.addEventListener('drop', async e => {
+      e.preventDefault();
+      el.style.borderColor = el.getAttribute('data-base-border') || 'rgba(168,85,247,0.3)';
+      el.style.boxShadow = 'none';
+      el.style.transform = 'none';
+      const uname = e.dataTransfer.getData('text/plain') || _draggedUsername;
+      const fromGrp = _draggedFromGroupId || '';
+      _draggedUsername = null;
+      _draggedFromGroupId = '';
+      if (uname) {
+        await window.modifyUserGroupMember(groupId, uname, 'add', fromGrp);
+      }
+    });
+  }
+
+  function renderQuickGroupStrip() {
+    const strip = document.getElementById('quickGroupDropStrip');
+    if (!strip) return;
+    strip.replaceChildren();
+    _cachedUserGroups.forEach(g => {
+      const members = Array.isArray(g.members) ? g.members : [];
+      const color = g.color || '#a855f7';
+      const card = document.createElement('div');
+      card.setAttribute('data-base-border', `${color}55`);
+      card.style.cssText = `background:rgba(19,23,46,0.9); border:1px dashed ${color}55; border-radius:9px; padding:8px 10px; transition:all 0.15s; display:flex; flex-direction:column; gap:5px;`;
+      wireGroupDropZone(card, g.id);
+
+      const head = document.createElement('div');
+      head.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:6px;';
+      head.innerHTML = `
+        <span style="font-size:12px; font-weight:700; color:#fff; display:inline-flex; align-items:center; gap:5px;">
+          <span style="width:9px; height:9px; border-radius:50%; background:${escapeHtml(color)}; display:inline-block;"></span>
+          ${escapeHtml(g.name)}
+        </span>
+        <span style="font-size:10.5px; color:#cbd5e1; background:rgba(255,255,255,0.08); padding:1px 7px; border-radius:10px;">${members.length} คน</span>
+      `;
+      card.appendChild(head);
+
+      const memWrap = document.createElement('div');
+      memWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px; min-height:20px; align-items:center;';
+      if (!members.length) {
+        memWrap.innerHTML = `<span style="font-size:10.5px; color:#64748b;">ลากชื่อผู้ใช้มาวางที่นี่...</span>`;
+      } else {
+        members.forEach(m => {
+          const pill = document.createElement('span');
+          pill.style.cssText = `font-size:10.5px; padding:1px 6px; border-radius:6px; background:${color}22; color:#e2e8f0; border:1px solid ${color}55; display:inline-flex; align-items:center; gap:4px;`;
+          pill.textContent = m;
+          const rm = document.createElement('button');
+          rm.type = 'button';
+          rm.textContent = '×';
+          rm.title = `นำ ${m} ออกจากกลุ่ม`;
+          rm.style.cssText = 'background:none; border:none; color:#fb5b78; cursor:pointer; font-size:12px; line-height:1; padding:0 1px;';
+          rm.addEventListener('click', e => {
+            e.stopPropagation();
+            window.modifyUserGroupMember(g.id, m, 'remove');
+          });
+          pill.appendChild(rm);
+          memWrap.appendChild(pill);
+        });
+      }
+      card.appendChild(memWrap);
+      strip.appendChild(card);
+    });
+  }
+
+  function renderFullGroupsBoard() {
+    const poolEl = document.getElementById('groupUserPoolList');
+    const boardEl = document.getElementById('groupsBoardGrid');
+    const countEl = document.getElementById('groupPoolUserCount');
+    if (!poolEl || !boardEl) return;
+
+    poolEl.replaceChildren();
+    boardEl.replaceChildren();
+    if (countEl) countEl.textContent = `${_cachedAdminUsers.length} บัญชี`;
+
+    // 1. Render Draggable User Pool on Left
+    _cachedAdminUsers.forEach(u => {
+      const uname = String(u.username || '');
+      const userGroups = _cachedUserGroups.filter(g => Array.isArray(g.members) && g.members.includes(uname));
+      const item = document.createElement('div');
+      item.draggable = true;
+      item.style.cssText = 'background:rgba(30,41,59,0.75); border:1px solid rgba(148,163,184,0.22); border-radius:8px; padding:8px 10px; cursor:grab; display:flex; flex-direction:column; gap:6px; transition:all 0.15s;';
+      item.addEventListener('dragstart', e => {
+        _draggedUsername = uname;
+        _draggedFromGroupId = '';
+        e.dataTransfer.setData('text/plain', uname);
+        item.style.opacity = '0.55';
+      });
+      item.addEventListener('dragend', () => {
+        item.style.opacity = '1';
+      });
+
+      const topRow = document.createElement('div');
+      topRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:6px;';
+      const nameSpan = document.createElement('div');
+      nameSpan.style.cssText = 'font-size:12.5px; font-weight:700; color:#f8fafc; display:flex; align-items:center; gap:6px;';
+      nameSpan.innerHTML = `<span style="color:#94a3b8; font-size:11px;">⋮⋮</span> <span>${escapeHtml(uname)}</span>`;
+      const roleSpan = document.createElement('span');
+      roleSpan.style.cssText = 'font-size:10.5px; color:#c084fc; background:rgba(168,85,247,0.15); padding:1px 6px; border-radius:6px;';
+      roleSpan.textContent = u.role || 'user';
+      topRow.append(nameSpan, roleSpan);
+      item.appendChild(topRow);
+
+      // Quick 1-click "+ เพิ่มเข้ากลุ่ม" select inside User Pool card
+      const quickSel = document.createElement('select');
+      quickSel.className = 'inp';
+      quickSel.style.cssText = 'padding:3px 6px; font-size:11px; width:100%; background:rgba(15,23,42,0.9); color:#38bdf8; border-color:rgba(56,189,248,0.3); cursor:pointer;';
+      const defOpt = document.createElement('option');
+      defOpt.value = '';
+      defOpt.textContent = `+ กดเพิ่ม "${uname}" เข้ากลุ่ม... (${userGroups.length} กลุ่ม)`;
+      quickSel.appendChild(defOpt);
+      _cachedUserGroups.forEach(g => {
+        const alreadyIn = Array.isArray(g.members) && g.members.includes(uname);
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = alreadyIn ? `✓ อยู่ใน ${g.name} แล้ว` : `+ เพิ่มเข้า: ${g.name}`;
+        opt.disabled = alreadyIn;
+        quickSel.appendChild(opt);
+      });
+      quickSel.addEventListener('change', async () => {
+        if (quickSel.value) {
+          await window.modifyUserGroupMember(quickSel.value, uname, 'add');
+          quickSel.value = '';
+        }
+      });
+      item.appendChild(quickSel);
+      poolEl.appendChild(item);
+    });
+
+    // 2. Render Group Dropzone Cards on Right
+    _cachedUserGroups.forEach(g => {
+      const members = Array.isArray(g.members) ? g.members : [];
+      const color = g.color || '#a855f7';
+      const card = document.createElement('div');
+      card.setAttribute('data-base-border', `${color}66`);
+      card.style.cssText = `background:linear-gradient(180deg, rgba(19,23,46,0.95), rgba(13,16,33,0.98)); border:1.5px solid ${color}66; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; transition:all 0.15s;`;
+      wireGroupDropZone(card, g.id);
+
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex; align-items:flex-start; justify-content:space-between; gap:8px;';
+      const titleBox = document.createElement('div');
+      titleBox.innerHTML = `
+        <div style="display:flex; align-items:center; gap:7px; font-size:14px; font-weight:700; color:#fff; font-family:var(--font-ui);">
+          <span style="width:11px; height:11px; border-radius:50%; background:${escapeHtml(color)}; box-shadow:0 0 8px ${escapeHtml(color)}; display:inline-block;"></span>
+          <span>${escapeHtml(g.name)}</span>
+          <span style="font-size:11px; font-weight:600; color:#e2e8f0; background:${escapeHtml(color)}33; border:1px solid ${escapeHtml(color)}66; padding:1px 8px; border-radius:999px;">${members.length} คน</span>
+        </div>
+        ${g.description ? `<div style="font-size:11.5px; color:#94a3b8; margin-top:3px;">${escapeHtml(g.description)}</div>` : ''}
+      `;
+
+      const actBox = document.createElement('div');
+      actBox.style.cssText = 'display:flex; gap:4px; flex-shrink:0;';
+      const btnEdit = document.createElement('button');
+      btnEdit.type = 'button';
+      btnEdit.className = 'btn-ghost';
+      btnEdit.style.cssText = 'padding:3px 7px; font-size:11px;';
+      btnEdit.textContent = '✏️';
+      btnEdit.title = 'แก้ไขชื่อ/สีของกลุ่ม';
+      btnEdit.addEventListener('click', () => openGroupCreator(g));
+
+      const btnDel = document.createElement('button');
+      btnDel.type = 'button';
+      btnDel.className = 'btn-ghost del';
+      btnDel.style.cssText = 'padding:3px 7px; font-size:11px;';
+      btnDel.textContent = '🗑️';
+      btnDel.title = 'ลบกลุ่มนี้';
+      btnDel.addEventListener('click', () => window.deleteUserGroupById(g.id, g.name));
+
+      actBox.append(btnEdit, btnDel);
+      header.append(titleBox, actBox);
+      card.appendChild(header);
+
+      // Member Pills Area (Supports dragging a member to another group OR clicking x to remove)
+      const membersBox = document.createElement('div');
+      membersBox.style.cssText = 'min-height:58px; background:rgba(10,13,26,0.65); border:1px dashed rgba(148,163,184,0.25); border-radius:8px; padding:8px; display:flex; flex-wrap:wrap; gap:6px; align-content:flex-start;';
+      if (!members.length) {
+        membersBox.innerHTML = `<div style="width:100%; text-align:center; color:#64748b; font-size:11.5px; padding:12px 4px;">📥 ลากชื่อผู้ใช้มาวางในกล่องนี้ หรือเลือกจากปุ่มด้านล่าง</div>`;
+      } else {
+        members.forEach(m => {
+          const chip = document.createElement('div');
+          chip.draggable = true;
+          chip.style.cssText = `background:${color}22; border:1px solid ${color}66; color:#f8fafc; padding:3px 8px; border-radius:7px; font-size:12px; display:inline-flex; align-items:center; gap:6px; cursor:grab;`;
+          chip.addEventListener('dragstart', e => {
+            _draggedUsername = m;
+            _draggedFromGroupId = g.id;
+            e.dataTransfer.setData('text/plain', m);
+          });
+          const lbl = document.createElement('span');
+          lbl.textContent = m;
+          const btnRm = document.createElement('button');
+          btnRm.type = 'button';
+          btnRm.textContent = '×';
+          btnRm.title = `นำ ${m} ออกจากกลุ่มนี้`;
+          btnRm.style.cssText = 'background:none; border:none; color:#fb5b78; cursor:pointer; font-size:13px; font-weight:700; line-height:1; padding:0 2px;';
+          btnRm.addEventListener('click', () => window.modifyUserGroupMember(g.id, m, 'remove'));
+          chip.append(lbl, btnRm);
+          membersBox.appendChild(chip);
+        });
+      }
+      card.appendChild(membersBox);
+
+      // 1-Click Add User Dropdown inside Group Card
+      const addRow = document.createElement('div');
+      addRow.style.cssText = 'display:flex; gap:6px; align-items:center;';
+      const addSel = document.createElement('select');
+      addSel.className = 'inp';
+      addSel.style.cssText = 'flex:1; padding:5px 8px; font-size:12px; background:rgba(15,23,42,0.9); color:#e2e8f0; cursor:pointer;';
+      const placeholderOpt = document.createElement('option');
+      placeholderOpt.value = '';
+      placeholderOpt.textContent = '+ กดเลือกผู้ใช้เพื่อเพิ่มเข้ากลุ่มนี้ทันที...';
+      addSel.appendChild(placeholderOpt);
+      _cachedAdminUsers.forEach(u => {
+        if (!members.includes(u.username)) {
+          const opt = document.createElement('option');
+          opt.value = u.username;
+          opt.textContent = `+ เพิ่ม: ${u.username} (${u.role || 'user'})`;
+          addSel.appendChild(opt);
+        }
+      });
+      addSel.addEventListener('change', async () => {
+        if (addSel.value) {
+          await window.modifyUserGroupMember(g.id, addSel.value, 'add');
+          addSel.value = '';
+        }
+      });
+      addRow.appendChild(addSel);
+      card.appendChild(addRow);
+
+      boardEl.appendChild(card);
+    });
+  }
+
+  function renderUsersTableRows() {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    tbody.replaceChildren();
+
+    _cachedAdminUsers.forEach(u => {
       const row = document.createElement('tr');
+      row.draggable = true;
+      row.style.cursor = 'grab';
+      row.title = `ลากแถวของ ${u.username} ไปวางที่กล่องกลุ่มด้านบนเพื่อเพิ่มเข้ากลุ่มได้ทันที`;
+      row.addEventListener('dragstart', e => {
+        _draggedUsername = u.username;
+        _draggedFromGroupId = '';
+        e.dataTransfer.setData('text/plain', u.username);
+        row.style.opacity = '0.55';
+      });
+      row.addEventListener('dragend', () => {
+        row.style.opacity = '1';
+      });
+
       const cellUser = document.createElement('td');
       if (window.bppAccountLabel) {
         window.bppAccountLabel.remember(u.username, u.display_name, u.avatar_url);
-        cellUser.innerHTML = window.bppAccountLabel.labelHtml(u.username, 30);
+        cellUser.innerHTML = `<span style="color:#64748b;margin-right:5px;font-size:11px;">⋮⋮</span>` + window.bppAccountLabel.labelHtml(u.username, 30);
       } else {
         cellUser.textContent = String(u.username ?? '');
       }
@@ -687,21 +1073,69 @@ const initAdminModule = async () => {
       cellRole.textContent = String(u.role ?? '');
       row.appendChild(cellRole);
 
+      // Groups column: current group badges + 1-click "+ เข้ากลุ่ม" selector
+      const cellGroups = document.createElement('td');
+      const grpWrap = document.createElement('div');
+      grpWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:5px; align-items:center;';
+      const memberGroups = _cachedUserGroups.filter(g => Array.isArray(g.members) && g.members.includes(u.username));
+      memberGroups.forEach(g => {
+        const c = g.color || '#a855f7';
+        const badge = document.createElement('span');
+        badge.style.cssText = `font-size:11px; padding:2px 7px; border-radius:6px; background:${c}22; color:#f1f5f9; border:1px solid ${c}66; display:inline-flex; align-items:center; gap:4px;`;
+        badge.textContent = g.name;
+        const rmBtn = document.createElement('button');
+        rmBtn.type = 'button';
+        rmBtn.textContent = '×';
+        rmBtn.title = `นำออกจากกลุ่ม ${g.name}`;
+        rmBtn.style.cssText = 'background:none; border:none; color:#fb5b78; cursor:pointer; font-size:12px; padding:0 1px; line-height:1;';
+        rmBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          window.modifyUserGroupMember(g.id, u.username, 'remove');
+        });
+        badge.appendChild(rmBtn);
+        grpWrap.appendChild(badge);
+      });
+
+      const quickGrpSelect = document.createElement('select');
+      quickGrpSelect.className = 'inp';
+      quickGrpSelect.style.cssText = 'padding:2px 6px; font-size:11px; width:auto; max-width:135px; background:rgba(15,23,42,0.85); color:#38bdf8; border-color:rgba(56,189,248,0.35); cursor:pointer;';
+      const defOpt = document.createElement('option');
+      defOpt.value = '';
+      defOpt.textContent = '+ เข้ากลุ่ม...';
+      quickGrpSelect.appendChild(defOpt);
+      _cachedUserGroups.forEach(g => {
+        const inGrp = Array.isArray(g.members) && g.members.includes(u.username);
+        if (!inGrp) {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = `+ ${g.name}`;
+          quickGrpSelect.appendChild(opt);
+        }
+      });
+      quickGrpSelect.addEventListener('change', async () => {
+        if (quickGrpSelect.value) {
+          await window.modifyUserGroupMember(quickGrpSelect.value, u.username, 'add');
+          quickGrpSelect.value = '';
+        }
+      });
+      grpWrap.appendChild(quickGrpSelect);
+      cellGroups.appendChild(grpWrap);
+      row.appendChild(cellGroups);
+
       const cellStatus = document.createElement('td');
-      cellStatus.innerHTML = u.active
+      cellStatus.innerHTML = u.active !== false
         ? '<span style="display:inline-flex;align-items:center;gap:5px;color:#34e2a8;"><svg width="8" height="8" viewBox="0 0 24 24" fill="#34e2a8" stroke="none"><circle cx="12" cy="12" r="10"/></svg>ใช้งาน</span>'
         : '<span style="display:inline-flex;align-items:center;gap:5px;color:#fb5b78;"><svg width="8" height="8" viewBox="0 0 24 24" fill="#fb5b78" stroke="none"><circle cx="12" cy="12" r="10"/></svg>ระงับ</span>';
       row.appendChild(cellStatus);
+
       const actions = document.createElement('td');
       actions.style.display = 'flex';
-      actions.style.gap = '8px';
+      actions.style.gap = '6px';
       actions.style.flexWrap = 'wrap';
       const isSelf = String(u.username) === String(session.username);
       const lockedRoot = isRootUser(u.username) && !sessionIsRoot;
       const lockedSuper = u.role === 'superadmin' && !sessionIsSuper;
       if (lockedRoot || lockedSuper) {
-        // ADR-0025: root accounts are managed only by root; superadmins only by
-        // superadmins. The server enforces this; the label is a UX hint.
         const protectedLabel = document.createElement('span');
         protectedLabel.className = 'sync-msg info';
         protectedLabel.textContent = lockedRoot
@@ -712,16 +1146,14 @@ const initAdminModule = async () => {
         const editButton = document.createElement('button');
         editButton.className = 'btn-ghost';
         editButton.textContent = 'แก้ไข/เปลี่ยนรหัส';
-        editButton.addEventListener('click', () => window.editUser(u.username, u.role, u.active));
+        editButton.addEventListener('click', () => window.editUser(u.username, u.role, u.active !== false));
         const deleteButton = document.createElement('button');
         deleteButton.className = 'btn-ghost del';
         deleteButton.textContent = 'ลบ';
         deleteButton.addEventListener('click', () => window.delUser(u.username));
-        // Nobody may delete their own account from this screen.
         if (isSelf) {
           actions.append(editButton);
         } else {
-          // Account Label moderation: an admin may set a name or remove a photo.
           const nameButton = document.createElement('button');
           nameButton.className = 'btn-ghost';
           nameButton.textContent = 'ตั้งชื่อ';
@@ -759,6 +1191,175 @@ const initAdminModule = async () => {
       row.appendChild(actions);
       tbody.appendChild(row);
     });
+  }
+
+  function renderAllGroupViews() {
+    renderQuickGroupStrip();
+    renderUsersTableRows();
+    renderFullGroupsBoard();
+  }
+
+  document.getElementById('btnOpenAddUser').addEventListener('click', () => {
+    document.getElementById('btnTabUsers').click();
+    document.getElementById('userFormTitle').innerText = 'เพิ่มผู้ใช้งานใหม่';
+    document.getElementById('inpUsername').value = '';
+    document.getElementById('inpUsername').disabled = false;
+    document.getElementById('inpPassword').value = '';
+    syncRoleOptions();
+    document.getElementById('inpRole').disabled = false;
+    document.getElementById('inpRole').value = 'user';
+    document.getElementById('inpActive').disabled = false;
+    document.getElementById('inpActive').value = '1';
+    document.getElementById('inpEditMode').value = '';
+    formArea.hidden = false;
+    formArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  document.getElementById('btnCancelUserForm').addEventListener('click', () => {
+    formArea.hidden = true;
+  });
+
+  document.getElementById('btnSaveUser').addEventListener('click', async () => {
+    const username = document.getElementById('inpUsername').value.trim();
+    const password = document.getElementById('inpPassword').value;
+    const role = document.getElementById('inpRole').value;
+    const isEdit = document.getElementById('inpEditMode').value !== '';
+
+    if (!username) return window.bppToast('กรุณาระบุ Username', true);
+    if (!/^[A-Za-z0-9_.-]{3,64}$/.test(username)) {
+      return window.bppToast('Username ต้องเป็นภาษาอังกฤษ ตัวเลข หรือ . _ - ความยาว 3-64 ตัวอักษร (ห้ามมีภาษาไทยหรือช่องว่าง)', true);
+    }
+    if (!isEdit && !password) return window.bppToast('กรุณาระบุ Password สำหรับผู้ใช้ใหม่', true);
+    if (password && password.length < 8) return window.bppToast('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร', true);
+
+    try {
+      if (isEdit) {
+        const body = {};
+        if (password) body.password = password;
+        if (role) body.role = role;
+        body.active = document.getElementById('inpActive').value === '1';
+        const res = await fetch(`/auth/users/${encodeURIComponent(username)}`, {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          throw new Error(await parseErrorResponse(res, 'แก้ไขผู้ใช้ไม่สำเร็จ'));
+        }
+        window.bppLogProgramEvent('ผู้ใช้งาน/Auth', 'UPDATE_USER', `แก้ไขบัญชีผู้ใช้ ${username} (สิทธิ์: ${role})`);
+        window.bppToast('แก้ไขสำเร็จ');
+      } else {
+        const res = await fetch('/auth/users', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username, password, role})
+        });
+        if (!res.ok) {
+          throw new Error(await parseErrorResponse(res, 'เพิ่มผู้ใช้ไม่สำเร็จ'));
+        }
+        window.bppLogProgramEvent('ผู้ใช้งาน/Auth', 'CREATE_USER', `สร้างบัญชีผู้ใช้ใหม่ ${username} (สิทธิ์: ${role})`);
+        window.bppToast('เพิ่มสำเร็จ');
+      }
+      formArea.hidden = true;
+      openUsers();
+    } catch (e) {
+      window.bppToast('เกิดข้อผิดพลาด: ' + e.message, true);
+    }
+  });
+
+  function switchAdminTab(activeTab) {
+    const tabs = [
+      { btn: 'btnTabUsers', pane: 'tabUsers', key: 'users' },
+      { btn: 'btnTabGroups', pane: 'tabGroups', key: 'groups' },
+      { btn: 'btnTabAudit', pane: 'tabAudit', key: 'audit' }
+    ];
+    tabs.forEach(t => {
+      const b = document.getElementById(t.btn);
+      const p = document.getElementById(t.pane);
+      const isAct = t.key === activeTab;
+      if (p) p.style.display = isAct ? 'block' : 'none';
+      if (b) {
+        b.style.borderBottomColor = isAct ? '#a855f7' : 'transparent';
+        b.style.color = isAct ? '#fff' : '#9aa0bd';
+      }
+    });
+  }
+
+  if (isAdmin) {
+    document.getElementById('btnTabUsers').addEventListener('click', () => {
+      switchAdminTab('users');
+      openUsers();
+    });
+    document.getElementById('btnTabGroups').addEventListener('click', () => {
+      switchAdminTab('groups');
+      openUsers();
+    });
+    document.getElementById('btnTabAudit').addEventListener('click', () => {
+      switchAdminTab('audit');
+      openLogs();
+    });
+  }
+
+  function openProfileModal() {
+    const currentSession = window.bppSession || session;
+    const currentIsAdmin = ['admin', 'superadmin'].includes(currentSession?.role);
+    const userDisp = document.getElementById('profUsernameDisplay');
+    if (userDisp && currentSession?.username) userDisp.textContent = currentSession.username;
+    const roleBadge = document.getElementById('profRoleBadge');
+    if (roleBadge && currentSession?.role) {
+      roleBadge.innerHTML = currentSession.role === 'superadmin' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path></svg> ผู้ดูแลระบบสูงสุด (Superadmin)' : currentSession.role === 'admin' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> ผู้ดูแลระบบ (Admin)' : '<svg width="8" height="8" viewBox="0 0 24 24" fill="#34e2a8" stroke="none"><circle cx="12" cy="12" r="10"/></svg> ผู้ใช้งานทั่วไป (User)';
+      roleBadge.style.background = currentSession.role === 'superadmin' ? 'rgba(234,179,8,0.2)' : currentSession.role === 'admin' ? 'rgba(168,85,247,0.2)' : 'rgba(34,197,94,0.2)';
+      roleBadge.style.color = currentSession.role === 'superadmin' ? '#facc15' : currentSession.role === 'admin' ? '#c084fc' : '#4ade80';
+      roleBadge.style.border = '1px solid ' + (currentSession.role === 'superadmin' ? 'rgba(234,179,8,0.4)' : currentSession.role === 'admin' ? 'rgba(168,85,247,0.4)' : 'rgba(34,197,94,0.4)');
+    }
+    const adminTabHeader = document.getElementById('adminTabHeader');
+    if (adminTabHeader) adminTabHeader.style.display = currentIsAdmin ? 'flex' : 'none';
+    const tabUsers = document.getElementById('tabUsers');
+    if (tabUsers && document.getElementById('tabGroups')?.style.display !== 'block' && document.getElementById('tabAudit')?.style.display !== 'block') {
+      tabUsers.style.display = currentIsAdmin ? 'block' : 'none';
+    }
+    const btnOpenAddUser = document.getElementById('btnOpenAddUser');
+    if (btnOpenAddUser) btnOpenAddUser.hidden = !currentIsAdmin;
+    const btnOpenAddGroupTop = document.getElementById('btnOpenAddGroupTop');
+    if (btnOpenAddGroupTop) btnOpenAddGroupTop.hidden = !currentIsAdmin;
+
+    document.getElementById('usersOverlay').hidden = false;
+    if (window.__refreshSelfLabel) window.__refreshSelfLabel();
+    if (currentIsAdmin) {
+      openUsers();
+    }
+  }
+
+  function syncRoleOptions() {
+    const sel = document.getElementById('inpRole');
+    if (!sel) return;
+    const has = [...sel.options].some(o => o.value === 'superadmin');
+    if (sessionIsRoot && !has) {
+      const opt = document.createElement('option');
+      opt.value = 'superadmin';
+      opt.textContent = 'Superadmin (ผู้ดูแลระบบสูงสุด)';
+      sel.appendChild(opt);
+    } else if (!sessionIsRoot && has) {
+      [...sel.options].filter(o => o.value === 'superadmin').forEach(o => o.remove());
+    }
+  }
+
+  async function openUsers() {
+    if (!isAdmin) return;
+    try {
+      const [res] = await Promise.all([
+        fetch('/auth/users', { credentials: 'same-origin' }),
+        fetchUserGroups()
+      ]);
+      if (!res.ok) {
+        window.bppToast(await parseErrorResponse(res, 'ไม่สามารถโหลดรายชื่อผู้ใช้ได้'), true);
+        return;
+      }
+      const rawUsers = await res.json();
+      _cachedAdminUsers = Array.isArray(rawUsers) ? rawUsers : (Array.isArray(rawUsers?.users) ? rawUsers.users : []);
+      renderAllGroupViews();
     } catch (e) {
       window.bppToast('ไม่สามารถโหลดรายชื่อผู้ใช้ได้: ' + e.message, true);
     }
@@ -773,7 +1374,6 @@ const initAdminModule = async () => {
     const isSelfEdit = String(username) === String(session.username);
     document.getElementById('inpRole').value = role;
     document.getElementById('inpActive').value = active ? '1' : '0';
-    // Self-service restrictions (ADR-0025): no self role change / suspension.
     document.getElementById('inpRole').disabled = isSelfEdit;
     document.getElementById('inpActive').disabled = isSelfEdit;
     document.getElementById('inpEditMode').value = '1';
@@ -781,16 +1381,13 @@ const initAdminModule = async () => {
     formArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  /**
-   * Delete the selected account after confirmation. The path segment is
-   * encoded because usernames are data, not URL structure.
-   */
   window.delUser = async (username) => {
     if (!(await window.bppConfirm(`ยืนยันการลบผู้ใช้ ${username} ถาวร?`))) return;
     try {
       const res = await fetch(`/auth/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
       if (res.ok) {
         await fetch(`/api/nas-bot/admin/user-profile/${encodeURIComponent(username)}`, { method: 'DELETE' }).catch(() => {});
+        window.bppLogProgramEvent('ผู้ใช้งาน/Auth', 'DELETE_USER', `ลบบัญชีผู้ใช้งาน ${username}`);
         openUsers();
       } else {
         const msg = await parseErrorResponse(res, 'ลบผู้ใช้ไม่สำเร็จ');
@@ -801,50 +1398,169 @@ const initAdminModule = async () => {
     }
   };
 
-  // Logs Logic
-  /**
-   * Fetch recent audit events and render untrusted log fields with textContent.
-   * The function replaces the audit table without interpreting stored details.
-   */
+  // =========================================================================
+  // UNIFIED PROGRAM & AUDIT LOG ENGINE (Filterable + Searchable + CSV Export)
+  // =========================================================================
+  function inferCategoryFromAuditRow(l) {
+    if (l.category) return l.category;
+    const act = String(l.action || '').toUpperCase();
+    if (act.includes('CHANNEL') || act.includes('CAM')) return 'เลือกกล้อง/CH';
+    if (act.includes('GROUP')) return 'กลุ่มผู้ใช้';
+    if (act.includes('REC')) return 'บันทึกวิดีโอ';
+    if (act.includes('DRONE') || act.includes('QCS')) return 'โดรน/QCS';
+    if (act.includes('LOGIN') || act.includes('LOGOUT') || act.includes('USER') || act.includes('PASS')) return 'ผู้ใช้งาน/Auth';
+    return 'ระบบ';
+  }
+
+  function renderFilteredLogs() {
+    const tbody = document.getElementById('logsTableBody');
+    const badge = document.getElementById('txtLogTotalBadge');
+    if (!tbody) return;
+    tbody.replaceChildren();
+
+    const catSel = document.getElementById('selLogCategory')?.value || 'all';
+    const q = (document.getElementById('inpLogSearch')?.value || '').trim().toLowerCase();
+
+    const filtered = _cachedUnifiedLogs.filter(l => {
+      const cat = inferCategoryFromAuditRow(l);
+      if (catSel !== 'all' && cat !== catSel) return false;
+      if (q) {
+        const hay = `${l.timestamp || ''} ${l.username || ''} ${cat} ${l.action || ''} ${l.details || ''} ${l.ip_address || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    if (badge) badge.textContent = `แสดง ${filtered.length} / ${_cachedUnifiedLogs.length} รายการ`;
+
+    if (!filtered.length) {
+      const emptyRow = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      td.style.cssText = 'text-align:center; color:#64748b; padding:24px; font-size:13px;';
+      td.textContent = 'ไม่พบรายการ Log ที่ตรงกับเงื่อนไขการค้นหา';
+      emptyRow.appendChild(td);
+      tbody.appendChild(emptyRow);
+      return;
+    }
+
+    filtered.forEach(l => {
+      const row = document.createElement('tr');
+      const timeCell = document.createElement('td');
+      timeCell.style.fontSize = '12px';
+      timeCell.style.color = '#9aa0bd';
+      timeCell.textContent = String(l.timestamp ?? '');
+
+      const userCell = document.createElement('td');
+      userCell.style.fontWeight = '600';
+      userCell.textContent = String(l.username ?? 'system');
+
+      const catCell = document.createElement('td');
+      const catStr = inferCategoryFromAuditRow(l);
+      const catBadge = document.createElement('span');
+      catBadge.style.cssText = 'font-size:11px; padding:2px 7px; border-radius:6px; background:rgba(56,189,248,0.14); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); white-space:nowrap;';
+      catBadge.textContent = catStr;
+      catCell.appendChild(catBadge);
+
+      const actionCell = document.createElement('td');
+      const actionChip = document.createElement('span');
+      actionChip.className = 'wl-plate-chip';
+      actionChip.textContent = String(l.action ?? '');
+      actionCell.appendChild(actionChip);
+
+      const detailsCell = document.createElement('td');
+      detailsCell.style.fontSize = '13px';
+      detailsCell.textContent = String(l.details ?? '');
+
+      const ipCell = document.createElement('td');
+      ipCell.style.fontSize = '12px';
+      ipCell.style.color = '#9aa0bd';
+      ipCell.textContent = String(l.ip_address ?? '127.0.0.1');
+
+      row.append(timeCell, userCell, catCell, actionCell, detailsCell, ipCell);
+      tbody.appendChild(row);
+    });
+  }
+
   async function openLogs() {
     try {
-      const res = await fetch('/auth/audit?limit=200');
-      if (!res.ok) {
-        window.bppToast(await parseErrorResponse(res, 'ไม่สามารถโหลด Audit Logs ได้'), true);
-        return;
-      }
-      const logs = await res.json();
-      const tbody = document.getElementById('logsTableBody');
-      tbody.replaceChildren();
+      const [progRes, auditRes] = await Promise.all([
+        fetch('/api/public-config/program-logs?limit=400&t=' + Date.now(), { credentials: 'same-origin' }).catch(() => null),
+        fetch('/auth/audit?limit=200&t=' + Date.now(), { credentials: 'same-origin' }).catch(() => null)
+      ]);
+      const progData = (progRes && progRes.ok) ? await progRes.json() : null;
+      const auditData = (auditRes && auditRes.ok) ? await auditRes.json() : null;
 
-      // Audit fields may contain user-controlled request details. Render each
-      // field as text and style only trusted cell elements created by this code.
-      logs.forEach(l => {
-        const row = document.createElement('tr');
-        const timeCell = document.createElement('td');
-        timeCell.style.fontSize = '12px';
-        timeCell.style.color = '#9aa0bd';
-        timeCell.textContent = String(l.timestamp ?? '');
-        const userCell = document.createElement('td');
-        userCell.textContent = String(l.username ?? '');
-        const actionCell = document.createElement('td');
-        const actionChip = document.createElement('span');
-        actionChip.className = 'wl-plate-chip';
-        actionChip.textContent = String(l.action ?? '');
-        actionCell.appendChild(actionChip);
-        const detailsCell = document.createElement('td');
-        detailsCell.style.fontSize = '13px';
-        detailsCell.textContent = String(l.details ?? '');
-        const ipCell = document.createElement('td');
-        ipCell.style.fontSize = '12px';
-        ipCell.style.color = '#9aa0bd';
-        ipCell.textContent = String(l.ip_address ?? '');
-        row.append(timeCell, userCell, actionCell, detailsCell, ipCell);
-        tbody.appendChild(row);
+      const progLogs = Array.isArray(progData?.logs) ? progData.logs : [];
+      const auditLogs = Array.isArray(auditData) ? auditData : [];
+
+      const seen = new Set();
+      const combined = [];
+      [...progLogs, ...auditLogs].forEach(item => {
+        if (!item) return;
+        const key = `${item.timestamp || ''}|${item.username || ''}|${item.action || ''}|${item.details || ''}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        combined.push(item);
       });
+      combined.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+      _cachedUnifiedLogs = combined;
+      renderFilteredLogs();
     } catch (e) {
-      window.bppToast('ไม่สามารถโหลด Audit Logs ได้: ' + e.message, true);
+      window.bppToast('ไม่สามารถโหลดประวัติการทำงานได้: ' + e.message, true);
     }
+  }
+
+  const selLogCategory = document.getElementById('selLogCategory');
+  if (selLogCategory) selLogCategory.addEventListener('change', renderFilteredLogs);
+  const inpLogSearch = document.getElementById('inpLogSearch');
+  if (inpLogSearch) inpLogSearch.addEventListener('input', renderFilteredLogs);
+  const btnRefreshLogs = document.getElementById('btnRefreshLogs');
+  if (btnRefreshLogs) btnRefreshLogs.addEventListener('click', openLogs);
+
+  const btnExportLogsCsv = document.getElementById('btnExportLogsCsv');
+  if (btnExportLogsCsv) {
+    btnExportLogsCsv.addEventListener('click', () => {
+      if (!_cachedUnifiedLogs.length) return window.bppToast('ไม่มีข้อมูล Log สำหรับส่งออก', true);
+      const rows = [['Timestamp', 'Username', 'Category', 'Action', 'Details', 'IP']];
+      _cachedUnifiedLogs.forEach(l => {
+        rows.push([
+          l.timestamp || '',
+          l.username || '',
+          inferCategoryFromAuditRow(l),
+          l.action || '',
+          l.details || '',
+          l.ip_address || ''
+        ]);
+      });
+      const csvContent = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sloth_bpp215_program_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      window.bppToast('ส่งออกไฟล์ CSV สำเร็จ');
+    });
+  }
+
+  const btnClearProgramLogs = document.getElementById('btnClearProgramLogs');
+  if (btnClearProgramLogs) {
+    btnClearProgramLogs.addEventListener('click', async () => {
+      if (!(await window.bppConfirm('ยืนยันการล้างประวัติ Log ของโปรแกรม (Program Logs)?'))) return;
+      try {
+        const res = await fetch('/api/public-config/program-logs', { method: 'DELETE', credentials: 'same-origin' });
+        if (res.ok) {
+          window.bppToast('ล้างประวัติ Log ของโปรแกรมเรียบร้อย');
+          openLogs();
+        }
+      } catch (e) {
+        window.bppToast('ล้าง Log ไม่สำเร็จ: ' + e.message, true);
+      }
+    });
   }
 };
 

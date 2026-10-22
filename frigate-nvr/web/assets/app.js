@@ -2897,15 +2897,32 @@ function tileTemplate(i, ch) {
   el.innerHTML = `
     <div class="tile-feed${isDemo ? ' demo' : ''}"></div>
     <div class="tile-vignette"></div>
-    <div class="tile-overlay ov-offline" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">ช่องสัญญาณว่าง</div><div class="ov-sub">คลิกเพื่อเลือกกล้องสำหรับหน้าจอของคุณ</div><button type="button" class="btn-tile-pick-cam"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><line x1="8.5" y1="9" x2="8.5" y2="15"/><line x1="5.5" y1="12" x2="11.5" y2="12"/></svg><span>เลือกกล้อง</span></button></div></div>
+    <div class="tile-overlay ov-offline" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">ช่องสัญญาณว่าง</div><div class="ov-sub">เลือกกล้องจากรายการ หรือจากแผนที่หมุดกล้อง</div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"><button type="button" class="btn-tile-pick-cam" data-pick-mode="list"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><line x1="8.5" y1="9" x2="8.5" y2="15"/><line x1="5.5" y1="12" x2="11.5" y2="12"/></svg><span>📋 เลือกจากรายการ</span></button><button type="button" class="btn-tile-pick-cam" data-pick-mode="map" style="background:rgba(14,165,233,0.22);border-color:rgba(56,189,248,0.55);color:#e0f2fe;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>🗺️ แผนที่หมุดกล้อง</span></button></div></div></div>
     <div class="tile-overlay ov-videoloss" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">VIDEO LOSS</div><div class="ov-sub">สัญญาณวิดีโอขาดหาย</div></div></div>
     <div class="tile-overlay ov-connecting" hidden><div class="ov-center"><div class="spinner"></div><div class="ov-sub">กำลังเชื่อมต่อ…</div></div></div>
     <div class="tile-overlay ov-reconnecting" hidden><div class="ov-center"><div class="spinner"></div><div class="ov-sub">กำลังเชื่อมต่อใหม่…</div></div></div>
     <div class="tile-overlay ov-disabled" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">ปิดการใช้งาน</div><div class="ov-sub">กล้องนี้ถูกปิด — เปิดได้ที่หน้าตั้งค่า</div></div></div>
     <div class="hud tl"></div><div class="hud tr"></div><div class="hud bl"></div><div class="hud br"></div>
-    <div class="tile-top"><span class="ch-chip">${chLabel(i)}</span><span class="tile-name"></span><span class="tile-status-dot"></span></div>
+    <div class="tile-top"><span class="ch-chip" title="คลิกเพื่อเลือกกล้องเข้าช่อง ${chLabel(i)} (รายการ / แผนที่หมุดกล้อง)" style="cursor:pointer;">${chLabel(i)}</span><span class="tile-name"></span><span class="tile-status-dot"></span></div>
     <div class="tile-bottom"><span class="tile-rec"><span class="rec-dot"></span><span class="rec-text">—</span></span><span class="tile-clock">--:--:--</span></div>`;
   el.querySelector('.tile-name').textContent = name;
+
+  const chChipEl = el.querySelector('.ch-chip');
+  if (chChipEl) {
+    chChipEl.addEventListener('click', e => {
+      if (state.editLayout) return;
+      e.stopPropagation();
+      openCameraPickerForSlot(i, 'list');
+    });
+  }
+  el.querySelectorAll('.btn-tile-pick-cam').forEach(btn => {
+    btn.addEventListener('click', e => {
+      if (state.editLayout) return;
+      e.stopPropagation();
+      const mode = btn.getAttribute('data-pick-mode') || 'list';
+      openCameraPickerForSlot(i, mode);
+    });
+  });
 
   const feed = el.querySelector('.tile-feed');
   let video = null;
@@ -7461,10 +7478,16 @@ async function toggleNvrManualRecord(camSrc, btnEl, camName) {
       }
       updateAllRecButtons(camSrc, isRec);
       if (isRec) {
+        if (typeof window.bppLogProgramEvent === 'function') {
+          window.bppLogProgramEvent('บันทึกวิดีโอ', 'START_MANUAL_RECORD', `เริ่มบันทึกวิดีโอด่วน (REC) กล้อง "${displayCameraName(camSrc, camName)}" (${camSrc})`);
+        }
         if (window.bppToast) {
           window.bppToast(`🔴 เริ่มบันทึกวิดีโอสำหรับ ${displayCameraName(camSrc, camName)} แล้ว (กดซ้ำเพื่อหยุดและเก็บลงคลังเหตุการณ์)`);
         }
       } else {
+        if (typeof window.bppLogProgramEvent === 'function') {
+          window.bppLogProgramEvent('บันทึกวิดีโอ', 'STOP_MANUAL_RECORD', `หยุดบันทึกและจัดเก็บคลิปกล้อง "${displayCameraName(camSrc, camName)}" (${camSrc}) เข้าคลังเหตุการณ์`);
+        }
         if (window.bppToast) {
           window.bppToast(`⏳ กำลังบันทึกคลิปของ ${displayCameraName(camSrc, camName)} เข้าสู่คลังวิดีโอเหตุการณ์...`);
         }
@@ -14576,6 +14599,26 @@ function populateCamSelect() {
   const sel = $('inpCamSelect');
   const accordion = $('camSelectAccordion');
   if (!sel || !state.nvrCameras || !accordion) return;
+
+  // Ensure a "🗺️ เลือกจากแผนที่หมุดกล้อง" button exists right next to #btnOpenCamPicker in Settings Tab 2
+  const btnOpen = $('btnOpenCamPicker');
+  if (btnOpen && btnOpen.parentElement && !$('btnOpenCamMapForCh')) {
+    const mapBtn = document.createElement('button');
+    mapBtn.id = 'btnOpenCamMapForCh';
+    mapBtn.type = 'button';
+    mapBtn.className = 'btn-ghost';
+    mapBtn.style.cssText = 'margin-top:6px; width:100%; padding:8px 12px; font-size:12.5px; font-weight:600; color:#38bdf8; border:1px solid rgba(56,189,248,0.4); border-radius:8px; background:rgba(14,165,233,0.1); display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;';
+    mapBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg><span>🗺️ เลือกกล้องจากแผนที่หมุดกล้องเพียวๆ (สำหรับช่องนี้)</span>`;
+    mapBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if ($('camSelectDropdown')) $('camSelectDropdown').style.display = 'none';
+      if (typeof window.openCameraPickerForSlot === 'function') {
+        window.openCameraPickerForSlot(state.selCh || 0, 'map');
+      }
+    });
+    btnOpen.parentElement.appendChild(mapBtn);
+  }
+
   const curCh = (state.draft || (typeof cfg !== 'undefined' && cfg.channels) || [])[state.selCh];
   const oldVal = (curCh && curCh.src) || '';
   const groups = {};
@@ -14586,6 +14629,18 @@ function populateCamSelect() {
   });
   
   accordion.innerHTML = '';
+
+  const openMapItem = document.createElement('div');
+  openMapItem.className = 'cam-item';
+  openMapItem.innerHTML = '🗺️ <b>เลือกจากแผนที่หมุดกล้องเพียวๆ (คลิกหมุดบนแผนที่)</b>';
+  openMapItem.style.cssText = 'padding:9px 10px; cursor:pointer; border-bottom:1px solid var(--border-color); color:#38bdf8; background:rgba(14,165,233,0.1); font-size:12.5px;';
+  openMapItem.onclick = () => {
+    $('camSelectDropdown').style.display = 'none';
+    if (typeof window.openCameraPickerForSlot === 'function') {
+      window.openCameraPickerForSlot(state.selCh || 0, 'map');
+    }
+  };
+  accordion.appendChild(openMapItem);
   
   const emptyItem = document.createElement('div');
   emptyItem.className = 'cam-item';
@@ -15183,8 +15238,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (camId) {
       const thaiName = displayCameraName(camId);
       toast(`นำกล้อง "${thaiName || camId}" เข้าสู่ช่อง ${chLabelStr} บนหน้าจอของคุณเรียบร้อย`);
+      if (typeof window.bppLogProgramEvent === 'function') {
+        window.bppLogProgramEvent('เลือกกล้อง/CH', 'SELECT_CHANNEL_CAMERA', `เลือกกล้อง "${thaiName || camId}" (${camId}) เข้าช่อง ${chLabelStr}`);
+      }
     } else {
       toast(`ล้างช่องสัญญาณ ${chLabelStr} บนหน้าจอของคุณเรียบร้อย`);
+      if (typeof window.bppLogProgramEvent === 'function') {
+        window.bppLogProgramEvent('เลือกกล้อง/CH', 'CLEAR_CHANNEL_SLOT', `เว้นว่างช่องสัญญาณ ${chLabelStr}`);
+      }
+    }
+
+    if (state.selCh === chIdx) {
+      const selEl = $('inpCamSelect');
+      if (selEl) selEl.value = camId || '';
+      if (typeof updateSelectedCamText === 'function') updateSelectedCamText(camId || '');
     }
 
     await saveUserProfile();
@@ -15209,11 +15276,13 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /**
-   * CLAUDE.md Section 10: Quick Camera Picker Modal for Dashboard Grid Slots
-   * Allows any operator to easily search and switch cameras on their personal grid.
+   * CLAUDE.md Section 10: Quick Dual-Mode Camera Picker Modal for Dashboard Grid Slots
+   * Mode 1: 📋 เลือกจากรายการกล้อง (List View)
+   * Mode 2: 🗺️ เลือกจากแผนที่หมุดกล้องเพียวๆ (Pure Camera Pin Map View — only camera pins, zero clutter)
    * @param {number} slotIdx 0-based channel index (0..15)
+   * @param {string} [initialMode='list'] 'list' or 'map'
    */
-  window.openCameraPickerForSlot = function(slotIdx) {
+  window.openCameraPickerForSlot = function(slotIdx, initialMode = 'list') {
     if (slotIdx < 0 || slotIdx >= MAX_CH) return;
     
     // Remove existing picker modal if any
@@ -15224,50 +15293,89 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentCh = cfg.channels[slotIdx] || {};
     const currentCamId = currentCh.src || '';
 
+    // Deterministic fallback coordinates for local NVR checkpoints if a camera lacks explicit lat/lng in camera_gps.json
+    const GROUP_HUB_COORDS = [
+      { match: /nonburi|โนนบุรี/i, lat: 16.6438, lng: 103.5112 },
+      { match: /nongwang|หนองแวง|ละหานทราย/i, lat: 14.4145, lng: 102.8615 },
+      { match: /doonsad|ดูนสาด/i, lat: 16.7215, lng: 103.3840 },
+      { match: /bpp215|ตชด|นางรอง/i, lat: 14.6265, lng: 102.7905 },
+      { match: /udon|อุดร/i, lat: 17.4043, lng: 102.7999 },
+      { match: /vigi|ด่าน|จุดตรวจ/i, lat: 14.4820, lng: 102.9120 }
+    ];
+
+    function inferCameraCoords(camObj, idxSeed) {
+      if (camObj.lat != null && camObj.lng != null && !isNaN(parseFloat(camObj.lat)) && !isNaN(parseFloat(camObj.lng))) {
+        return { lat: parseFloat(camObj.lat), lng: parseFloat(camObj.lng) };
+      }
+      const keyStr = `${camObj.id || ''} ${camObj.name || ''} ${camObj.group || ''}`;
+      let base = { lat: 14.6265, lng: 102.7905 };
+      for (const h of GROUP_HUB_COORDS) {
+        if (h.match.test(keyStr)) {
+          base = { lat: h.lat, lng: h.lng };
+          break;
+        }
+      }
+      // deterministic radial spread so pins in the same checkpoint don't overlap on the exact same pixel
+      const angle = (idxSeed * 47.0) * (Math.PI / 180.0);
+      const radius = 0.0014 + ((idxSeed % 7) * 0.00065);
+      return {
+        lat: +(base.lat + Math.sin(angle) * radius).toFixed(6),
+        lng: +(base.lng + Math.cos(angle) * radius).toFixed(6)
+      };
+    }
+
     // Build camera map with deduplication (case-insensitive merge)
-    // Key: lower_id -> Value: { id: real_id, name: string, group: string }
     const camMap = new Map();
-    const addCam = (rawId, name, prov, grp) => {
+    const addCam = (rawId, name, prov, grp, lat, lng) => {
       const lower = rawId.toLowerCase();
-      let c = camMap.get(lower) || { id: rawId, name: rawId, group: '' };
-      
-      // Prefer the exact NVR camera ID If it exists
+      let c = camMap.get(lower) || { id: rawId, name: rawId, group: '', lat: null, lng: null };
       if (rawId === lower) c.id = rawId; 
       else if (!camMap.has(lower)) c.id = rawId;
-
       if (name && name !== rawId && name !== lower) c.name = name;
       if (grp) c.group = grp;
-      else if (prov && !c.group) c.group = prov; // fallback to province as group if no NVR group
-
+      else if (prov && !c.group) c.group = prov;
+      if (lat != null && !isNaN(parseFloat(lat))) c.lat = parseFloat(lat);
+      if (lng != null && !isNaN(parseFloat(lng))) c.lng = parseFloat(lng);
       camMap.set(lower, c);
     };
 
     if (state.cameraNames) {
       for (const [id, name] of Object.entries(state.cameraNames)) {
-        if (id) addCam(id, name, null, null);
+        if (id) addCam(id, name, null, null, null, null);
       }
     }
     if (Array.isArray(state.nvrCameras)) {
       state.nvrCameras.forEach(c => {
-        if (c && c.name) addCam(c.name, null, null, c.group);
+        if (c && c.name) addCam(c.name, null, null, c.group, c.lat, c.lng);
       });
     }
     if (window.cachedCameraGPS && typeof window.cachedCameraGPS === 'object') {
       for (const [id, cdata] of Object.entries(window.cachedCameraGPS)) {
-        if (id) {
-          addCam(id, cdata.name, cdata.province, null);
+        if (id && cdata && !cdata.hidden) {
+          addCam(id, cdata.name, cdata.province, null, cdata.lat, cdata.lng);
         }
       }
     }
 
-    // Group cameras
+    // Group cameras & ensure coordinates for Pure Camera Pin Map
     const grouped = {};
+    let seedCounter = 1;
     for (const c of camMap.values()) {
+      const coords = inferCameraCoords(c, seedCounter++);
+      c.lat = coords.lat;
+      c.lng = coords.lng;
       const gName = c.group || 'อื่นๆ (ไม่ได้ระบุ)';
+      c.group = gName;
       if (!grouped[gName]) grouped[gName] = [];
       grouped[gName].push(c);
     }
     const allGroupNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+    // Find currently used slots for indicator
+    const usedSlotMap = new Map();
+    cfg.channels.forEach((c, idx) => {
+      if (c.src) usedSlotMap.set(c.src, chLabel(idx));
+    });
 
     // Modal DOM
     const modal = document.createElement('div');
@@ -15276,8 +15384,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const card = document.createElement('div');
     card.className = 'bpp-picker-card';
+    card.style.cssText = 'width: min(940px, 95vw); max-height: 88vh; display: flex; flex-direction: column;';
 
-    // Header
     let html = `
       <style>
         .slot-picker-group { border-bottom: 1px solid #1e293b; }
@@ -15289,6 +15397,19 @@ document.addEventListener('DOMContentLoaded', () => {
         .slot-picker-group[open] .chevron { transform: rotate(180deg); }
         .chevron { transition: transform 0.2s; color: #64748b; }
         .slot-picker-group-content { padding: 4px; background: #1e293b; }
+        .slot-mode-tab {
+          flex: 1; padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.2); background: rgba(15,23,42,0.7); color: #94a3b8; font-family: var(--font-ui, sans-serif); font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; transition: all 0.15s;
+        }
+        .slot-mode-tab.is-active {
+          background: linear-gradient(135deg, rgba(168,85,247,0.28), rgba(56,189,248,0.2)); color: #fff; border-color: #a855f7; box-shadow: 0 0 14px rgba(168,85,247,0.3);
+        }
+        .pure-cam-pin {
+          width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.65); transition: transform 0.15s; cursor: pointer;
+        }
+        .pure-cam-pin:hover { transform: scale(1.22); z-index: 9999 !important; }
+        .pure-cam-pin.pin-this-slot { background: linear-gradient(135deg, #a855f7, #7c3aed); box-shadow: 0 0 14px #a855f7; }
+        .pure-cam-pin.pin-other-slot { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
+        .pure-cam-pin.pin-available { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
       </style>
       <div class="bpp-picker-header">
         <div>
@@ -15296,39 +15417,50 @@ document.addEventListener('DOMContentLoaded', () => {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
             <span>เลือกกล้องสำหรับช่อง ${chNum}</span>
           </div>
-          <div class="bpp-picker-sub">เปลี่ยนเฉพาะหน้าจอของคุณ (ไม่กระทบผู้อื่นและระบบ)</div>
+          <div class="bpp-picker-sub">เลือกได้ทั้งจากรายการกล้อง หรือคลิกเลือกจากแผนที่หมุดกล้องเพียวๆ</div>
         </div>
         <button id="btnCloseSlotPicker" class="bpp-picker-close" type="button" title="ปิด">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
+
+      <!-- Dual-Mode Switcher: List vs Pure Camera Pin Map -->
+      <div style="display:flex; gap:8px; padding:10px 16px 4px 16px; background:#0b1120;">
+        <button type="button" id="btnSlotModeList" class="slot-mode-tab ${initialMode !== 'map' ? 'is-active' : ''}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          <span>📋 เลือกจากรายการกล้อง (${camMap.size})</span>
+        </button>
+        <button type="button" id="btnSlotModeMap" class="slot-mode-tab ${initialMode === 'map' ? 'is-active' : ''}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          <span>🗺️ เลือกจากแผนที่หมุดกล้องเพียวๆ</span>
+        </button>
+      </div>
       
-      <div class="bpp-picker-toolbar">
-        <div class="bpp-picker-search-box">
+      <div class="bpp-picker-toolbar" style="flex-wrap:wrap; gap:8px;">
+        <div class="bpp-picker-search-box" style="flex:1; min-width:210px;">
           <span class="bpp-picker-search-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           </span>
-          <input type="text" id="slotPickerSearch" class="bpp-picker-search-input" placeholder="ค้นหารหัสกล้อง หรือชื่อไทย..." autofocus>
+          <input type="text" id="slotPickerSearch" class="bpp-picker-search-input" placeholder="ค้นหารหัสกล้อง หรือชื่อไทย (กรองทั้งรายการและหมุดแผนที่)...">
         </div>
+        <select id="slotPickerGroupFilter" class="inp" style="width:auto; max-width:230px; padding:6px 10px; font-size:12.5px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:8px;">
+          <option value="all">📍 ทุกกลุ่ม/ทุกจังหวัด (${camMap.size})</option>
+          ${allGroupNames.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)} (${grouped[g].length})</option>`).join('')}
+        </select>
         <button id="btnClearSlotBtn" class="bpp-picker-clear-slot" type="button" title="เว้นว่างช่องนี้">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
           <span>เว้นว่างช่องนี้</span>
         </button>
       </div>
 
-      <div id="slotPickerList" class="bpp-picker-list">
+      <!-- MODE 1: LIST VIEW -->
+      <div id="slotPickerList" class="bpp-picker-list" style="display:${initialMode === 'map' ? 'none' : 'block'}; flex:1; overflow-y:auto;">
     `;
-
-    // Find currently used slots for indicator
-    const usedSlotMap = new Map();
-    cfg.channels.forEach((c, idx) => {
-      if (c.src) usedSlotMap.set(c.src, chLabel(idx));
-    });
 
     allGroupNames.forEach(gName => {
       const gCams = grouped[gName].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
       html += `
-        <details class="slot-picker-group" data-group-name="${escapeHtml(gName.toLowerCase())}">
+        <details class="slot-picker-group" data-group-raw="${escapeHtml(gName)}" data-group-name="${escapeHtml(gName.toLowerCase())}">
           <summary class="slot-picker-group-header">
             <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
               <span>${escapeHtml(gName)} <span style="font-size:11px; opacity:0.71; margin-left:4px;">(${gCams.length})</span></span>
@@ -15349,7 +15481,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="font-weight:700;color:${isCurrentThisSlot ? '#c084fc' : '#f1f5f9'};font-size:13px;font-family:var(--font-mono,monospace);">${escapeHtml(id)}</span>
                 ${isCurrentThisSlot ? '<span style="font-size:10.5px;color:#c084fc;font-weight:700;background:rgba(168,85,247,0.2);padding:1px 6px;border-radius:4px;">ช่องนี้</span>' : ''}
-                ${(!isCurrentThisSlot && isAssigned) ? `<span style="font-size:10.5px;color:#94a3b8;background:rgba(148,163,184,0.15);padding:1px 6px;border-radius:4px;">(อยู่ ${otherSlot})</span>` : ''}
+                ${(!isCurrentThisSlot && isAssigned) ? `<span style="font-size:10.5px;color:#34e2a8;background:rgba(16,185,129,0.15);padding:1px 6px;border-radius:4px;">(อยู่ ${otherSlot})</span>` : ''}
               </div>
               ${name && name !== id ? `<div style="font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</div>` : ''}
             </div>
@@ -15360,43 +15492,265 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
       });
-      html += `\</div></details>`;
+      html += `</div></details>`;
     });
 
-    html += `</div>`;
+    html += `
+      </div>
+
+      <!-- MODE 2: PURE CAMERA PIN MAP VIEW -->
+      <div id="slotPickerMapPane" style="display:${initialMode === 'map' ? 'flex' : 'none'}; flex-direction:column; flex:1; min-height:460px; position:relative; background:#090d16;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 14px; background:#0f172a; border-bottom:1px solid #1e293b; flex-wrap:wrap; font-size:12px; color:#cbd5e1;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#a855f7;display:inline-block;"></span> ช่องนี้ (${chNum})</span>
+            <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block;"></span> เปิดอยู่ในช่องอื่น</span>
+            <span style="display:inline-flex; align-items:center; gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#0ea5e9;display:inline-block;"></span> กล้องพร้อมเลือก</span>
+            <span id="slotMapPinCountBadge" style="color:#38bdf8; font-weight:700;">(0 หมุดกล้อง)</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; color:#e2e8f0; font-weight:600;" title="เมื่อเปิดไว้ คลิกที่หมุดกล้องปุ๊บจะนำกล้องเข้าช่อง ${chNum} ทันที">
+              <input type="checkbox" id="chkSlotMapInstantSelect" checked>
+              <span>⚡ คลิกหมุดเพื่อเลือกเข้า ${chNum} ทันที</span>
+            </label>
+            <button type="button" id="btnSlotMapToggleLayer" class="btn-ghost" style="padding:3px 9px; font-size:11.5px;">🛰️ ดาวเทียม</button>
+            <button type="button" id="btnSlotMapFitAll" class="btn-ghost" style="padding:3px 9px; font-size:11.5px;">🎯 ซูมดูทุกหมุด</button>
+          </div>
+        </div>
+        <div id="slotPickerPureMapCanvas" style="flex:1; width:100%; height:430px; min-height:410px; z-index:1;"></div>
+      </div>
+    `;
+
     card.innerHTML = html;
     modal.appendChild(card);
     document.body.appendChild(modal);
 
-    // Search filter
-    const searchInp = card.querySelector('#slotPickerSearch');
-    if (searchInp) {
-      searchInp.addEventListener('input', () => {
-        const q = searchInp.value.toLowerCase().trim();
-        const groups = card.querySelectorAll('.slot-picker-group');
-        groups.forEach(g => {
-          let hasVisible = false;
-          const items = g.querySelectorAll('.slot-cam-opt');
-          items.forEach(el => {
-            const id = el.getAttribute('data-id').toLowerCase();
-            const name = el.getAttribute('data-name') || '';
-            if (!q || id.includes(q) || name.includes(q)) {
-              el.style.display = 'flex';
-              hasVisible = true;
-            } else {
-              el.style.display = 'none';
-            }
-          });
-          g.style.display = hasVisible ? 'block' : 'none';
+    let pureMap = null;
+    let pureMarkerLayer = null;
+    let streetTileLayer = null;
+    let satTileLayer = null;
+    let isSatLayer = false;
+
+    const cleanupAndClose = () => {
+      if (pureMap) {
+        try { pureMap.remove(); } catch (e) {}
+        pureMap = null;
+      }
+      modal.remove();
+    };
+
+    function renderPureCameraMapPins(autoFit = false) {
+      if (!pureMap || !pureMarkerLayer || typeof L === 'undefined') return;
+      pureMarkerLayer.clearLayers();
+
+      const q = (card.querySelector('#slotPickerSearch')?.value || '').toLowerCase().trim();
+      const grpVal = card.querySelector('#slotPickerGroupFilter')?.value || 'all';
+      const boundsPts = [];
+      let count = 0;
+
+      for (const cam of camMap.values()) {
+        if (grpVal !== 'all' && cam.group !== grpVal) continue;
+        if (q) {
+          const idMatch = cam.id.toLowerCase().includes(q);
+          const nameMatch = (cam.name || '').toLowerCase().includes(q);
+          const grpMatch = (cam.group || '').toLowerCase().includes(q);
+          if (!idMatch && !nameMatch && !grpMatch) continue;
+        }
+        if (cam.lat == null || cam.lng == null || isNaN(cam.lat) || isNaN(cam.lng)) continue;
+
+        const isCurrentThisSlot = cam.id === currentCamId;
+        const otherSlot = usedSlotMap.get(cam.id);
+        const pinCls = isCurrentThisSlot ? 'pin-this-slot' : (otherSlot ? 'pin-other-slot' : 'pin-available');
+
+        const icon = L.divIcon({
+          className: 'pure-cam-pin-wrap',
+          html: `
+            <div class="pure-cam-pin ${pinCls}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+            </div>
+          `,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
         });
+
+        const marker = L.marker([cam.lat, cam.lng], {
+          icon,
+          zIndexOffset: isCurrentThisSlot ? 2000 : (otherSlot ? 1000 : 100)
+        });
+
+        const statusBadge = isCurrentThisSlot
+          ? `<span style="color:#c084fc;font-weight:700;">[กำลังแสดงในช่องนี้ ${chNum}]</span>`
+          : (otherSlot ? `<span style="color:#34e2a8;font-weight:700;">[กำลังแสดงใน ${otherSlot}]</span>` : `<span style="color:#38bdf8;">[พร้อมเลือก]</span>`);
+
+        marker.bindTooltip(
+          `<div style="font-family:var(--font-ui,sans-serif);font-size:12px;line-height:1.45;">
+            <b>${escapeHtml(cam.name || cam.id)}</b> <span style="opacity:0.8;">(${escapeHtml(cam.id)})</span><br>
+            <span style="color:#94a3b8;">กลุ่ม: ${escapeHtml(cam.group)}</span> ${statusBadge}<br>
+            <span style="color:#facc15;font-size:11px;">⚡ คลิกหมุดเพื่อเลือกเข้าช่อง ${chNum}</span>
+          </div>`,
+          { direction: 'top', offset: [0, -12], opacity: 0.96 }
+        );
+
+        marker.on('click', async () => {
+          const instant = card.querySelector('#chkSlotMapInstantSelect')?.checked;
+          if (instant) {
+            cleanupAndClose();
+            await window.assignCameraToChannel(cam.id, slotIdx);
+          } else {
+            const popDiv = document.createElement('div');
+            popDiv.style.cssText = 'font-family:var(--font-ui,sans-serif); min-width:210px; padding:4px; color:#f1f5f9;';
+            popDiv.innerHTML = `
+              <div style="font-size:13.5px; font-weight:700; color:#fff; margin-bottom:3px;">${escapeHtml(cam.name || cam.id)}</div>
+              <div style="font-size:11.5px; color:#94a3b8; margin-bottom:8px;">รหัส: <b>${escapeHtml(cam.id)}</b> • กลุ่ม: ${escapeHtml(cam.group)}</div>
+              <button type="button" class="btn-primary" style="width:100%; padding:7px 12px; font-size:12.5px; border-radius:7px; cursor:pointer; font-weight:700;">✅ เลือกกล้องนี้เข้าช่อง ${chNum}</button>
+            `;
+            popDiv.querySelector('button').addEventListener('click', async () => {
+              cleanupAndClose();
+              await window.assignCameraToChannel(cam.id, slotIdx);
+            });
+            marker.unbindPopup();
+            marker.bindPopup(popDiv).openPopup();
+          }
+        });
+
+        pureMarkerLayer.addLayer(marker);
+        boundsPts.push([cam.lat, cam.lng]);
+        count++;
+      }
+
+      const badgeEl = card.querySelector('#slotMapPinCountBadge');
+      if (badgeEl) badgeEl.textContent = `(${count} หมุดกล้อง)`;
+
+      if (autoFit && boundsPts.length > 0) {
+        try {
+          if (boundsPts.length === 1) {
+            pureMap.setView(boundsPts[0], 15);
+          } else {
+            pureMap.fitBounds(boundsPts, { padding: [32, 32], maxZoom: 15 });
+          }
+        } catch (e) {}
+      }
+    }
+
+    function initPureCameraMapIfNeeded() {
+      const mapEl = card.querySelector('#slotPickerPureMapCanvas');
+      if (!mapEl || typeof L === 'undefined') return;
+      if (!pureMap) {
+        pureMap = L.map(mapEl, {
+          center: [14.6265, 102.7905],
+          zoom: 10,
+          zoomControl: true,
+          attributionControl: false
+        });
+        streetTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19
+        }).addTo(pureMap);
+        satTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+          maxZoom: 20
+        });
+        pureMarkerLayer = L.layerGroup().addTo(pureMap);
+        setTimeout(() => {
+          if (pureMap) {
+            pureMap.invalidateSize();
+            renderPureCameraMapPins(true);
+          }
+        }, 80);
+      } else {
+        setTimeout(() => {
+          if (pureMap) {
+            pureMap.invalidateSize();
+            renderPureCameraMapPins(false);
+          }
+        }, 50);
+      }
+    }
+
+    // Mode Switching
+    const btnList = card.querySelector('#btnSlotModeList');
+    const btnMap = card.querySelector('#btnSlotModeMap');
+    const listPane = card.querySelector('#slotPickerList');
+    const mapPane = card.querySelector('#slotPickerMapPane');
+
+    function setPickerMode(mode) {
+      const isMap = mode === 'map';
+      if (btnList) btnList.classList.toggle('is-active', !isMap);
+      if (btnMap) btnMap.classList.toggle('is-active', isMap);
+      if (listPane) listPane.style.display = isMap ? 'none' : 'block';
+      if (mapPane) mapPane.style.display = isMap ? 'flex' : 'none';
+      if (isMap) {
+        initPureCameraMapIfNeeded();
+      }
+    }
+
+    if (btnList) btnList.addEventListener('click', () => setPickerMode('list'));
+    if (btnMap) btnMap.addEventListener('click', () => setPickerMode('map'));
+
+    const btnToggleLayer = card.querySelector('#btnSlotMapToggleLayer');
+    if (btnToggleLayer) {
+      btnToggleLayer.addEventListener('click', () => {
+        if (!pureMap) return;
+        isSatLayer = !isSatLayer;
+        if (isSatLayer) {
+          if (streetTileLayer) pureMap.removeLayer(streetTileLayer);
+          if (satTileLayer) satTileLayer.addTo(pureMap);
+          btnToggleLayer.textContent = '🗺️ แผนที่ถนน';
+        } else {
+          if (satTileLayer) pureMap.removeLayer(satTileLayer);
+          if (streetTileLayer) streetTileLayer.addTo(pureMap);
+          btnToggleLayer.textContent = '🛰️ ดาวเทียม';
+        }
       });
     }
 
-    // Select camera
+    const btnFitAll = card.querySelector('#btnSlotMapFitAll');
+    if (btnFitAll) {
+      btnFitAll.addEventListener('click', () => renderPureCameraMapPins(true));
+    }
+
+    // Search & Group filter (applies to BOTH List and Pure Camera Map)
+    const searchInp = card.querySelector('#slotPickerSearch');
+    const grpSel = card.querySelector('#slotPickerGroupFilter');
+
+    function applyListAndMapFilters(autoFitMap = false) {
+      const q = (searchInp?.value || '').toLowerCase().trim();
+      const grpVal = grpSel?.value || 'all';
+      const groups = card.querySelectorAll('.slot-picker-group');
+      groups.forEach(g => {
+        const rawG = g.getAttribute('data-group-raw') || '';
+        if (grpVal !== 'all' && rawG !== grpVal) {
+          g.style.display = 'none';
+          return;
+        }
+        let hasVisible = false;
+        const items = g.querySelectorAll('.slot-cam-opt');
+        items.forEach(el => {
+          const id = el.getAttribute('data-id').toLowerCase();
+          const name = el.getAttribute('data-name') || '';
+          if (!q || id.includes(q) || name.includes(q)) {
+            el.style.display = 'flex';
+            hasVisible = true;
+          } else {
+            el.style.display = 'none';
+          }
+        });
+        g.style.display = hasVisible ? 'block' : 'none';
+        if (q || grpVal !== 'all') g.setAttribute('open', '');
+      });
+      if (pureMap) {
+        renderPureCameraMapPins(autoFitMap);
+      }
+    }
+
+    if (searchInp) searchInp.addEventListener('input', () => applyListAndMapFilters(false));
+    if (grpSel) grpSel.addEventListener('change', () => applyListAndMapFilters(true));
+
+    // Select camera from List
     card.querySelectorAll('.slot-cam-opt').forEach(el => {
       el.addEventListener('click', async () => {
         const cid = el.getAttribute('data-id');
-        modal.remove();
+        cleanupAndClose();
         await window.assignCameraToChannel(cid, slotIdx);
       });
     });
@@ -15405,26 +15759,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearBtn = card.querySelector('#btnClearSlotBtn');
     if (clearBtn) {
       clearBtn.addEventListener('click', async () => {
-        modal.remove();
+        cleanupAndClose();
         await window.assignCameraToChannel('', slotIdx);
       });
     }
 
     // Close on X
     const closeBtn = card.querySelector('#btnCloseSlotPicker');
-    if (closeBtn) closeBtn.addEventListener('click', () => modal.remove());
+    if (closeBtn) closeBtn.addEventListener('click', cleanupAndClose);
 
     // Close on overlay click or ESC
     modal.addEventListener('click', e => {
-      if (e.target === modal) modal.remove();
+      if (e.target === modal) cleanupAndClose();
     });
     const onEsc = e => {
       if (e.key === 'Escape') {
-        modal.remove();
+        cleanupAndClose();
         document.removeEventListener('keydown', onEsc);
       }
     };
     document.addEventListener('keydown', onEsc);
+
+    if (initialMode === 'map') {
+      initPureCameraMapIfNeeded();
+    }
   };
 
   window.handleAssignFromMap = async function(camId) {
