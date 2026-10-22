@@ -38,6 +38,7 @@ import re
 import shutil
 import threading
 import time
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlsplit, urlunsplit, quote
 
 import cv2

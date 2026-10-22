@@ -462,6 +462,9 @@ def require_trusted_identity(
     )
 
 
+require_authenticated = require_trusted_identity
+
+
 def require_admin(
     identity: TrustedIdentity = Depends(require_trusted_identity),
 ) -> TrustedIdentity:
