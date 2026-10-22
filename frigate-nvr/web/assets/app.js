@@ -15344,6 +15344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .pure-cam-pin.pin-this-slot { background: linear-gradient(135deg, #a855f7, #7c3aed); box-shadow: 0 0 14px #a855f7; }
         .pure-cam-pin.pin-other-slot { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
         .pure-cam-pin.pin-available { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .pure-map-roads-boost { filter: contrast(1.3) brightness(1.12) saturate(1.35); }
       </style>
       <div class="bpp-picker-header">
         <div>
@@ -15446,7 +15447,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <input type="checkbox" id="chkSlotMapInstantSelect" checked>
               <span>⚡ คลิกหมุดเพื่อเลือกเข้า ${chNum} ทันที</span>
             </label>
-            <button type="button" id="btnSlotMapToggleLayer" class="btn-ghost" style="padding:3px 9px; font-size:11.5px;">🛰️ ดาวเทียม</button>
+            <button type="button" id="btnSlotMapToggleLayer" class="btn-ghost" style="padding:3px 9px; font-size:11.5px;">🗺️ แผนที่ถนน</button>
             <button type="button" id="btnSlotMapFitAll" class="btn-ghost" style="padding:3px 9px; font-size:11.5px;">🎯 ซูมดูทุกหมุด</button>
           </div>
         </div>
@@ -15462,7 +15463,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pureMarkerLayer = null;
     let streetTileLayer = null;
     let satTileLayer = null;
-    let isSatLayer = false;
+    let isSatLayer = true;
 
     const cleanupAndClose = () => {
       if (pureMap) {
@@ -15574,15 +15575,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!pureMap) {
         pureMap = L.map(mapEl, {
           center: [14.6265, 102.7905],
-          zoom: 10,
+          zoom: 11,
           zoomControl: true,
           attributionControl: false
         });
-        streetTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          maxZoom: 19
-        }).addTo(pureMap);
-        satTileLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-          maxZoom: 20
+        // แผนที่ไฮบริดเห็นถนนชัด (Google Hybrid 2x Retina + High-Contrast Thai Roads Overlay)
+        const hybridBase = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}&scale=2', {
+          maxZoom: 20,
+          subdomains: ['0', '1', '2', '3']
+        });
+        const hybridRoadsBoost = L.tileLayer('https://mt{s}.google.com/vt/lyrs=h&hl=th&x={x}&y={y}&z={z}&scale=2', {
+          maxZoom: 20,
+          subdomains: ['0', '1', '2', '3'],
+          opacity: 0.96,
+          className: 'pure-map-roads-boost'
+        });
+        satTileLayer = L.layerGroup([hybridBase, hybridRoadsBoost]).addTo(pureMap);
+
+        // แผนที่ถนนชัดภาษาไทย (Google Street Map 2x Retina)
+        streetTileLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=th&x={x}&y={y}&z={z}&scale=2', {
+          maxZoom: 20,
+          subdomains: ['0', '1', '2', '3']
         });
         pureMarkerLayer = L.layerGroup().addTo(pureMap);
         setTimeout(() => {
@@ -15633,7 +15646,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           if (satTileLayer) pureMap.removeLayer(satTileLayer);
           if (streetTileLayer) streetTileLayer.addTo(pureMap);
-          btnToggleLayer.textContent = '🛰️ ดาวเทียม';
+          btnToggleLayer.textContent = '🛰️ ไฮบริดถนนชัด';
         }
       });
     }
