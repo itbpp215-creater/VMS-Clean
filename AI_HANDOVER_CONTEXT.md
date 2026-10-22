@@ -1,4 +1,23 @@
-﻿## Update 2026-10-22 (Afternoon 7) - Full Integration of SLOTH × BPP-VMS Drone & QCS Ground Control Station (GCS) Across `BPP-VMS` & `Sloth-BPP215` (Incident 2.192)
+﻿## Update 2026-10-22 (Evening 1) - Manual Video Recording (`REC`) Direct Archive into Event Manager ("คลังวิดีโอเหตุการณ์") & Fix Frigate Runtime Sync Early Return (Incident 2.193, v219)
+- **Problem / User Request**:
+  - User asked: *"กดบันทึกวีดีโอในช่อง ch แล้วมันจะโชว์ในคลังไหม"* -> *"เมื่อกี้พึ่งบันทึกไผมันจะอยู่ไหนในคลังเหตุการณ์ครับ"* -> *"ต้องการครับแล้วต้องการเห็นวิดีโอที่บันทึกไปอยู่ในคลังด้วยครับ"*.
+- **Root Cause Diagnosed**:
+  1. **Manual Record Button (`toggleNvrManualRecord`) Only Toggled Continuous Timeline Recording (`continuous.days = 7`)**:
+     - Clicking the `REC` button in a `CH` tile (or full-screen modal `#btnCvRec`) called `POST /api/config/cameras/{name}/record_toggle`, which only toggled `record.continuous.days = 7` for the Playback timeline and did not capture/store a clip entry in **"คลังวิดีโอเหตุการณ์" (Event Manager)**.
+  2. **Early Return in `watchlist-api/api.py` (`internal_frigate_runtime_sync`) After `config/cameras/{name}/add`**:
+     - When `drone_bpp2` (or any camera whose persisted SQLite runtime state in Frigate was `enabled=OFF`) was toggled on via `record_toggle`, `internal_frigate_runtime_sync` sent `config/cameras/{name}/add` and returned immediately without sending `config/cameras/{name}/enabled` (`True`) or `config/cameras/{name}/record` (`True`), causing Frigate to log `Capture process not started for disabled camera drone_bpp2`.
+- **Resolution**:
+  1. **Built Persistent Manual Clips Archive (`/api/config/manual_clips`) in `frigate-nvr/config-api/api.py`**:
+     - Added `GET/POST /api/config/manual_clips`, `GET /api/config/manual_clips/{clip_id}/clip.mp4`, `GET /api/config/manual_clips/{clip_id}/snapshot.jpg`, `POST /api/config/manual_clips/{clip_id}/description`, and `DELETE /api/config/manual_clips/{clip_id}` storing recorded clips and JPEG thumbnails in `/config/manual_clips/` (with automatic FFmpeg faststart H.264 remuxing when available and NVR clip extraction fallback).
+  2. **Upgraded `toggleNvrManualRecord` & Event Manager in `frigate-nvr/web/assets/app.js` (`v219`)**:
+     - Starting manual recording (`REC` ON) on any `CH` tile or modal now starts both NVR recording and a live browser `MediaRecorder` + snapshot capture on the tile's `<video>` element (supporting RTSP, Drone RTMP, and DOH HLS streams alike).
+     - Stopping manual recording (`REC` OFF) uploads the recorded clip and snapshot to `POST /api/config/manual_clips` and immediately injects the clip at the top of **"คลังวิดีโอเหตุการณ์" (Event Manager)** and the right-hand Event Rail with a **`🔴 บันทึกด้วยมือ`** badge, dedicated **`บันทึกด้วยมือ`** filter chip, instant video playback in `openEmgrDetail`, description editing, download, and deletion.
+  3. **Fixed `internal_frigate_runtime_sync` in `frigate-nvr/watchlist-api/api.py`**:
+     - Forced `config/cameras/{name}/enabled`, `config/cameras/{name}/record`, and `config/cameras/{name}/detect` updates right after `config/cameras/{name}/add` and enabled `drone_bpp2` runtime state in Frigate.
+  4. **Synced Across `D:\BPP-VMS`, `D:\Sloth-BPP215`, and `D:\SLOTH-BPP-VMS-Installer`**.
+- **Files Changed**: `frigate-nvr/config-api/api.py`, `frigate-nvr/watchlist-api/api.py`, `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Afternoon 7) - Full Integration of SLOTH × BPP-VMS Drone & QCS Ground Control Station (GCS) Across `BPP-VMS` & `Sloth-BPP215` (Incident 2.192)
 - **Problem / User Request**:
   - User asked: *"แล้วฟังก์ชั่นจากโปรแกรม sloth bpp215 ที่เราเอามามันครบหรือยัง"* -> *"เรื่องโดรนละครับ"* -> *"ต้องการครับ และผมอยากรู้วิธีใช้แบบละเอียดด้วย"* ("What about the drone features? Yes, I want it! And I also want to know how to use it in full detail").
 - **Root Cause & Architecture Requirement**:
@@ -12,12 +31,12 @@
        - `GET/POST /api/config/drones/tunnel`: Multi-path RTMP URL discovery across 4 channels (LAN `rtmp://192.168.1.200:1935/live`, 4G/5G DuckDNS `rtmp://bpp215.duckdns.org:1935/live`, Tailscale VPN `rtmp://100.117.170.13:1935/live`, and `bore.exe` TCP tunnel).
        - `POST /api/config/qcs/dji/pairing` & `POST /api/config/{vendor}/drones/{id}/{cmd}`: 1-time 8-char DJI Pilot 2 Cloud API pairing code (`XXXX-XXXX`) and remote QCS payload commands (`lens`: normal/wide/zoom/thermal, `zoom`: 1x–32x, `gimbal`: -90°/-45°/0°, `quality`).
      - Seeded default tactical drone `bpp215_uav1` (`โดรนลาดตระเวน ตชด.215 #1 (Mavic 3T)` -> `cam_drone_bpp215_uav1`).
-  2. **Created Frontend Controller `frigate-nvr/web/assets/drone-qcs.js` & Wired `#btnDroneQcs` in `frigate-nvr/web/index.html`**:
-     - Added the sky-blue quadcopter topbar button (`#btnDroneQcs`) next to `#btnTacticalMap`.
-     - Built the 3-tab SLOTH Drone & QCS Ground Control Station modal:
-       - **Tab 1 (`📋 1. จัดการโดรน & ลิงก์สตรีม RTMP`)**: 4-channel RTMP copy cards, 1-click `+ เพิ่มโดรนใหม่`, live fleet table, QR code & connection card, and 1-click `🛫 ทดสอบบินจำลอง`.
-       - **Tab 2 (`🛰️ 2. แผนที่ควบคุมการบิน & QCS HUD`)**: Interactive Leaflet satellite/street map with rotating quadcopter markers, real-time flight trail polylines, live `go2rtc` video player preview, telemetry gauges, and remote lens/zoom/thermal/gimbal controls.
-       - **Tab 3 (`🔗 3. จับคู่รีโมท DJI/MAVLink & คู่มือใช้งานละเอียด`)**: DJI Pilot 2 Cloud Pairing generator + QR code, MAVLink/UDP/HTTP telemetry endpoints, and a built-in step-by-step Thai field manual.
+  2. **Created Frontend Controller `frigate-nvr/web/assets/drone-qcs.js` (`v2`) & Wired `#btnDroneQcs` in `frigate-nvr/web/index.html`**:
+     - Added the topbar quadcopter vector icon button (`#btnDroneQcs`) next to `#btnTacticalMap` using the standard `.icon-btn` Cyber Purple hover/active styling (`#9aa0bd` -> `#eef0f8` / `#c084fc`) and `aria-pressed` state.
+     - Redesigned the 3-tab SLOTH Drone & QCS Ground Control Station modal (`drone-qcs.js?v=2`) with **100% Crisp Vector SVG Icons (`ICONS` dictionary)** and the **BPP-VMS Cyber Purple Glassmorphism** theme (`#a855f7`, `#c084fc`, `#7c3aed`, `#34e2a8`, `rgba(22, 17, 44, 0.98)`):
+       - **Tab 1 (`1. จัดการโดรน & ลิงก์ RTMP`)**: 4-channel RTMP copy cards, 1-click `เพิ่มโดรนใหม่`, live fleet table, QR code & connection card, and 1-click `ทดสอบบินจำลอง`.
+       - **Tab 2 (`2. แผนที่การบิน & QCS HUD`)**: Interactive Leaflet satellite/street map with Cyber Purple rotating quadcopter vector markers, real-time flight trail polylines, live `go2rtc` video player preview, telemetry gauges, and remote lens/zoom/thermal/gimbal controls.
+       - **Tab 3 (`3. จับคู่รีโมท & คู่มือใช้งาน`)**: DJI Pilot 2 Cloud Pairing generator + QR code, MAVLink/UDP/HTTP telemetry endpoints, and a built-in step-by-step Thai field manual (including clear guidance on DJI Enterprise vs consumer DJI RC 2 `DJI Fly`).
 - **Files Changed**: `frigate-nvr/config-api/drone_qcs.py`, `frigate-nvr/config-api/api.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/web/index.html`, `frigate-nvr/web/assets/drone-qcs.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
 
 ## Update 2026-10-22 (Afternoon 6) - Full Production Readiness Audit, Eliminate Setup/Migration Config-Wipe & Missing `ruamel.yaml` Bugs, and Rename `D:\sloth+vms` -> `D:\Sloth-BPP215` (Incident 2.191)

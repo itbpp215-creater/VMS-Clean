@@ -1099,6 +1099,7 @@ function plateOf(rawEv) {
 }
 function typeMeta(label) {
   const key = typeOf(label);
+  if (key === 'manual_rec') return { label: 'บันทึกด้วยมือ', color: '#ef4444' };
   if (key === 'motion') return { label: 'Motion', color: '#fbbf24' };
   let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return { label: LABEL_TH[key] || key, color: OBJ_PALETTE[h % OBJ_PALETTE.length] };
@@ -3657,6 +3658,40 @@ async function fetchEvents() {
       });
     }
 
+    try {
+      const mcRes = await fetch('/api/config/manual_clips', { signal: timeoutSignal(5000) });
+      if (mcRes.ok) {
+        const mcData = await mcRes.json();
+        const mcList = Array.isArray(mcData.clips) ? mcData.clips : [];
+        mcList.forEach(item => {
+          if (!item || !item.id || addedIds.has(item.id)) return;
+          const st = Number(item.start_time) || now;
+          const camIdx = cfg.channels.findIndex(c => c.src === item.camera);
+          nextEvents.push({
+            id: item.id,
+            camIdx: camIdx >= 0 ? camIdx : null,
+            camera: item.camera || '',
+            label: 'manual_rec',
+            type: 'manual_rec',
+            mins: Math.max(0, (now - st) / 60),
+            dur: Math.max(1, Number(item.duration) || 5),
+            conf: 100,
+            thumb: item.snapshot_url || ('/api/config/manual_clips/' + encodeURIComponent(item.id) + '/snapshot.jpg'),
+            hasClip: item.has_clip !== false,
+            has_clip: item.has_clip !== false,
+            has_snapshot: item.has_snapshot !== false,
+            startTime: st,
+            plate: '',
+            source: 'manual_rec',
+            description: item.description || ('บันทึกวิดีโอด้วยมือ (' + (item.camera_name || item.camera || '') + ')'),
+            customClipUrl: item.clip_url || ('/api/config/manual_clips/' + encodeURIComponent(item.id) + '/clip.mp4'),
+            customSnapUrl: item.snapshot_url || ('/api/config/manual_clips/' + encodeURIComponent(item.id) + '/snapshot.jpg'),
+          });
+          addedIds.add(item.id);
+        });
+      }
+    } catch (_mcErr) {}
+
     nextEvents.sort((a, b) => b.startTime - a.startTime);
     state.events = nextEvents.length > 50 ? nextEvents.slice(0, 50) : nextEvents;
   } catch (e) {
@@ -3909,12 +3944,14 @@ function adaptRailEv(ev) {
     id: ev.id, camera: ev.camera, camIdx: ev.camIdx, label: ev.label, type: ev.type,
     startTime: ev.startTime, mins: ev.mins, dur: ev.dur, conf: ev.conf,
     has_snapshot: true, // ลอง snapshot ก่อน — emgrThumb มี fallback thumbnail ให้อยู่แล้ว
-    has_clip: !!ev.hasClip, description: ev.description || '',
+    has_clip: !!(ev.hasClip || ev.has_clip), description: ev.description || '',
     plate: ev.plate || '',
     subLabel: ev.subLabel || null,
     subLabelScore: ev.subLabelScore || null,
     source: ev.source || '',
     crop_path: ev.crop_path || '',
+    customClipUrl: ev.customClipUrl || '',
+    customSnapUrl: ev.customSnapUrl || '',
   };
 }
 
@@ -3922,6 +3959,14 @@ function adaptRailEv(ev) {
 // → เล่นวิดีโอทันที + สลับไปแท็บ Snapshot / รายละเอียดวัตถุที่ติดตามได้ + ปิดแล้วกลับหน้า Realtime
 async function openRailEvent(ev) {
   if (cfg.demo) { openPlayer(ev); return; } // demo: ไม่มีข้อมูลจริง — เล่นคลิปจำลองแบบเดิม
+  if (ev && (ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'))) {
+    const detail = adaptRailEv(ev);
+    const w = $('edIncompleteWarning');
+    if (w) w.hidden = true;
+    openEmgrDetail(detail);
+    switchEmgrTab('video');
+    return;
+  }
   let full = null;
   try {
     // ดึงข้อมูล event ตัวเดียวให้ครบ (has_clip/has_snapshot/description) โดยไม่ต้องเปิดคลัง
@@ -4521,6 +4566,9 @@ async function shareAction(kind) {
 /* ============ Event Manager (คลังวิดีโอเหตุการณ์) ============ */
 function emgrThumb(ev) {
   if (cfg.demo) return null; // demo ใช้ demoBg แทน
+  if (ev && (ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'))) {
+    return ev.customSnapUrl || ('/api/config/manual_clips/' + encodeURIComponent(ev.id) + '/snapshot.jpg');
+  }
   // VIGI / Edge webhook events: เสิร์ฟภาพจริงจาก /lpr-crops/ แทนเรียก Frigate API
   const isVigiApiEvent = (ev.data && ev.data.type === 'api') || 
                          (ev.sub_label && (ev.sub_label.includes('Detection') || ev.sub_label.includes('ตรวจพบ') || ev.sub_label.includes('PEOPLE') || ev.sub_label.includes('VEHICLE'))) ||
@@ -4737,6 +4785,65 @@ function appendEmgrArchivePage(events) {
 
 let emgrFetchCooldown = 0;
 
+function normalizeManualClipToEmgrEvent(item) {
+  if (!item || !item.id) return null;
+  const now = Date.now() / 1000;
+  const startTs = Number(item.start_time) || now;
+  const endTs = Number(item.end_time) || startTs;
+  const camIdx = cfg.channels.findIndex(c => c.src === item.camera);
+  return {
+    id: item.id,
+    camera: item.camera || '',
+    camIdx: camIdx >= 0 ? camIdx : null,
+    label: 'manual_rec',
+    type: 'manual_rec',
+    startTime: startTs,
+    mins: Math.max(0, (now - startTs) / 60),
+    dur: Math.max(1, Number(item.duration) || (endTs - startTs) || 5),
+    conf: 100,
+    has_snapshot: item.has_snapshot !== false,
+    has_clip: item.has_clip !== false,
+    description: item.description || ('บันทึกวิดีโอด้วยมือ (' + (item.camera_name || item.camera || '') + ')'),
+    plate: '',
+    subLabel: 'บันทึกด้วยมือ',
+    subLabelScore: 1.0,
+    frameTime: null,
+    source: 'manual_rec',
+    crop_path: '',
+    customClipUrl: item.clip_url || ('/api/config/manual_clips/' + encodeURIComponent(item.id) + '/clip.mp4'),
+    customSnapUrl: item.snapshot_url || ('/api/config/manual_clips/' + encodeURIComponent(item.id) + '/snapshot.jpg'),
+  };
+}
+
+async function fetchManualClipsIntoEmgr() {
+  try {
+    const res = await fetch('/api/config/manual_clips', { signal: timeoutSignal(8000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    const clips = Array.isArray(data.clips) ? data.clips : [];
+    const bounds = emgrArchiveDayBounds(state.emgrDateFilter);
+    const known = new Set(state.emgrEvents.map(e => e.id));
+    let added = false;
+    clips.forEach(item => {
+      if (!item || !item.id || known.has(item.id)) return;
+      if (state.emgrCameraFilter && item.camera && item.camera !== state.emgrCameraFilter) return;
+      const st = Number(item.start_time) || 0;
+      if (bounds && st > 0 && (st < bounds.after || st > bounds.before)) return;
+      const ev = normalizeManualClipToEmgrEvent(item);
+      if (ev) {
+        state.emgrEvents.push(ev);
+        known.add(ev.id);
+        added = true;
+      }
+    });
+    if (added) {
+      state.emgrEvents.sort((a, b) => b.startTime - a.startTime);
+    }
+  } catch (e) {
+    console.warn('[fetchManualClipsIntoEmgr]', e);
+  }
+}
+
 async function fetchEmgrEvents() {
   const gen = (state.emgrGen = (state.emgrGen || 0) + 1); // กัน response เก่ามาทับใหม่
   $('emgrFilters').innerHTML = '';
@@ -4757,10 +4864,13 @@ async function fetchEmgrEvents() {
   }
   state.emgrArchiveLoadingMore = false;
   try {
-    const result = await fetchEmgrArchivePage(null, 50);
+    const [result] = await Promise.all([
+      fetchEmgrArchivePage(null, 50),
+    ]);
     if (gen !== state.emgrGen) return; // มีการโหลดใหม่ระหว่างรอ — ทิ้งผลเก่า
     state.emgrEvents = [];
     appendEmgrArchivePage(result.page);
+    await fetchManualClipsIntoEmgr();
     state.emgrArchiveNextBefore = result.nextBefore;
     state.emgrArchiveHasMore = result.hasMore;
     renderEventMgr(); // Immediate 50ms display for user
@@ -4774,6 +4884,7 @@ async function fetchEmgrEvents() {
     } else {
       state.emgrEvents = [];
     }
+    await fetchManualClipsIntoEmgr();
     state.emgrArchiveHasMore = false;
   }
   if (gen === state.emgrGen) {
@@ -5231,14 +5342,18 @@ function renderEmgrFilters(searched) {
       autoSeekPlateEvents(12, 5000);
     }
   }, plateSvg);
-  ['car', 'truck', 'motorcycle', 'person'].forEach(t => {
+  ['manual_rec', 'car', 'truck', 'motorcycle', 'person'].forEach(t => {
     const meta = typeMeta(t);
     const cnt = counts[t] || (state.emgrTypeFilter === t ? searched.length : 0);
+    if (t === 'manual_rec' && cnt === 0 && state.emgrTypeFilter !== 'manual_rec') return;
+    const recSvg = t === 'manual_rec'
+      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4" fill="#ef4444" stroke="none"></circle></svg>'
+      : '';
     chip(meta.label, cnt, state.emgrTypeFilter === t, meta.color, () => {
       if (state.emgrTypeFilter === t) return;
       state.emgrTypeFilter = t;
       renderEventMgr();
-    });
+    }, recSvg);
   });
   const descCount = searched.filter(e => e.description).length;
   const descSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>';
@@ -5538,7 +5653,8 @@ function renderEventMgr() {
       if (ev.source) {
         let srcLabel = ev.source;
         let srcColor = '#94a3b8';
-        if (ev.source === 'vigi_edge_ai') { srcLabel = '⚡ Edge AI'; srcColor = '#eab308'; }
+        if (ev.source === 'manual_rec') { srcLabel = '🔴 บันทึกด้วยมือ'; srcColor = '#ef4444'; }
+        else if (ev.source === 'vigi_edge_ai') { srcLabel = '⚡ Edge AI'; srcColor = '#eab308'; }
         else if (ev.source === 'edge_camera') { srcLabel = '📷 กล้อง Edge'; srcColor = '#38bdf8'; }
         else if (ev.source === 'ai') { srcLabel = '🤖 AI Server'; srcColor = '#a855f7'; }
 
@@ -5694,7 +5810,9 @@ function openEmgrDetail(ev) {
   $('edTime').textContent = fmtTime(d) + ' น.';
   const img = $('edSnapImg'), wrap = img.parentElement;
   let url = '';
-  if (ev.source === 'vigi_edge_ai' || ev.source === 'edge_camera' || String(ev.id).startsWith('vigi_') || String(ev.id).startsWith('ext_')) {
+  if (ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_')) {
+    url = ev.customSnapUrl || ('/api/config/manual_clips/' + encodeURIComponent(ev.id) + '/snapshot.jpg');
+  } else if (ev.source === 'vigi_edge_ai' || ev.source === 'edge_camera' || String(ev.id).startsWith('vigi_') || String(ev.id).startsWith('ext_')) {
     url = ev.crop_path ? '/lpr-crops/' + encodeURIComponent(ev.crop_path) : emgrThumb(ev);
   } else {
     url = apiUrl('/api/events/' + encodeURIComponent(ev.id) + (ev.has_snapshot ? '/snapshot.jpg?bbox=1' : '/thumbnail.jpg'));
@@ -5748,11 +5866,16 @@ function openEmgrDetail(ev) {
   if (btnDelEv) {
     btnDelEv.hidden = !['admin', 'superadmin'].includes(userRole);
   }
-  switchEmgrTab('snap');
+  const isManualRec = (ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'));
+  switchEmgrTab(isManualRec ? 'video' : 'snap');
   $('emgrDetailOverlay').hidden = false;
   // Candidate state is separate from Frigate's confirmed plate field.  Load it
   // after the detail shell appears so a slow review API never blocks the modal.
-  loadEventLprCandidates(ev);
+  if (!isManualRec) {
+    loadEventLprCandidates(ev);
+  } else if (plateRow) {
+    plateRow.hidden = true;
+  }
 }
 
 function openPlateModal(imgSrc, plateText) {
@@ -6701,7 +6824,10 @@ function emgrPlaybackErrorMessage(ev, err) {
 }
 
 async function fetchEmgrClipBlob(ev, clipEventId, forceReload, onRecordingFallback) {
-  const eventUrl = apiUrl('/api/events/' + encodeURIComponent(clipEventId) + '/clip.mp4');
+  const isManualRec = Boolean((ev && ev.source === 'manual_rec') || String(clipEventId).startsWith('mrec_'));
+  const eventUrl = isManualRec
+    ? (ev?.customClipUrl || ('/api/config/manual_clips/' + encodeURIComponent(clipEventId) + '/clip.mp4'))
+    : apiUrl('/api/events/' + encodeURIComponent(clipEventId) + '/clip.mp4');
   const fetchUrl = forceReload ? eventUrl + '?t=' + Date.now() : eventUrl;
   const eventResponse = await fetch(fetchUrl, { signal: timeoutSignal(15000) });
   if (eventResponse.ok) return { blob: await eventResponse.blob(), source: 'event' };
@@ -6743,7 +6869,10 @@ function switchEmgrTab(tab, forceReload = false) {
   // result; this also supports LPR candidates opened through a linked person.
   if (ev) {
     const clipEventId = ev.lprClipEventId || ev.id;
-    const srcUrl = apiUrl('/api/events/' + encodeURIComponent(clipEventId) + '/clip.mp4');
+    const isManualRec = Boolean(ev.source === 'manual_rec' || String(clipEventId).startsWith('mrec_'));
+    const srcUrl = isManualRec
+      ? (ev.customClipUrl || ('/api/config/manual_clips/' + encodeURIComponent(clipEventId) + '/clip.mp4'))
+      : apiUrl('/api/events/' + encodeURIComponent(clipEventId) + '/clip.mp4');
     if (v.dataset.origSrc !== srcUrl || forceReload) {
       if (forceReload) {
         const btn = document.querySelector('#edIncompleteWarning button');
@@ -6974,7 +7103,11 @@ async function saveEmgrDesc() {
   if (spin) { spin.hidden = false; spin.style.display = 'inline-block'; }
   msg.className = 'sync-msg busy'; msg.textContent = 'กำลังบันทึก…';
   try {
-    const res = await fetch(apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/description'), {
+    const isManualRec = Boolean(ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'));
+    const descUrl = isManualRec
+      ? ('/api/config/manual_clips/' + encodeURIComponent(ev.id) + '/description')
+      : apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/description');
+    const res = await fetch(descUrl, {
       method: 'POST', headers: FRIGATE_WRITE_HEADERS,
       body: JSON.stringify({ description: desc }), signal: timeoutSignal(8000),
     });
@@ -7002,7 +7135,11 @@ async function deleteCurrentEmgrEvent() {
   if (btn) { btn.disabled = true; btn.textContent = 'กำลังลบ...'; }
 
   try {
-    const res = await fetch('/api/watchlist/lpr/event/' + encodeURIComponent(ev.id), {
+    const isManualRec = Boolean(ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'));
+    const delUrl = isManualRec
+      ? ('/api/config/manual_clips/' + encodeURIComponent(ev.id))
+      : ('/api/watchlist/lpr/event/' + encodeURIComponent(ev.id));
+    const res = await fetch(delUrl, {
       method: 'DELETE',
       headers: { 'Accept': 'application/json' }
     });
@@ -7033,12 +7170,16 @@ async function emgrDownload() {
   // stale `has_clip=false` metadata must not suppress a real MP4 request.
   const ev = state.emgrEv; if (!ev || cfg.demo) { toast('ไม่มีคลิปให้ดาวน์โหลด'); return; }
   const clipEventId = ev.lprClipEventId || ev.id;
+  const isManualRec = Boolean(ev.source === 'manual_rec' || String(clipEventId).startsWith('mrec_'));
+  const dlUrl = isManualRec
+    ? (ev.customClipUrl || ('/api/config/manual_clips/' + encodeURIComponent(clipEventId) + '/clip.mp4'))
+    : apiUrl('/api/events/' + encodeURIComponent(clipEventId) + '/clip.mp4');
   const btn = $('btnEdDownload'), lbl = $('edDlLabel');
   if (btn.classList.contains('downloading')) return;
   const fname = $('edCh').textContent + '_' + ev.label + '_' + fmtTime(new Date(ev.startTime * 1000)).replace(/:/g, '') + '.mp4';
   btn.classList.add('downloading'); lbl.textContent = 'กำลังดาวน์โหลด…';
   try {
-    const res = await fetch(apiUrl('/api/events/' + encodeURIComponent(clipEventId) + '/clip.mp4'));
+    const res = await fetch(dlUrl);
     if (!res.ok) throw new Error();
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement('a'); a.href = url; a.download = fname;
@@ -7085,7 +7226,202 @@ function snapVideoFrame(video, baseName) {
   } catch (e) { toast('บันทึกภาพไม่สำเร็จ (แหล่งวิดีโอข้าม origin)'); }
 }
 
-// ควบคุมการบันทึกวิดีโอ NVR รายกล้อง (Demand-Driven Smart Recording)
+function _findActiveVideoForCamera(camSrc) {
+  if (!camSrc) return null;
+  if (state.viewingSrc === camSrc) {
+    const cv = $('cvVideo');
+    if (cv && cv.videoWidth > 0) return cv;
+  }
+  if (Array.isArray(state.tiles)) {
+    for (let i = 0; i < state.tiles.length; i++) {
+      const t = state.tiles[i];
+      const ch = cfg.channels && cfg.channels[i];
+      if ((t && t.src === camSrc) || (ch && ch.src === camSrc)) {
+        if (t && t.video && t.video.videoWidth > 0) return t.video;
+      }
+    }
+    for (let i = 0; i < state.tiles.length; i++) {
+      const t = state.tiles[i];
+      const ch = cfg.channels && cfg.channels[i];
+      if ((t && t.src === camSrc) || (ch && ch.src === camSrc)) {
+        if (t && t.video) return t.video;
+      }
+    }
+  }
+  return null;
+}
+
+function _captureVideoSnapshotB64(videoEl) {
+  if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) return '';
+  try {
+    const c = document.createElement('canvas');
+    c.width = Math.min(1280, videoEl.videoWidth);
+    c.height = Math.round(c.width * (videoEl.videoHeight / videoEl.videoWidth));
+    c.getContext('2d').drawImage(videoEl, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.86);
+  } catch (e) {
+    return '';
+  }
+}
+
+function _blobToDataUrl(blob) {
+  return new Promise((resolve) => {
+    if (!blob || !blob.size) { resolve(''); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(blob);
+  });
+}
+
+function _startManualClipRecorder(camSrc, startTs) {
+  if (!state.manualClipRecorders) state.manualClipRecorders = new Map();
+  const prev = state.manualClipRecorders.get(camSrc);
+  if (prev && prev.rec && prev.rec.state === 'recording') {
+    try { prev.rec.stop(); } catch (e) {}
+  }
+  const videoEl = _findActiveVideoForCamera(camSrc);
+  const snapB64 = _captureVideoSnapshotB64(videoEl);
+  const session = {
+    camSrc,
+    startTime: startTs || (Date.now() / 1000),
+    snapB64,
+    chunks: [],
+    mimeType: 'video/mp4',
+    rec: null,
+    donePromise: null,
+  };
+  if (videoEl && typeof MediaRecorder !== 'undefined') {
+    let stream = videoEl.srcObject;
+    if (!stream && typeof videoEl.captureStream === 'function') {
+      try { stream = videoEl.captureStream(); } catch (e) {}
+    } else if (!stream && typeof videoEl.mozCaptureStream === 'function') {
+      try { stream = videoEl.mozCaptureStream(); } catch (e) {}
+    }
+    if (stream) {
+      const mime = (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('video/mp4'))
+        ? 'video/mp4'
+        : ((MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('video/webm;codecs=h264'))
+          ? 'video/webm;codecs=h264'
+          : 'video/webm');
+      session.mimeType = mime;
+      try {
+        const rec = new MediaRecorder(stream, { mimeType: mime });
+        session.rec = rec;
+        rec.ondataavailable = e => {
+          if (e.data && e.data.size > 0) session.chunks.push(e.data);
+          if (!session.snapB64) {
+            const vNow = _findActiveVideoForCamera(camSrc);
+            session.snapB64 = _captureVideoSnapshotB64(vNow);
+          }
+        };
+        session.donePromise = new Promise(resolve => {
+          rec.onstop = () => resolve();
+          rec.onerror = () => resolve();
+        });
+        rec.start(1000);
+      } catch (e) {
+        try {
+          const rec = new MediaRecorder(stream);
+          session.rec = rec;
+          session.mimeType = rec.mimeType || 'video/webm';
+          rec.ondataavailable = ev => { if (ev.data && ev.data.size > 0) session.chunks.push(ev.data); };
+          session.donePromise = new Promise(resolve => {
+            rec.onstop = () => resolve();
+            rec.onerror = () => resolve();
+          });
+          rec.start(1000);
+        } catch (e2) {}
+      }
+    }
+  }
+  state.manualClipRecorders.set(camSrc, session);
+}
+
+async function _stopAndSaveManualClip(camSrc, camName, startTs, endTs) {
+  const session = state.manualClipRecorders ? state.manualClipRecorders.get(camSrc) : null;
+  if (state.manualClipRecorders) state.manualClipRecorders.delete(camSrc);
+  let videoB64 = '';
+  let snapB64 = session ? session.snapB64 : '';
+  let mimeType = session ? session.mimeType : 'video/mp4';
+  const effectiveStart = (session && session.startTime) || startTs || ((Date.now() / 1000) - 5);
+  const effectiveEnd = endTs || (Date.now() / 1000);
+
+  if (session && session.rec) {
+    if (session.rec.state === 'recording') {
+      try { session.rec.stop(); } catch (e) {}
+    }
+    if (session.donePromise) {
+      await Promise.race([session.donePromise, new Promise(r => setTimeout(r, 2000))]);
+    }
+    if (session.chunks && session.chunks.length > 0) {
+      const blob = new Blob(session.chunks, { type: session.rec.mimeType || mimeType });
+      videoB64 = await _blobToDataUrl(blob);
+    }
+  }
+  if (!snapB64) {
+    const vNow = _findActiveVideoForCamera(camSrc);
+    snapB64 = _captureVideoSnapshotB64(vNow);
+  }
+
+  try {
+    const camTitle = displayCameraName(camSrc, camName) || camSrc;
+    const res = await fetch('/api/config/manual_clips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        camera: camSrc,
+        camera_name: camTitle,
+        start_time: effectiveStart,
+        end_time: effectiveEnd,
+        mime_type: mimeType,
+        video_b64: videoB64,
+        snapshot_b64: snapB64,
+        description: `บันทึกวิดีโอด้วยมือ (${camTitle})`,
+      }),
+    });
+    if (res.ok) {
+      const out = await res.json();
+      if (out && out.clip) {
+        const emgrEv = normalizeManualClipToEmgrEvent(out.clip);
+        if (emgrEv) {
+          if (!Array.isArray(state.emgrEvents)) state.emgrEvents = [];
+          state.emgrEvents = [emgrEv, ...state.emgrEvents.filter(e => e.id !== emgrEv.id)];
+          if (Array.isArray(state.events)) {
+            const railEv = {
+              id: emgrEv.id,
+              camera: emgrEv.camera,
+              camIdx: emgrEv.camIdx,
+              type: 'manual_rec',
+              label: 'manual_rec',
+              startTime: emgrEv.startTime,
+              mins: 0,
+              dur: emgrEv.dur,
+              conf: 100,
+              hasClip: emgrEv.has_clip,
+              has_clip: emgrEv.has_clip,
+              has_snapshot: emgrEv.has_snapshot,
+              thumb: emgrEv.customSnapUrl,
+              description: emgrEv.description,
+              source: 'manual_rec',
+              customClipUrl: emgrEv.customClipUrl,
+              customSnapUrl: emgrEv.customSnapUrl,
+            };
+            state.events = [railEv, ...state.events.filter(e => e.id !== railEv.id)];
+            renderEvents();
+          }
+          if ($('eventMgrOverlay') && !$('eventMgrOverlay').hidden) {
+            renderEventMgr();
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[_stopAndSaveManualClip]', err);
+  }
+}
+
+// ควบคุมการบันทึกวิดีโอ NVR รายกล้อง (Demand-Driven Smart Recording) + บันทึกเข้าคลังวิดีโอเหตุการณ์ทันที
 async function toggleNvrManualRecord(camSrc, btnEl, camName) {
   if (!camSrc) return;
   if (!state.activeNvrRecordings) state.activeNvrRecordings = new Set();
@@ -7101,14 +7437,23 @@ async function toggleNvrManualRecord(camSrc, btnEl, camName) {
       const isRec = !!data.recording;
       if (isRec) {
         state.activeNvrRecordings.add(camSrc);
+        _startManualClipRecorder(camSrc, data.start_time);
       } else {
         state.activeNvrRecordings.delete(camSrc);
       }
       updateAllRecButtons(camSrc, isRec);
-      if (window.bppToast) {
-        window.bppToast(isRec 
-          ? `🔴 เริ่มบันทึกลง NVR สำหรับ ${displayCameraName(camSrc, camName)} แล้ว` 
-          : `⏹️ หยุดบันทึก NVR สำหรับ ${displayCameraName(camSrc, camName)} แล้ว`);
+      if (isRec) {
+        if (window.bppToast) {
+          window.bppToast(`🔴 เริ่มบันทึกวิดีโอสำหรับ ${displayCameraName(camSrc, camName)} แล้ว (กดซ้ำเพื่อหยุดและเก็บลงคลังเหตุการณ์)`);
+        }
+      } else {
+        if (window.bppToast) {
+          window.bppToast(`⏳ กำลังบันทึกคลิปของ ${displayCameraName(camSrc, camName)} เข้าสู่คลังวิดีโอเหตุการณ์...`);
+        }
+        await _stopAndSaveManualClip(camSrc, camName, data.start_time, data.end_time);
+        if (window.bppToast) {
+          window.bppToast(`✅ บันทึกวิดีโอ ${displayCameraName(camSrc, camName)} เข้าสู่ "คลังวิดีโอเหตุการณ์" เรียบร้อยแล้ว`);
+        }
       }
     } else {
       if (window.bppToast) window.bppToast('ไม่สามารถเปลี่ยนสถานะบันทึก NVR: ' + (data.detail || data.message || 'Error'), true);

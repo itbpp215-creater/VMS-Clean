@@ -163,7 +163,7 @@ def _sync_drone_companion_camera(drone: Dict[str, Any], remove: bool = False) ->
         if remove:
             names.pop(cam_id, None)
         else:
-            names[cam_id] = f"🛸 โดรน: {drone_name}"
+            names[cam_id] = f"โดรน: {drone_name}"
         names_file.write_text(json.dumps(names, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as exc:
         logger.debug("camera_names sync warning: %s", exc)
@@ -180,8 +180,8 @@ def _sync_drone_companion_camera(drone: Dict[str, Any], remove: bool = False) ->
             gps[cam_id] = {
                 "lat": lat,
                 "lng": lng,
-                "name": f"🛸 โดรน: {drone_name}",
-                "group": "🛸 โดรนลาดตระเวน (UAV / QCS)",
+                "name": f"โดรน: {drone_name}",
+                "group": "โดรนลาดตระเวน (UAV / QCS)",
                 "is_drone": True,
                 "drone_id": drone.get("id"),
                 "altitude": float(telem.get("altitude") or 0.0),
@@ -208,11 +208,13 @@ def _sync_drone_companion_camera(drone: Dict[str, Any], remove: bool = False) ->
             if not drone_grp:
                 drone_grp = {
                     "id": "grp_drones_qcs",
-                    "name": "🛸 โดรนลาดตระเวน (UAV / QCS)",
+                    "name": "โดรนลาดตระเวน (UAV / QCS)",
                     "ip": "RTMP / QCS",
                     "cameras": [],
                 }
                 groups.insert(0, drone_grp)
+            else:
+                drone_grp["name"] = "โดรนลาดตระเวน (UAV / QCS)"
             if cam_id not in drone_grp["cameras"]:
                 drone_grp["cameras"].append(cam_id)
         groups_file.write_text(json.dumps({"groups": groups}, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -260,8 +262,8 @@ def _update_drone_gps_pin_only(drone: Dict[str, Any]) -> None:
                 {
                     "lat": lat,
                     "lng": lng,
-                    "name": f"🛸 โดรน: {drone.get('name') or drone.get('id')}",
-                    "group": "🛸 โดรนลาดตระเวน (UAV / QCS)",
+                    "name": f"โดรน: {drone.get('name') or drone.get('id')}",
+                    "group": "โดรนลาดตระเวน (UAV / QCS)",
                     "is_drone": True,
                     "drone_id": drone.get("id"),
                     "altitude": float(telem.get("altitude") or 0.0),

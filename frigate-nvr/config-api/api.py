@@ -2175,6 +2175,346 @@ app.include_router(config_router)
 
 operator_router = APIRouter(prefix="/api/config", dependencies=[Depends(require_authenticated)])
 
+MANUAL_CLIPS_DIR = os.environ.get(
+    "MANUAL_CLIPS_DIR",
+    os.path.join(os.path.dirname(CONFIG_PATH), "manual_clips"),
+)
+_manual_clips_lock = threading.Lock()
+
+
+def _load_manual_clips_index() -> list:
+    os.makedirs(MANUAL_CLIPS_DIR, exist_ok=True)
+    idx_path = os.path.join(MANUAL_CLIPS_DIR, "index.json")
+    if not os.path.isfile(idx_path):
+        return []
+    try:
+        with open(idx_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _save_manual_clips_index(items: list) -> None:
+    os.makedirs(MANUAL_CLIPS_DIR, exist_ok=True)
+    idx_path = os.path.join(MANUAL_CLIPS_DIR, "index.json")
+    tmp_path = idx_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(items[:500], fh, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, idx_path)
+
+
+def _get_camera_display_name(cam_name: str) -> str:
+    for path in (
+        "/settings-data/camera_names.json",
+        os.path.join(os.path.dirname(CONFIG_PATH), "dashboard-settings", "camera_names.json"),
+    ):
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    names = json.load(fh)
+                    if isinstance(names, dict) and names.get(cam_name):
+                        return str(names[cam_name]).strip()
+            except Exception:
+                pass
+    return cam_name
+
+
+def _start_watchlist_manual_recorder(cam_name: str, start_ts: float) -> bytes:
+    import base64
+
+    try:
+        secret = get_federation_secret()
+        payload = json.dumps({"camera": cam_name, "start_time": start_ts}).encode("utf-8")
+        req = urllib.request.Request(
+            "http://watchlist-api:5001/internal/manual-record/start",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-BPP-Federation": secret,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            if resp.status == 200:
+                res = json.loads(resp.read().decode("utf-8"))
+                sb64 = str(res.get("snapshot_b64") or "").strip()
+                if sb64:
+                    return base64.b64decode(sb64)
+    except Exception as exc:
+        print(f"[config-api] manual-record/start warning for {cam_name}: {exc}")
+    return b""
+
+
+def _stop_watchlist_manual_recorder(cam_name: str, start_ts: float, end_ts: float) -> tuple[bytes, bytes]:
+    import base64
+
+    try:
+        secret = get_federation_secret()
+        payload = json.dumps({
+            "camera": cam_name,
+            "start_time": start_ts,
+            "end_time": end_ts,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "http://watchlist-api:5001/internal/manual-record/stop",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-BPP-Federation": secret,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=14.0) as resp:
+            if resp.status == 200:
+                res = json.loads(resp.read().decode("utf-8"))
+                vb64 = str(res.get("video_b64") or "").strip()
+                sb64 = str(res.get("snapshot_b64") or "").strip()
+                v_bytes = base64.b64decode(vb64) if vb64 else b""
+                s_bytes = base64.b64decode(sb64) if sb64 else b""
+                return v_bytes, s_bytes
+    except Exception as exc:
+        print(f"[config-api] manual-record/stop warning for {cam_name}: {exc}")
+    return b"", b""
+
+
+def _store_manual_clip_files(
+    camera: str,
+    camera_name: str,
+    start_time: float,
+    end_time: float,
+    video_bytes: bytes,
+    snapshot_bytes: bytes,
+    mime_type: str = "video/mp4",
+    description: str = "",
+    clip_id: Optional[str] = None,
+    sub_label: str = "บันทึกด้วยมือ",
+) -> dict:
+    import secrets
+    import shutil
+    import subprocess
+
+    os.makedirs(MANUAL_CLIPS_DIR, exist_ok=True)
+    now_ts = end_time if end_time > 0 else time.time()
+    start_ts = start_time if (0 < start_time <= now_ts) else max(0.0, now_ts - 5.0)
+    dur = max(1.0, round(now_ts - start_ts, 1))
+    safe_clip_id = re.sub(r"[^A-Za-z0-9_-]", "", clip_id or "") or f"mrec_{int(start_ts)}_{secrets.token_hex(3)}"
+
+    ext = ".webm" if "webm" in (mime_type or "").lower() else ".mp4"
+    raw_video_path = os.path.join(MANUAL_CLIPS_DIR, f"{safe_clip_id}_raw{ext}")
+    final_mp4_path = os.path.join(MANUAL_CLIPS_DIR, f"{safe_clip_id}.mp4")
+    snap_path = os.path.join(MANUAL_CLIPS_DIR, f"{safe_clip_id}.jpg")
+
+    existing_mp4_size = os.path.getsize(final_mp4_path) if os.path.isfile(final_mp4_path) else 0
+    has_clip = existing_mp4_size > 256
+
+    if video_bytes and len(video_bytes) > 256 and (not has_clip or len(video_bytes) > existing_mp4_size):
+        with open(raw_video_path, "wb") as vf:
+            vf.write(video_bytes)
+        ffmpeg_bin = shutil.which("ffmpeg")
+        converted = False
+        if ffmpeg_bin:
+            try:
+                res = subprocess.run(
+                    [
+                        ffmpeg_bin,
+                        "-y",
+                        "-i",
+                        raw_video_path,
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-crf",
+                        "23",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "aac",
+                        "-movflags",
+                        "+faststart",
+                        final_mp4_path,
+                    ],
+                    capture_output=True,
+                    timeout=25,
+                )
+                if res.returncode == 0 and os.path.isfile(final_mp4_path) and os.path.getsize(final_mp4_path) > 256:
+                    converted = True
+            except Exception:
+                converted = False
+        if converted:
+            try:
+                os.remove(raw_video_path)
+            except Exception:
+                pass
+            has_clip = True
+        else:
+            os.replace(raw_video_path, final_mp4_path)
+            has_clip = True
+
+    if snapshot_bytes and len(snapshot_bytes) >= 200:
+        with open(snap_path, "wb") as sf:
+            sf.write(snapshot_bytes)
+
+    has_snapshot = os.path.isfile(snap_path) and os.path.getsize(snap_path) >= 200
+    cam_label = (camera_name or _get_camera_display_name(camera) or camera).strip()
+    desc_text = (description or f"บันทึกวิดีโอด้วยมือ ({cam_label})").strip()
+    entry = {
+        "id": safe_clip_id,
+        "camera": camera,
+        "camera_name": cam_label,
+        "label": "manual_rec",
+        "sub_label": sub_label,
+        "start_time": float(start_ts),
+        "end_time": float(now_ts),
+        "duration": dur,
+        "top_score": 1.0,
+        "has_clip": has_clip,
+        "has_snapshot": has_snapshot,
+        "source": "manual_rec",
+        "description": desc_text,
+        "clip_url": f"/api/config/manual_clips/{safe_clip_id}/clip.mp4",
+        "snapshot_url": f"/api/config/manual_clips/{safe_clip_id}/snapshot.jpg",
+    }
+    with _manual_clips_lock:
+        items = _load_manual_clips_index()
+        items = [x for x in items if x.get("id") != safe_clip_id]
+        items.insert(0, entry)
+        _save_manual_clips_index(items)
+    return entry
+
+
+@operator_router.get("/manual_clips")
+def list_manual_clips(identity: TrustedIdentity = Depends(require_authenticated)):
+    return {"status": "ok", "clips": _load_manual_clips_index()}
+
+
+@operator_router.post("/manual_clips")
+async def upload_manual_clip(request: Request, identity: TrustedIdentity = Depends(require_authenticated)):
+    import base64
+
+    body = await request.json()
+    camera = str(body.get("camera") or "").strip()
+    if not camera:
+        raise HTTPException(status_code=400, detail="camera is required")
+    camera_name = str(body.get("camera_name") or camera).strip()
+    start_time = float(body.get("start_time") or (time.time() - 5.0))
+    end_time = float(body.get("end_time") or time.time())
+    mime_type = str(body.get("mime_type") or "video/mp4")
+    description = str(body.get("description") or "").strip()
+
+    video_b64 = str(body.get("video_b64") or "").strip()
+    if "," in video_b64:
+        video_b64 = video_b64.split(",", 1)[1]
+    video_bytes = base64.b64decode(video_b64) if video_b64 else b""
+
+    snap_b64 = str(body.get("snapshot_b64") or "").strip()
+    if "," in snap_b64:
+        snap_b64 = snap_b64.split(",", 1)[1]
+    snap_bytes = base64.b64decode(snap_b64) if snap_b64 else b""
+
+    # If client did not send video bytes (e.g. fallback), try fetching NVR clip from Frigate
+    if not video_bytes:
+        s_int = max(0, int(start_time) - 2)
+        e_int = int(end_time) + 2
+        for host in ("http://frigate:5000", "http://127.0.0.1:5000"):
+            try:
+                req = urllib.request.Request(
+                    f"{host}/api/{urllib.parse.quote(camera)}/start/{s_int}/end/{e_int}/clip.mp4",
+                    method="GET",
+                )
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    if resp.status == 200:
+                        data = resp.read()
+                        if data and len(data) > 1000:
+                            video_bytes = data
+                            mime_type = "video/mp4"
+                            break
+            except Exception:
+                pass
+
+    entry = _store_manual_clip_files(
+        camera=camera,
+        camera_name=camera_name,
+        start_time=start_time,
+        end_time=end_time,
+        video_bytes=video_bytes,
+        snapshot_bytes=snap_bytes,
+        mime_type=mime_type,
+        description=description,
+    )
+    return {"status": "ok", "clip": entry}
+
+
+@operator_router.get("/manual_clips/{clip_id}/clip.mp4")
+def serve_manual_clip_video(clip_id: str):
+    from fastapi.responses import FileResponse, Response
+
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "", clip_id)
+    mp4_path = os.path.join(MANUAL_CLIPS_DIR, f"{safe_id}.mp4")
+    if not os.path.isfile(mp4_path):
+        raise HTTPException(status_code=404, detail="Manual clip not found")
+    # Detect if file starts with WebM EBML header (0x1A 0x45 0xDF 0xA3)
+    with open(mp4_path, "rb") as fh:
+        head = fh.read(4)
+    media_type = "video/webm" if head == b"\x1a\x45\xdf\xa3" else "video/mp4"
+    return FileResponse(mp4_path, media_type=media_type, filename=f"{safe_id}.mp4")
+
+
+@operator_router.get("/manual_clips/{clip_id}/snapshot.jpg")
+def serve_manual_clip_snapshot(clip_id: str):
+    from fastapi.responses import FileResponse, Response
+
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "", clip_id)
+    snap_path = os.path.join(MANUAL_CLIPS_DIR, f"{safe_id}.jpg")
+    if os.path.isfile(snap_path):
+        return FileResponse(snap_path, media_type="image/jpeg")
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">'
+        '<rect width="640" height="360" fill="#0f172a"/>'
+        '<circle cx="320" cy="155" r="34" fill="rgba(239,68,68,0.2)" stroke="#ef4444" stroke-width="3"/>'
+        '<polygon points="310,138 340,155 310,172" fill="#ef4444"/>'
+        '<text x="320" y="230" text-anchor="middle" fill="#f8fafc" font-family="sans-serif" font-size="20" font-weight="bold">วิดีโอบันทึกด้วยมือ (Manual REC)</text>'
+        "</svg>"
+    )
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@operator_router.post("/manual_clips/{clip_id}/description")
+async def update_manual_clip_description(clip_id: str, request: Request, identity: TrustedIdentity = Depends(require_authenticated)):
+    body = await request.json()
+    desc = str(body.get("description") or "").strip()
+    with _manual_clips_lock:
+        items = _load_manual_clips_index()
+        found = False
+        for item in items:
+            if item.get("id") == clip_id:
+                item["description"] = desc
+                found = True
+                break
+        if not found:
+            raise HTTPException(status_code=404, detail="Manual clip not found")
+        _save_manual_clips_index(items)
+    return {"status": "ok", "id": clip_id, "description": desc}
+
+
+@operator_router.delete("/manual_clips/{clip_id}")
+def delete_manual_clip(clip_id: str, identity: TrustedIdentity = Depends(require_authenticated)):
+    safe_id = re.sub(r"[^A-Za-z0-9_-]", "", clip_id)
+    with _manual_clips_lock:
+        items = _load_manual_clips_index()
+        items = [x for x in items if x.get("id") != safe_id]
+        _save_manual_clips_index(items)
+    for ext in (".mp4", ".webm", ".jpg"):
+        p = os.path.join(MANUAL_CLIPS_DIR, f"{safe_id}{ext}")
+        if os.path.isfile(p):
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+    return {"status": "ok", "id": safe_id}
+
+
 @operator_router.post("/cameras/{name}/record_toggle")
 def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity = Depends(require_authenticated)):
     """Toggle manual continuous recording on NVR for one camera."""
@@ -2182,10 +2522,14 @@ def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity 
         raise HTTPException(status_code=404, detail="config.yml not found")
 
     manual_recs = get_manual_recordings()
-    current_state = manual_recs.get(name, False)
+    prev_val = manual_recs.get(name)
+    current_state = bool(prev_val)
     new_state = not current_state
+    now_ts = time.time()
+    prev_start_ts = prev_val.get("start_time", now_ts - 10.0) if isinstance(prev_val, dict) else (now_ts - 10.0)
+
     if new_state:
-        manual_recs[name] = True
+        manual_recs[name] = {"active": True, "start_time": now_ts}
     else:
         manual_recs.pop(name, None)
     save_manual_recordings(manual_recs)
@@ -2221,6 +2565,8 @@ def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity 
         "status": "success",
         "camera": name,
         "recording": new_state,
+        "start_time": now_ts if new_state else float(prev_start_ts),
+        "end_time": now_ts,
         "message": f"NVR recording {'started' if new_state else 'stopped'} for {name}"
     }
 
@@ -2880,7 +3226,7 @@ try:
                 if remove:
                     names.pop(cam_id, None)
                 else:
-                    names[cam_id] = f"🛸 โดรน: {drone_name}"
+                    names[cam_id] = f"โดรน: {drone_name}"
                 names_file.write_text(json.dumps(names, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception as exc:
                 logger.debug("camera_names sync warning: %s", exc)
@@ -2897,8 +3243,8 @@ try:
                     gps[cam_id] = {
                         "lat": lat,
                         "lng": lng,
-                        "name": f"🛸 โดรน: {drone_name}",
-                        "group": "🛸 โดรนลาดตระเวน (UAV / QCS)",
+                        "name": f"โดรน: {drone_name}",
+                        "group": "โดรนลาดตระเวน (UAV / QCS)",
                         "is_drone": True,
                         "drone_id": drone.get("id"),
                         "altitude": float(telem.get("altitude") or 0.0),
@@ -2925,11 +3271,13 @@ try:
                     if not drone_grp:
                         drone_grp = {
                             "id": "grp_drones_qcs",
-                            "name": "🛸 โดรนลาดตระเวน (UAV / QCS)",
+                            "name": "โดรนลาดตระเวน (UAV / QCS)",
                             "ip": "RTMP / QCS",
                             "cameras": [],
                         }
                         groups.insert(0, drone_grp)
+                    else:
+                        drone_grp["name"] = "โดรนลาดตระเวน (UAV / QCS)"
                     if cam_id not in drone_grp["cameras"]:
                         drone_grp["cameras"].append(cam_id)
                 groups_file.write_text(json.dumps({"groups": groups}, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -2977,8 +3325,8 @@ try:
                         {
                             "lat": lat,
                             "lng": lng,
-                            "name": f"🛸 โดรน: {drone.get('name') or drone.get('id')}",
-                            "group": "🛸 โดรนลาดตระเวน (UAV / QCS)",
+                            "name": f"โดรน: {drone.get('name') or drone.get('id')}",
+                            "group": "โดรนลาดตระเวน (UAV / QCS)",
                             "is_drone": True,
                             "drone_id": drone.get("id"),
                             "altitude": float(telem.get("altitude") or 0.0),

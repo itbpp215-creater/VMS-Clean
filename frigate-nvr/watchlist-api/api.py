@@ -3815,6 +3815,33 @@ def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequ
                 f"config/cameras/{name}/add",
             )
             actions.append("add")
+            # Also force enabled/record/detect topics so Frigate's persisted SQLite
+            # runtime state (e.g. Restored runtime state: camera.enabled=OFF) never
+            # blocks capture or recording startup after `add`.
+            try:
+                _frigate_put_config_set(
+                    f"cameras.{name}.enabled=True",
+                    f"config/cameras/{name}/enabled",
+                )
+                actions.append("enabled")
+            except Exception:
+                pass
+            try:
+                _frigate_put_config_set(
+                    f"cameras.{name}.record.enabled={'True' if body.record_enabled else 'False'}",
+                    f"config/cameras/{name}/record",
+                )
+                actions.append("record")
+            except Exception:
+                pass
+            try:
+                _frigate_put_config_set(
+                    f"cameras.{name}.detect.enabled={'True' if body.detect_enabled else 'False'}",
+                    f"config/cameras/{name}/detect",
+                )
+                actions.append("detect")
+            except Exception:
+                pass
             return {"status": "ok", "camera": name, "actions": actions}
 
         if f_cam is not None:
