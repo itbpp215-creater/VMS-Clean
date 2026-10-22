@@ -100,7 +100,9 @@ $itemsToPurge = @(
     "scratch_out.txt",
     "frigate-nvr/docs/sessions",
     "frigate-nvr/analytics-engine/*gpsone*.json",
-    "frigate-nvr/analytics-engine/*.local.json"
+    "frigate-nvr/analytics-engine/*.local.json",
+    "frigate-nvr/config/drones_qcs_state.json",
+    "frigate-nvr/config/manual_clips"
 )
 
 foreach ($pattern in $itemsToPurge) {

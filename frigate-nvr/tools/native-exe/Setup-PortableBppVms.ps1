@@ -62,7 +62,7 @@ function Initialize-CleanConfig([string]$TargetCfg, [string]$SystemTitle) {
         Write-Utf8File (Join-Path $TargetCfg "config.yml") "mqtt:`n  enabled: false`ncameras: {}`ndetect:`n  enabled: true`n"
     }
     Write-Utf8File (Join-Path $TargetCfg "camera_credentials.env") ""
-    Write-Utf8File (Join-Path $TargetCfg "nvr_groups.json") '{"groups": []}'
+    Write-Utf8File (Join-Path $TargetCfg "nvr_groups.json") '{}'
     Write-Utf8File (Join-Path $TargetCfg "camera_templates.json") '{}'
     Write-Utf8File (Join-Path $TargetCfg "camera_sources.json") '{}'
     Write-Utf8File (Join-Path $TargetCfg "gpsone_devices.local.json") '{"devices": {}, "permissions": {}}'

@@ -873,7 +873,8 @@
           "path": "rtsp://127.0.0.1:8554/A02?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
-            "record"
+            "record",
+            "detect"
           ]
         }
       ]
@@ -881,12 +882,12 @@
     "ui": {
       "dashboard": true
     },
-    "enabled": false,
+    "enabled": true,
     "detect": {
-      "enabled": false
+      "enabled": true
     },
     "record": {
-      "enabled": false,
+      "enabled": true,
       "alerts": {
         "retain": {
           "days": 7,
@@ -917,7 +918,8 @@
           "path": "rtsp://127.0.0.1:8554/A03?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
-            "record"
+            "record",
+            "detect"
           ]
         }
       ]
@@ -925,12 +927,12 @@
     "ui": {
       "dashboard": true
     },
-    "enabled": false,
+    "enabled": true,
     "detect": {
-      "enabled": false
+      "enabled": true
     },
     "record": {
-      "enabled": false,
+      "enabled": true,
       "alerts": {
         "retain": {
           "days": 7,
@@ -961,7 +963,8 @@
           "path": "rtsp://127.0.0.1:8554/A04?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
-            "record"
+            "record",
+            "detect"
           ]
         }
       ]
@@ -969,12 +972,12 @@
     "ui": {
       "dashboard": true
     },
-    "enabled": false,
+    "enabled": true,
     "detect": {
-      "enabled": false
+      "enabled": true
     },
     "record": {
-      "enabled": false,
+      "enabled": true,
       "alerts": {
         "retain": {
           "days": 7,
@@ -1005,7 +1008,8 @@
           "path": "rtsp://127.0.0.1:8554/A05?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
-            "record"
+            "record",
+            "detect"
           ]
         }
       ]
@@ -1013,12 +1017,12 @@
     "ui": {
       "dashboard": true
     },
-    "enabled": false,
+    "enabled": true,
     "detect": {
-      "enabled": false
+      "enabled": true
     },
     "record": {
-      "enabled": false,
+      "enabled": true,
       "alerts": {
         "retain": {
           "days": 7,
@@ -1049,7 +1053,8 @@
           "path": "rtsp://127.0.0.1:8554/A06?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
-            "record"
+            "record",
+            "detect"
           ]
         }
       ]
@@ -1057,12 +1062,12 @@
     "ui": {
       "dashboard": true
     },
-    "enabled": false,
+    "enabled": true,
     "detect": {
-      "enabled": false
+      "enabled": true
     },
     "record": {
-      "enabled": false,
+      "enabled": true,
       "alerts": {
         "retain": {
           "days": 7,
@@ -2565,7 +2570,7 @@
     }
   },
   "nonburi5": {
-    "enabled": true,
+    "enabled": false,
     "ui": {
       "dashboard": true
     },
@@ -2577,21 +2582,14 @@
           "roles": [
             "record"
           ]
-        },
-        {
-          "path": "rtsp://127.0.0.1:8554/nonburi5_sub?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "detect"
-          ]
         }
       ]
     },
     "detect": {
-      "enabled": true
+      "enabled": false
     },
     "record": {
-      "enabled": true,
+      "enabled": false,
       "alerts": {
         "retain": {
           "days": 7,
@@ -2826,6 +2824,9 @@
           "days": 7,
           "mode": "motion"
         }
+      },
+      "continuous": {
+        "days": 0
       }
     },
     "snapshots": {

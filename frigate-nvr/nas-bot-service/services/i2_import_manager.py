@@ -497,7 +497,10 @@ class I2ImportManager:
                                 _atomic_json(normalized_path, payload)
                         except Exception:
                             pass
-                yield record, self._read_normalized(record)
+                try:
+                    yield record, self._read_normalized(record)
+                except Exception:
+                    continue
 
     def get_import_payload(self, import_id: str) -> Tuple[Optional[Mapping[str, Any]], Optional[Dict[str, Any]]]:
         """Return (record, payload) for an import by ID, reading its normalized JSON."""

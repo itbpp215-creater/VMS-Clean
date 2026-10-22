@@ -1,4 +1,23 @@
-﻿## Update 2026-10-22 (Evening 2) - Server-Side Direct `go2rtc` Manual Video Recorder (`watchlist-api` + `config-api`) for iOS Safari & Frigate 0.17.2 `remove`->`add` Dynamic Camera Enable Fix (Incident 2.194, v220)
+﻿## Update 2026-10-22 (Evening 3) - Full System End-to-End Debug & Stability Hardening Across `BPP-VMS` (`vms.local`) & `Sloth-BPP215` (`:8443`) (Incident 2.195)
+- **Problem / User Request**:
+  - User requested: *"Debug ทั้งระบบ"* ("Debug the entire system").
+- **Root Causes Diagnosed & Fixed**:
+  1. **Critical `HTTP 422 Configuration validation failed` on `GET /api/config/cameras` (`drone_qcs.py`, `api.py`, `native_gateway.py`, `Setup-PortableBppVms.ps1`)**:
+     - `config_store.py`'s `load_groups()` / `_validate_groups()` requires `nvr_groups.json` to be a flat `dict[str, str]` mapping `{"camera_id": "group_name"}`. However, `_sync_drone_companion_camera()` in `drone_qcs.py` / `api.py`, `_ensure_machine_local_config()` in `native_gateway.py`, and `Initialize-CleanConfig` in `Setup-PortableBppVms.ps1` wrote `{"groups": [...]}` (a list value), causing `load_groups()` to raise `ConfigValidationError` (`HTTP 422`).
+     - Fixed all 4 files to maintain `nvr_groups.json` strictly as `dict[str, str]` (`groups_map[cam_id] = "โดรนลาดตระเวน (UAV / QCS)"`), stripped non-string entries, and repaired `nvr_groups.json` across `D:\BPP-VMS\frigate-nvr\config`, `D:\Sloth-BPP215\native\config`, and `D:\SLOTH-BPP-VMS-Installer\config-snapshot`.
+  2. **`mediamtx.exe` v1.20.1 Port Collision & Config Schema in `RtmpMediaMtxSupervisor` (`native_gateway.py`)**:
+     - `RtmpMediaMtxSupervisor.ensure_config()` previously hardcoded `:1935` (colliding with Docker `frigate-nvr`) and `:28554` (colliding with `go2rtc.exe`) and used `paths: {all: {source: publisher}}` (deprecated in `mediamtx` v1.20.1).
+     - Updated `ensure_config()` to dynamically select conflict-free ports (`:1935` if free else `:21935` for RTMP; `:8554` if free else `:38554` for RTSP; `:18888` if free else `:28888` for HLS) and use `mediamtx` v1.20.1 schema (`webrtc: False`, `srt: False`, `paths: {all_others: {}}`). Verified `mediamtx.exe` and `go2rtc.exe` run simultaneously without port conflicts.
+  3. **Full `nas-bot-service` Route Integration (`/api/nas-bot/dossiers*`, `/api/nas-bot/graph*`, `/api/nas-bot/video-archive/*`) & Resilient i2 Graph Loading in `Sloth-BPP215` (`native_gateway.py`, `i2_import_manager.py`, `graph_engine.py`)**:
+     - Mounted all 93 `/api/nas-bot/*` routes from `frigate-nvr/nas-bot-service/main.py` via `importlib.util.spec_from_file_location` into `native_gateway.py`, isolated `analytics-engine/main.py` via `spec_from_file_location("analytics_main", ...)`, added `.json` suffix tolerance on `/settings/{setting_key}`, and added `/api/watchlist/plates` alias.
+     - Hardened `applied_graphs()` in `i2_import_manager.py` to skip missing `normalized-graph.json` files gracefully instead of raising `HTTP 500`, and synced all 830 Dossiers, Cases, Persons, CDR, Statements, Vehicles, and 19 `I2Imports/*/normalized-graph.json` to `D:\data\nas-storage`.
+  4. **Eliminated 6-Second Chat-Service Timeout in `analytics-engine/main.py` & `nas-bot-service/services/graph_engine.py`**:
+     - Added `_fetch_verified_chat_events()` with 30s TTL caching and `0.25s` fast-fail on Windows Native (`os.name == "nt"`), and set `WATCHLIST_DB_PATH` + `NAS_STORAGE_PATH` in `native_gateway.py`.
+  5. **Cleaned Up Stray Ad-hoc Scratch Scripts (`Directive 6`)**:
+     - Removed old scratch files (`fix_syntax.js`, `update_picker.js`, `update_search.js`, `app.js.backup`, `fix_api.py`). Verified `node --check` passes on 100% of `.js` files and `py_compile` passes on 100% of `.py` files, and **20/20** endpoints pass on `http://127.0.0.1:8443` and Docker (`vms.local`).
+- **Files Changed**: `frigate-nvr/config-api/drone_qcs.py`, `frigate-nvr/config-api/api.py`, `frigate-nvr/analytics-engine/main.py`, `frigate-nvr/nas-bot-service/services/i2_import_manager.py`, `frigate-nvr/nas-bot-service/services/graph_engine.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/tools/native-exe/Setup-PortableBppVms.ps1`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Evening 2) - Server-Side Direct `go2rtc` Manual Video Recorder (`watchlist-api` + `config-api`) for iOS Safari & Frigate 0.17.2 `remove`->`add` Dynamic Camera Enable Fix (Incident 2.194, v220)
 - **Problem / User Request**:
   - User tested **"คลังวิดีโอเหตุการณ์"** on iPhone (`https://vms.local/`) filtered to **`โดรน ผบก.ตชด.ภาค 2` (`drone_bpp2`)** and reported: *"ยังไม่มีเลย"* (with screenshot showing `0 รายการ`).
 - **Root Causes Diagnosed**:

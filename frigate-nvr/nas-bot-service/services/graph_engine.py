@@ -872,8 +872,9 @@ class LinkGraphEngine:
         # Integrate Drop Points from Chat Service (Incident: Stash Points in Graph)
         try:
             import urllib.request
-            req = urllib.request.Request("http://chat-service:5007/api/chat/drop-points", headers={"X-Role": "superadmin"})
-            with urllib.request.urlopen(req, timeout=3.0) as response:
+            _chat_base = os.environ.get("CHAT_SERVICE_URL") or ("http://127.0.0.1:5007" if os.name == "nt" else "http://chat-service:5007")
+            req = urllib.request.Request(f"{_chat_base}/api/chat/drop-points", headers={"X-Role": "superadmin"})
+            with urllib.request.urlopen(req, timeout=(0.25 if os.name == "nt" else 2.0)) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode('utf-8'))
                     for dp in data.get("drop_points", []):

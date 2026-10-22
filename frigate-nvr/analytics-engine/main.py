@@ -148,6 +148,42 @@ def get_heatmap_data() -> Dict[str, Any]:
     return result
 
 
+_chat_events_cache: Dict[str, Any] = {"data": None, "ts": 0.0}
+
+
+def _fetch_verified_chat_events() -> List[Dict[str, Any]]:
+    import time as _time
+    import httpx
+
+    now = _time.time()
+    if _chat_events_cache["data"] is not None and (now - _chat_events_cache["ts"]) < 30.0:
+        return list(_chat_events_cache["data"])
+
+    chat_events: List[Dict[str, Any]] = []
+    explicit_url = os.environ.get("CHAT_SERVICE_URL", "").strip()
+    if explicit_url:
+        chat_urls = [explicit_url]
+    elif os.name == "nt":
+        chat_urls = ["http://127.0.0.1:5007"]
+    else:
+        chat_urls = ["http://chat-service:5007", "http://127.0.0.1:5007"]
+
+    timeout_sec = 0.25 if os.name == "nt" else 1.5
+    for base_url in chat_urls:
+        try:
+            res = httpx.get(f"{base_url}/api/chat/events", timeout=timeout_sec)
+            if res.status_code == 200:
+                raw_chat = res.json().get("events", [])
+                chat_events = [e for e in raw_chat if is_verified_arrest_record(e)]
+                break
+        except Exception:
+            continue
+
+    _chat_events_cache["data"] = chat_events
+    _chat_events_cache["ts"] = now
+    return list(chat_events)
+
+
 @app.get("/api/analytics/time-stats", dependencies=[Depends(require_gateway)])
 def get_time_stats(
     incident_type: str = "all",
@@ -165,20 +201,7 @@ def get_time_stats(
     lpr_events = load_real_lpr_events()
 
     # Fetch chat events
-    chat_events = []
-    chat_urls = [
-        os.environ.get("CHAT_SERVICE_URL", "http://chat-service:5007"),
-        "http://localhost:5007"
-    ]
-    for base_url in chat_urls:
-        try:
-            res = httpx.get(f"{base_url}/api/chat/events", timeout=2.0)
-            if res.status_code == 200:
-                raw_chat = res.json().get("events", [])
-                chat_events = [e for e in raw_chat if is_verified_arrest_record(e)]
-                break
-        except Exception:
-            continue
+    chat_events = _fetch_verified_chat_events()
 
     # Filter chat events by incident_type
     if incident_type != "all":
@@ -308,20 +331,7 @@ def get_zone_risk(level: str = "district", start_date: str = None, end_date: str
     lpr_events = load_real_lpr_events()
 
     # Fetch Chat events from chat-service
-    chat_events = []
-    chat_urls = [
-        os.environ.get("CHAT_SERVICE_URL", "http://chat-service:5007"),
-        "http://localhost:5007"
-    ]
-    for base_url in chat_urls:
-        try:
-            res = httpx.get(f"{base_url}/api/chat/events", timeout=2.0)
-            if res.status_code == 200:
-                raw_chat = res.json().get("events", [])
-                chat_events = [e for e in raw_chat if is_verified_arrest_record(e)]
-                break
-        except Exception:
-            continue
+    chat_events = _fetch_verified_chat_events()
 
     def normalize(name):
         if not name:

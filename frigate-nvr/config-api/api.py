@@ -3284,31 +3284,20 @@ try:
             except Exception as exc:
                 logger.debug("camera_gps sync warning: %s", exc)
         
-            # 3. Update nvr_groups.json
+            # 3. Update nvr_groups.json (flat dict[str, str] mapping camera_id -> group_name)
             groups_file = cfg_dir / "nvr_groups.json"
             try:
-                gdata = json.loads(groups_file.read_text(encoding="utf-8-sig")) if groups_file.is_file() else {"groups": []}
-                groups = gdata.get("groups") if isinstance(gdata, dict) else []
-                if not isinstance(groups, list):
-                    groups = []
-                drone_grp = next((g for g in groups if g.get("id") == "grp_drones_qcs"), None)
+                raw_g = json.loads(groups_file.read_text(encoding="utf-8-sig")) if groups_file.is_file() else {}
+                groups_map: Dict[str, str] = {}
+                if isinstance(raw_g, dict):
+                    for k, v in raw_g.items():
+                        if isinstance(k, str) and isinstance(v, str):
+                            groups_map[k] = v
                 if remove:
-                    if drone_grp and isinstance(drone_grp.get("cameras"), list):
-                        drone_grp["cameras"] = [c for c in drone_grp["cameras"] if c != cam_id]
+                    groups_map.pop(cam_id, None)
                 else:
-                    if not drone_grp:
-                        drone_grp = {
-                            "id": "grp_drones_qcs",
-                            "name": "โดรนลาดตระเวน (UAV / QCS)",
-                            "ip": "RTMP / QCS",
-                            "cameras": [],
-                        }
-                        groups.insert(0, drone_grp)
-                    else:
-                        drone_grp["name"] = "โดรนลาดตระเวน (UAV / QCS)"
-                    if cam_id not in drone_grp["cameras"]:
-                        drone_grp["cameras"].append(cam_id)
-                groups_file.write_text(json.dumps({"groups": groups}, ensure_ascii=False, indent=2), encoding="utf-8")
+                    groups_map[cam_id] = "โดรนลาดตระเวน (UAV / QCS)"
+                groups_file.write_text(json.dumps(groups_map, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
             except Exception as exc:
                 logger.debug("nvr_groups sync warning: %s", exc)
         

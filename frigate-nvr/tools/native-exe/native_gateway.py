@@ -94,7 +94,7 @@ def _ensure_machine_local_config(native_cfg: Path, frigate_root: Path, runtime_d
         )
 
     (native_cfg / "camera_credentials.env").write_text("", encoding="utf-8")
-    (native_cfg / "nvr_groups.json").write_text('{"groups": []}\n', encoding="utf-8")
+    (native_cfg / "nvr_groups.json").write_text("{}\n", encoding="utf-8")
     (native_cfg / "camera_templates.json").write_text("{}\n", encoding="utf-8")
     (native_cfg / "camera_sources.json").write_text("{}\n", encoding="utf-8")
     (native_cfg / "gpsone_devices.local.json").write_text(
@@ -137,7 +137,17 @@ os.environ.setdefault("CAMERA_SOURCES_PATH", str(CONFIG_DIR / "camera_sources.js
 os.environ.setdefault("MANUAL_RECORDINGS_PATH", str(CONFIG_DIR / "manual_recordings.json"))
 os.environ.setdefault("AI_SCHEDULES_PATH", str(CONFIG_DIR / "ai_schedules.json"))
 os.environ.setdefault("GPSONE_DEVICES_FILE", str(CONFIG_DIR / "gpsone_devices.local.json"))
+os.environ.setdefault("WATCHLIST_DB_PATH", str(LPR_SETTINGS_DIR / "watchlist.db"))
+_DEFAULT_NAS_STORAGE = Path(r"D:\data\nas-storage") if Path(r"D:\data\nas-storage").is_dir() else (CONFIG_DIR / "nas-storage")
+_DEFAULT_NAS_DATA = Path(r"D:\data") if Path(r"D:\data").is_dir() else (CONFIG_DIR / "nas-data")
+os.environ.setdefault("NAS_STORAGE_PATH", str(_DEFAULT_NAS_STORAGE))
+os.environ.setdefault("NAS_DATA_DIR", str(_DEFAULT_NAS_DATA))
+os.environ.setdefault("LOCAL_RECORDINGS_PATH", str(_FRIGATE_ROOT / "storage" / "recordings"))
+os.environ.setdefault("LOCAL_EXPORTS_PATH", str(_FRIGATE_ROOT / "storage" / "exports"))
+os.environ.setdefault("LOCAL_CLIPS_PATH", str(_FRIGATE_ROOT / "storage" / "clips"))
+os.environ.setdefault("LOCAL_LPR_CROPS_PATH", str(_FRIGATE_ROOT / "lpr-data" / "crops"))
 
+_NAS_BOT_DIR = _FRIGATE_ROOT / "nas-bot-service"
 for _p in (_HERE, _CONFIG_API_DIR, _LPR_DIR, _ANALYTICS_DIR, _FRIGATE_ROOT / "config"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
@@ -307,15 +317,25 @@ class RtmpMediaMtxSupervisor:
 
     def ensure_config(self) -> Path:
         NATIVE_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        def _port_busy(p: int) -> bool:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.2)
+                return s.connect_ex(("127.0.0.1", p)) == 0
+
+        rtmp_port = 21935 if _port_busy(1935) else 1935
+        rtsp_port = 38554 if _port_busy(8554) else 8554
+        hls_port = 28888 if _port_busy(18888) else 18888
         cfg = {
             "logLevel": "warn",
             "rtmp": True,
-            "rtmpAddress": ":1935",
+            "rtmpAddress": f":{rtmp_port}",
             "rtsp": True,
-            "rtspAddress": ":28554",
+            "rtspAddress": f":{rtsp_port}",
             "hls": True,
-            "hlsAddress": ":18888",
-            "paths": {"all": {"source": "publisher"}},
+            "hlsAddress": f":{hls_port}",
+            "webrtc": False,
+            "srt": False,
+            "paths": {"all_others": {}},
         }
         self.mediamtx_yml.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
         return self.mediamtx_yml
@@ -516,14 +536,19 @@ except Exception as _drn_exc:
     logger.warning("Failed to mount drone_qcs router: %s", _drn_exc)
 
 try:
-    import main as _analytics_mod
+    import importlib.util as _ilu_ana
 
-    if hasattr(_analytics_mod, "require_gateway"):
-        app.dependency_overrides[_analytics_mod.require_gateway] = lambda: True
-    for _route in _analytics_mod.app.routes:
-        if getattr(_route, "path", "").startswith("/api/analytics"):
-            app.router.routes.append(_route)
-    logger.info("Mounted real analytics-engine routes (/api/analytics/*)")
+    _ana_main_path = _ANALYTICS_DIR / "main.py"
+    _ana_spec = _ilu_ana.spec_from_file_location("analytics_main", str(_ana_main_path))
+    if _ana_spec and _ana_spec.loader:
+        _analytics_mod = _ilu_ana.module_from_spec(_ana_spec)
+        _ana_spec.loader.exec_module(_analytics_mod)
+        if hasattr(_analytics_mod, "require_gateway"):
+            app.dependency_overrides[_analytics_mod.require_gateway] = lambda: True
+        for _route in _analytics_mod.app.routes:
+            if getattr(_route, "path", "").startswith("/api/analytics"):
+                app.router.routes.append(_route)
+        logger.info("Mounted real analytics-engine routes (/api/analytics/*)")
 except Exception as _ana_exc:
     logger.warning("Failed to mount analytics-engine routes: %s", _ana_exc)
 
@@ -904,6 +929,9 @@ _SETTINGS_DEFAULTS: Dict[str, str] = {
 async def handle_dashboard_settings(setting_key: str, request: Request) -> Response:
     key = setting_key.strip("/")
     target = _SETTINGS_FILE_MAP.get(key)
+    if target is None and key.endswith(".json"):
+        key = key[:-5]
+        target = _SETTINGS_FILE_MAP.get(key)
     if target is None:
         raise HTTPException(status_code=404, detail=f"Unknown setting: {key}")
 
@@ -1084,6 +1112,8 @@ def _query_lpr_candidates(
 
 @app.get("/api/watchlist")
 @app.get("/watchlist")
+@app.get("/api/watchlist/plates")
+@app.get("/watchlist/plates")
 def native_watchlist_list() -> List[Dict[str, Any]]:
     if not WATCHLIST_DB.is_file():
         return []
@@ -1339,6 +1369,35 @@ def native_history_pull_cancel_job(job_id: str) -> Dict[str, Any]:
         jdata["cancel_requested"] = True
         job_path.write_text(json.dumps(jdata, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"status": "ok", "job": jdata}
+
+
+# Mount full nas-bot-service routes (Arrest Vault Dossiers, i2 Link Graph, Video Archive, CDR, Statements)
+try:
+    import importlib.util as _ilu
+
+    if str(_NAS_BOT_DIR) not in sys.path:
+        sys.path.append(str(_NAS_BOT_DIR))
+    _nas_bot_main_path = _NAS_BOT_DIR / "main.py"
+    if _nas_bot_main_path.is_file():
+        _spec = _ilu.spec_from_file_location("nas_bot_main", str(_nas_bot_main_path))
+        if _spec and _spec.loader:
+            _nas_bot_mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_nas_bot_mod)
+            _existing_nas_paths = {
+                (getattr(r, "path", ""), tuple(sorted(getattr(r, "methods", []) or [])))
+                for r in app.router.routes
+                if getattr(r, "path", "").startswith("/api/nas-bot")
+            }
+            _mounted_cnt = 0
+            for _nb_route in _nas_bot_mod.app.routes:
+                _nb_path = getattr(_nb_route, "path", "")
+                _nb_methods = tuple(sorted(getattr(_nb_route, "methods", []) or []))
+                if _nb_path.startswith("/api/nas-bot") and (_nb_path, _nb_methods) not in _existing_nas_paths:
+                    app.router.routes.append(_nb_route)
+                    _mounted_cnt += 1
+            logger.info("Mounted %d real nas-bot-service routes (/api/nas-bot/*)", _mounted_cnt)
+except Exception as _nb_exc:
+    logger.warning("Failed to mount nas-bot-service routes: %s", _nb_exc)
 
 
 @app.get("/api/chat/events")
