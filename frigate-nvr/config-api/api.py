@@ -73,8 +73,9 @@ except ImportError:
 # attached to the dedicated router below so future config endpoints inherit it.
 app = FastAPI()
 
-CONFIG_PATH = '/config/config.yml'
-GROUPS_PATH = '/config/nvr_groups.json'
+CONFIG_PATH = os.environ.get('CONFIG_API_CONFIG_PATH', '/config/config.yml')
+GROUPS_PATH = os.environ.get('CONFIG_API_GROUPS_PATH', '/config/nvr_groups.json')
+CREDENTIALS_ENV_PATH = os.environ.get('CONFIG_API_CREDENTIALS_ENV', '/config/camera_credentials.env')
 # Lock and backup files live on the same persistent config volume as config.yml,
 # so serialization and recovery history survive a config-api container restart.
 CONFIG_LOCK_PATH = os.environ.get("CONFIG_API_LOCK_PATH", "/config/.config-api.lock")
@@ -588,7 +589,7 @@ def update_camera_credentials_env(env_updates: dict[str, str]) -> None:
     """Store camera credentials in /config/camera_credentials.env safely."""
     if not env_updates:
         return
-    env_file = "/config/camera_credentials.env"
+    env_file = CREDENTIALS_ENV_PATH
     existing_vars = {}
     if os.path.exists(env_file):
         try:
@@ -991,7 +992,7 @@ def get_cameras():
             raise
 
     env_vars = {}
-    env_file = "/config/camera_credentials.env"
+    env_file = CREDENTIALS_ENV_PATH
     if os.path.exists(env_file):
         try:
             with open(env_file, "r", encoding="utf-8") as f:
@@ -1756,7 +1757,7 @@ def _collect_camera_go2rtc_streams(name: str) -> dict:
     except Exception:
         return {}
     env_vars = {}
-    env_file = "/config/camera_credentials.env"
+    env_file = CREDENTIALS_ENV_PATH
     if os.path.exists(env_file):
         try:
             with open(env_file, "r", encoding="utf-8") as f:
@@ -2123,6 +2124,54 @@ def admin_reconcile():
 @config_router.get("/reconcile-status")
 def admin_reconcile_status():
     return get_reconcile_status_internal()
+
+
+class SystemUpdateSettingsPayload(BaseModel):
+    auto_web_sync: bool = True
+    interval_minutes: int = Field(default=15, ge=5, le=1440)
+    branch: Optional[str] = None
+
+
+@config_router.get("/system/update/status")
+def admin_system_update_status(refresh: bool = False):
+    from system_updater import get_system_updater
+
+    return get_system_updater().get_status(force_fetch=refresh)
+
+
+@config_router.post("/system/update/settings")
+def admin_system_update_settings(payload: SystemUpdateSettingsPayload):
+    from system_updater import get_system_updater
+
+    try:
+        return get_system_updater().update_settings(
+            auto_web_sync=payload.auto_web_sync,
+            interval_minutes=payload.interval_minutes,
+            branch=payload.branch,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@config_router.post("/system/update/web-sync")
+def admin_system_update_web_sync():
+    from system_updater import get_system_updater
+
+    res = get_system_updater().sync_web_ui_only()
+    if not res.get("ok"):
+        raise HTTPException(status_code=500, detail=res.get("error", "Web UI sync failed"))
+    return res
+
+
+@config_router.post("/system/update/apply")
+def admin_system_update_apply():
+    from system_updater import get_system_updater
+
+    res = get_system_updater().apply_full_update()
+    if not res.get("ok"):
+        raise HTTPException(status_code=500, detail=res.get("error", "Full system update failed"))
+    return res
+
 
 app.include_router(config_router)
 
@@ -2659,6 +2708,13 @@ def _reconciliation_background_worker():
 
 _worker_thread = threading.Thread(target=_reconciliation_background_worker, daemon=True)
 _worker_thread.start()
+
+try:
+    from system_updater import get_system_updater
+    get_system_updater()
+except Exception as _upd_err:
+    print(f"[config-api] SystemUpdater init warning: {_upd_err}")
+
 
 
 

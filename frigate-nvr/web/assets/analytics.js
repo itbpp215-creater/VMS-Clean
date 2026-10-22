@@ -6020,13 +6020,13 @@ function accountLabelText(username) {
   const STATUS_POLL_INTERVAL = 300000; // 5 minutes
 
   /* ----- Resolve HLS URL for a camera -----
-   * Tries DYNAMIC_HLS_MAP first (authoritative), falls back to cam.url in GPS JSON */
+   * Tries cam.url in GPS JSON first (authoritative for this pin), falls back to DYNAMIC_HLS_MAP */
   function resolveHlsUrl(camId, cam) {
     let url = null;
-    if (window.DYNAMIC_HLS_MAP && window.DYNAMIC_HLS_MAP[camId]) {
-      url = window.DYNAMIC_HLS_MAP[camId];
-    } else if (cam && cam.url) {
+    if (cam && cam.url) {
       url = cam.url;
+    } else if (window.DYNAMIC_HLS_MAP && window.DYNAMIC_HLS_MAP[camId]) {
+      url = window.DYNAMIC_HLS_MAP[camId];
     }
     
     if (typeof window.rewriteHlsProxyUrl === 'function') {
@@ -6056,14 +6056,19 @@ function accountLabelText(username) {
     return null;
   }
 
-  /* ----- Resolve preview source: HLS URL or go2rtc snapshot -----
-   * Returns { type: 'hls'|'snapshot', url: string } or null */
+  /* ----- Resolve preview source: HLS URL or go2rtc live stream/frame -----
+   * Returns { type: 'hls'|'go2rtc'|'snapshot', url: string, stream?: string } or null */
   function resolvePreviewSource(camId, cam) {
     const hlsUrl = resolveHlsUrl(camId, cam);
     if (hlsUrl) return { type: 'hls', url: hlsUrl };
-    // Fallback: Use Frigate's native latest.jpg which is extremely reliable
-    // since Frigate is already decoding the camera for detection.
-    return { type: 'snapshot', url: `/nvr/api/${encodeURIComponent(camId)}/latest.jpg` };
+    const streamName = (typeof window.resolvePlayableStreamName === 'function')
+      ? window.resolvePlayableStreamName(camId)
+      : camId;
+    return {
+      type: 'go2rtc',
+      stream: streamName,
+      url: `/nvr/live/webrtc/api/frame.jpeg?src=${encodeURIComponent(streamName)}`
+    };
   }
 
   let cameraFailureCount = {};
@@ -6097,22 +6102,17 @@ function accountLabelText(username) {
         cameraFailureCount[camId] = 0;
       } else {
         cameraFailureCount[camId] = (cameraFailureCount[camId] || 0) + 1;
-        if (cameraFailureCount[camId] >= 2) {
+        if (cameraFailureCount[camId] >= 1) {
           cameraLiveStatus[camId] = 'offline';
         }
         window._debugCameraErrors[camId] = `HTTP ${r.status} (Failures: ${cameraFailureCount[camId]})`;
       }
     } catch (e) {
-      const staticReady = (cam.status || '').toLowerCase() === 'ready';
-      if (staticReady) {
-        cameraLiveStatus[camId] = 'ready';
-      } else {
-        cameraFailureCount[camId] = (cameraFailureCount[camId] || 0) + 1;
-        if (cameraFailureCount[camId] >= 2) {
-          cameraLiveStatus[camId] = 'offline';
-        }
-        window._debugCameraErrors[camId] = `${e.message || 'Fetch Failed'} (Failures: ${cameraFailureCount[camId]})`;
+      cameraFailureCount[camId] = (cameraFailureCount[camId] || 0) + 1;
+      if (cameraFailureCount[camId] >= 2) {
+        cameraLiveStatus[camId] = 'offline';
       }
+      window._debugCameraErrors[camId] = `${e.message || 'Fetch Failed'} (Failures: ${cameraFailureCount[camId]})`;
     }
     updateCameraMarkerState(camId);
   }
@@ -6305,17 +6305,59 @@ function accountLabelText(username) {
     }
   }
 
-  /* ----- Start preview inside a popup (HLS or snapshot) ----- */
+  /* ----- Start preview inside a popup (HLS, go2rtc live stream, or snapshot) ----- */
   function startPopupPreview(camId, cam) {
     destroyPopupHls();
     const src = resolvePreviewSource(camId, cam);
     if (!src) return;
 
     const loadingEl = document.getElementById('camPreviewLoading_' + camId);
+    const activePoster = (typeof window.captureActiveTilePoster === 'function')
+      ? window.captureActiveTilePoster(camId)
+      : null;
+
+    const connectViaGo2rtc = (videoEl, streamName) => {
+      const targetStream = streamName || ((typeof window.resolvePlayableStreamName === 'function')
+        ? window.resolvePlayableStreamName(camId)
+        : camId);
+      const frameUrl = `/nvr/live/webrtc/api/frame.jpeg?src=${encodeURIComponent(targetStream)}&t=${Date.now()}`;
+      if (activePoster) {
+        videoEl.poster = activePoster;
+        if (loadingEl) loadingEl.style.display = 'none';
+      } else {
+        const preImg = new Image();
+        preImg.onload = () => {
+          if (videoEl && !videoEl.videoWidth) videoEl.poster = frameUrl;
+          if (loadingEl) loadingEl.style.display = 'none';
+        };
+        preImg.src = frameUrl;
+      }
+      if (typeof window.Camera === 'function') {
+        const camInst = new window.Camera(targetStream, videoEl, (st) => {
+          if (st === 'live') {
+            if (loadingEl) loadingEl.style.display = 'none';
+            cameraLiveStatus[camId] = 'ready';
+            cameraFailureCount[camId] = 0;
+            updateCameraMarkerState(camId);
+          } else if (st === 'offline') {
+            if (!activePoster && (!videoEl || !videoEl.poster) && loadingEl) {
+              loadingEl.textContent = 'สัญญาณขาดหาย';
+              loadingEl.style.display = 'flex';
+            }
+          }
+        }, { forceGo2rtc: true, preferMSE: true });
+        activePopupHls = { destroy: () => camInst.destroy() };
+      }
+    };
 
     if (src.type === 'hls') {
       const videoEl = document.getElementById('camPreviewVideo_' + camId);
       if (!videoEl) return;
+
+      if (activePoster) {
+        videoEl.poster = activePoster;
+        if (loadingEl) loadingEl.style.display = 'none';
+      }
 
       if (typeof Hls !== 'undefined' && Hls.isSupported()) {
         const isDoh = (typeof window.isDohHlsSource === 'function' && (window.isDohHlsSource(camId) || window.isDohHlsSource(src.url)))
@@ -6337,7 +6379,7 @@ function accountLabelText(username) {
         };
         if (isDoh) {
           Object.assign(hlsCfg, {
-            liveSyncDuration: 14,
+            liveSyncDuration: 3,
             liveMaxLatencyDuration: 60,
             liveBackBufferLength: 30,
             maxLiveSyncPlaybackRate: 1.1,
@@ -6346,7 +6388,7 @@ function accountLabelText(username) {
             detectStallWithCurrentTimeMs: 600,
             nudgeOffset: 0.25,
             nudgeMaxRetry: 10,
-            liveMaxUnchangedPlaylistRefresh: 8,
+            liveMaxUnchangedPlaylistRefresh: 25,
             fragLoadingTimeOut: 15000,
             levelLoadingTimeOut: 8000,
             levelLoadingMaxRetry: 2,
@@ -6363,37 +6405,66 @@ function accountLabelText(username) {
         activePopupHls = hls;
         hls.loadSource(src.url);
         hls.attachMedia(videoEl);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const onFrameReady = () => {
           if (loadingEl) loadingEl.style.display = 'none';
           videoEl.play().catch(() => {});
-        });
+        };
+        hls.on(Hls.Events.MANIFEST_PARSED, onFrameReady);
+        hls.on(Hls.Events.FRAG_LOADED, onFrameReady);
+        videoEl.addEventListener('playing', () => {
+          if (loadingEl) loadingEl.style.display = 'none';
+          if (videoEl.poster) videoEl.removeAttribute('poster');
+        }, { once: true });
+
+        let netRetries = 0;
+        let mediaRetries = 0;
+        const showPopupOffline = () => {
+          try { hls.destroy(); } catch (e) {}
+          cameraLiveStatus[camId] = 'offline';
+          updateCameraMarkerState(camId);
+          if (loadingEl) {
+            loadingEl.textContent = 'สัญญาณต้นทางขัดข้อง (Offline)';
+            loadingEl.style.display = 'flex';
+          }
+        };
+        const fallbackPopupToGo2rtc = () => {
+          try { hls.destroy(); } catch (e) {}
+          if (cameraLiveStatus[camId] === 'offline') {
+            showPopupOffline();
+            return;
+          }
+          if (typeof window.Camera === 'function') {
+            connectViaGo2rtc(videoEl, camId);
+          } else {
+            showPopupOffline();
+          }
+        };
+
         hls.on(Hls.Events.ERROR, (_, data) => {
           if (data.details === Hls.ErrorDetails.PLAYLIST_UNCHANGED_ERROR && isDoh) {
-            hls.stopLoad();
-            hls.loadSource(src.url);
-            hls.startLoad();
+            fallbackPopupToGo2rtc();
             return;
           }
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Fatal network error encountered, trying to recover...');
-                if (isDoh) {
-                  hls.stopLoad();
-                  hls.loadSource(src.url);
+                netRetries++;
+                if (netRetries <= 1 && !isDoh) {
+                  hls.startLoad();
+                } else {
+                  showPopupOffline();
                 }
-                hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('Fatal media error encountered, trying to recover...');
-                hls.recoverMediaError();
+                mediaRetries++;
+                if (mediaRetries <= 2) {
+                  hls.recoverMediaError();
+                } else {
+                  fallbackPopupToGo2rtc();
+                }
                 break;
               default:
-                hls.destroy();
-                if (loadingEl) {
-                  loadingEl.textContent = 'สัญญาณขาดหาย';
-                  loadingEl.style.display = 'flex';
-                }
+                showPopupOffline();
                 break;
             }
           }
@@ -6405,12 +6476,13 @@ function accountLabelText(username) {
           videoEl.play().catch(() => {});
         }, { once: true });
         videoEl.addEventListener('error', () => {
-          if (loadingEl) {
-            loadingEl.textContent = 'สัญญาณขาดหาย';
-            loadingEl.style.display = 'flex';
-          }
+          connectViaGo2rtc(videoEl, camId);
         }, { once: true });
       }
+    } else if (src.type === 'go2rtc') {
+      const videoEl = document.getElementById('camPreviewVideo_' + camId);
+      if (!videoEl) return;
+      connectViaGo2rtc(videoEl, src.stream);
     } else if (src.type === 'snapshot') {
       const imgEl = document.getElementById('camPreviewImg_' + camId);
       if (!imgEl) return;
@@ -6521,7 +6593,7 @@ function accountLabelText(username) {
 
       let previewHtml = '';
       if (hasPreview) {
-        if (previewSrc.type === 'hls') {
+        if (previewSrc.type === 'hls' || previewSrc.type === 'go2rtc') {
           previewHtml = `
             <div class="cam-preview-box">
               <div id="camPreviewLoading_${camId}" class="cam-preview-loading">กำลังโหลดภาพ...</div>
@@ -6679,7 +6751,10 @@ function accountLabelText(username) {
       const hasPreview = !!previewSrc;
 
       // Lazy popup binding: only generate 4.5KB popup HTML when the user actually taps this camera pin (Incident 2.173)
-      marker.bindPopup(() => buildCameraPopupHtml(camId, cam, lat, lng, cleanProv, displayName, hasPreview, previewSrc), {
+      marker.bindPopup(() => {
+        const currentPreviewSrc = resolvePreviewSource(camId, cam);
+        return buildCameraPopupHtml(camId, cam, lat, lng, cleanProv, displayName, !!currentPreviewSrc, currentPreviewSrc);
+      }, {
         maxWidth: 310,
         minWidth: 240,
         maxHeight: 250,
@@ -6693,7 +6768,7 @@ function accountLabelText(username) {
       marker.on('popupopen', () => {
         checkCameraStatus(camId, cam);
         if (hasPreview) {
-          setTimeout(() => startPopupPreview(camId, cam), 300);
+          setTimeout(() => startPopupPreview(camId, cam), 120);
         }
       });
       marker.on('popupclose', () => {

@@ -1,4 +1,62 @@
-﻿## Update 2026-10-22 (Midday 2) - Fix Temporal Dead Zone (TDZ) `ReferenceError: Cannot access 'state' before initialization` & Blank Purple Screen on Browsers with Cached Channels (Incident 2.185, v212-v213)
+﻿## Update 2026-10-22 (Afternoon 2) - Eliminate CH Camera Tile Flickering, Unify Repos, Rebuild Native EXE/Setup & Package Clean Installer Release (Incident 2.187, v216)
+- **Problem / User Request**:
+  - User requested: *"อัพเดทให้เป็นล่าสุด และผมสังเกตเห็นว่ามีกล้องที่เปิดอยู่ใน ch กระพริบบางกล้อง และทำตัวติดตั้งให้เป็นล่าสุดด้วย และเคลียร์โฟลเดอร์ที่ด้วยเอาเฉพาะที่จำเป็นและแพ็คโฟลเดอร์สำหรับนำไป install ด้วย"*
+  - Some camera tiles open in the dashboard grid (`CH01`–`CH16`) exhibited periodic flickering, frame-snapping/stuttering, or brief black-frame flashes during playback and transport recovery.
+  - Both repositories (`D:\BPP-VMS` and `D:\sloth+vms\repo`), the native executables (`BPP-VMS.exe` and `BPP-VMS-Setup.exe`), and the portable installer workspace (`D:\sloth+vms`) needed to be unified to the latest version, cleaned of redundant folders (~1.45 GB bloat), and packaged into a ready-to-install folder and `.zip` archive.
+- **Root Cause Diagnosed**:
+  1. **MSE `updateend` Infinite 20Hz Keyframe Snap-Back Loop (`frigate-nvr/web/assets/app.js`)**:
+     - Inside `ws.onmessage` -> `sb.addEventListener('updateend')`, whenever `gap = end - this.video.currentTime > 4.0` triggered, it immediately forced `this.video.currentTime = end - 0.35` with zero cooldown.
+     - For cameras with 4–8s IDR keyframe intervals (GOPs), seeking to `end - 0.35` caused Chromium's hardware H.264 decoder to snap `currentTime` backward to the preceding IDR keyframe (4–6s behind `end`), which made `gap > 4.0` true again on the next packet (~50ms later), locking the camera tile in a 15–25Hz seek/flash loop.
+  2. **Aggressive Decoded-Frame Watchdog Resetting Active Sub-Streams (`app.js`)**:
+     - `startWatchdog()` used `softLimitMs = 4000` and `hardLimitMs = 7500` based solely on `totalVideoFrames`. In 9–16 camera grids, Chromium throttles `getVideoPlaybackQuality().totalVideoFrames` updates on smaller off-center tiles or during long GOPs even while WebSocket packets (`lastPacketTime`) and `video.currentTime` advance normally, triggering repeated 4s MSE seeks and 7.5s full `resetStream()` black flashes.
+  3. **HLS.js `FRAG_LOADED` Nudge & Dynamic `liveSyncDuration` Oscillation (`app.js`)**:
+     - Direct DOH HLS tiles had `highBufferWatchdogPeriod: 0.5`, `detectStallWithCurrentTimeMs: 600`, a `FRAG_LOADED` listener nudging `video.currentTime = bStart + 0.15` on every segment, and `createDohPlaylistLoader()` mutating `hls.config.liveSyncDuration` on every `.m3u8` poll.
+  4. **Black-Frame Flash During `startMSE()` / `syncGridDiffSmoothly()` (`app.js`)**:
+     - `startMSE()` cleared `this.video.srcObject = null` before capturing a poster frame and removed the poster on `loadeddata` (before the first frame was painted), while `syncGridDiffSmoothly()` omitted `isHlsSlot` from `_slotKey`.
+- **Resolution**:
+  1. **Zero-Flicker MSE & Watchdog Stabilization (`frigate-nvr/web/assets/app.js` `v216`)**:
+     - Added an `8000ms`/`10000ms` seek cooldown (`this._lastMseSeekAt`), raised the live-edge hard-seek threshold from `gap > 4.0s` to `gap > 12.0s` (`end - 0.8`), required `isStalledAtHole` before jumping disjoint buffer ranges, seeked to exact keyframe `startLast`, and added smooth `playbackRate` hysteresis (`1.06` / `1.0` / `0.98`).
+     - Made `startWatchdog()` packet-aware (`packetsFlowing`: `now - this.lastPacketTime < 3500` -> `softLimitMs = 12000`, `hardLimitMs = 22000`; HLS -> `14000`/`24000`) and treated advancing `video.currentTime` (`_watchdogLastCt`) with fresh packets as alive.
+     - Removed the `FRAG_LOADED` seek listener and dynamic per-poll `liveSyncDuration` mutation in `connectHls()` / `createDohPlaylistLoader()`.
+     - Captured a canvas poster (`captureVideoPoster`) before `srcObject = null` in `startMSE()`, kept the poster until `readyState >= 3 && currentTime > 0.15`, preserved `prevPoster` across `syncGridDiffSmoothly()`, and persisted `_cachedHlsMap` in `localStorage`.
+  2. **Unified Codebases & Rebuilt Native Executables (`BPP-VMS.exe` & `BPP-VMS-Setup.exe`)**:
+     - Unified `frigate-nvr/config-api/api.py`, `system_updater.py`, and `tools/native-host/*` across `D:\BPP-VMS` and `D:\sloth+vms\repo`, added `/api/client-error` to `native_gateway.py`, and updated `Build-BppNativeExe.ps1` (with NTFS rename-in-place for zero-downtime rebuilds), `Setup-PortableBppVms.ps1`, and `BppVmsSetupWizard.cs`.
+     - Recompiled `D:\sloth+vms\native\BPP-VMS.exe`, `D:\sloth+vms\native\BPP-VMS-Setup.exe`, and `D:\sloth+vms\BPP-VMS-Setup.exe`.
+  3. **Workspace Cleanup (~1.45 GB Freed) & Ready-to-Install Release Package (`Pack-InstallerRelease.ps1`)**:
+     - Removed redundant folders in `D:\sloth+vms`: `lab`, `reports`, duplicate root `models` (`609 MB`), `native\migration-snapshot\lpr\dataset` (`754 MB`), duplicate `native\migration-snapshot\config` (`22 MB`), and `.bak` files.
+     - Created `frigate-nvr/tools/native-host/Pack-InstallerRelease.ps1` and built the clean self-contained installer folder `D:\SLOTH-BPP-VMS-Installer` (`623.5 MB`) and archive `D:\SLOTH-BPP-VMS-Installer.zip` (`499.0 MB`).
+- **Files Changed**: `frigate-nvr/web/assets/app.js`, `frigate-nvr/config-api/api.py`, `frigate-nvr/config-api/system_updater.py`, `frigate-nvr/tools/native-host/native_gateway.py`, `frigate-nvr/tools/native-host/Build-BppNativeExe.ps1`, `frigate-nvr/tools/native-host/Setup-PortableBppVms.ps1`, `frigate-nvr/tools/native-host/BppVmsSetupWizard.cs`, `frigate-nvr/tools/native-host/Pack-InstallerRelease.ps1`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Afternoon) - Fix GIS Map Pin Popup Preview ("No frames have been received") & Audit/Restore All 63 DOH + ITIC Highway Cameras (Incident 2.186, v214 / analytics v124)
+- **Problem / User Request**:
+  - User reported: *"เปิดที่ chภาพมา แต่ในหมุดแฟนที่ภาพไม่มา และลองไล่ดูภาพจาก doh ด้วยว่ามีอันไหนที่ภาพไม่มาไปทำให้ภาพกลับมาทำงานปกติด้วย"* (`media_1792639539700_75152639.jpg`).
+  - Clicking a camera pin on the GIS Map (e.g., `nonburi5`, `nonburi1`, `Doonsad1`, `Doonsad5`, `Doonsad6`) displayed Frigate's black error placeholder `"No frames have been received, check error logs"` inside the map popup even while the camera was playing live in the dashboard grid (`CH03`).
+  - User also requested a full audit of all DOH (`กรมทางหลวง`) and ITIC highway cameras across the system to restore all offline/frozen streams to normal operation.
+- **Root Cause & Architecture Diagnosed**:
+  1. **GIS Map Popup Preview Fallback to Disabled Frigate `detect` Snapshot (`analytics.js`)**:
+     - `resolvePreviewSource(camId, cam)` in `analytics.js` fell back to `/nvr/api/${encodeURIComponent(camId)}/latest.jpg` for non-HLS cameras (`nonburi*`, `Doonsad*`, `vigi_*`).
+     - Because `detect.enabled: False` is set in `config.yml` for those cameras to conserve GPU/CPU, Frigate's `/api/<cam>/latest.jpg` returns HTTP 200 OK with the static placeholder image `"No frames have been received, check error logs"`.
+     - Meanwhile, `go2rtc` actively streams their H.264 substreams (`nonburi5_sub`, `Doonsad5_sub`, etc.) and serves real-time JPEG frames at `/nvr/live/webrtc/api/frame.jpeg?src=<streamName>`.
+  2. **DOH Wowza `#EXT-X-DISCONTINUITY` & Inaccurate `#EXTINF` Freeze in Browser `HLS.js` (`app.js` / `analytics.js`)**:
+     - Inspecting DOH's Wowza chunks (`streaming1.highwaytraffic.go.th`) with `ffprobe` proved that the MPEG-TS PTS timestamps are 100% continuous across `.ts` segments, yet DOH's Wowza server injects `#EXT-X-DISCONTINUITY` before every single `.ts` segment and declares inaccurate `#EXTINF` durations (e.g. `#EXTINF:9.6` for a `0.56s` segment).
+     - `HLS.js` shifted `SourceBuffer.timestampOffset` at each `#EXT-X-DISCONTINUITY` using the inaccurate `#EXTINF` duration instead of the continuous MPEG-TS PTS clock, creating multi-second buffer gaps that stalled `<video>`.
+  3. **30 Offline DOH Streams (`streaming2.highwaytraffic.go.th` Down Upstream & Legacy Stream IDs) + 2 ITIC Streams**:
+     - Probing `https://highwaytraffic.go.th/DOHWeb/Home.aspx` (`GetSiteInfo`, `GetCameraInfo`) and scanning `streaming1.highwaytraffic.go.th` (`180.180.242.207`, `PER-4`..`PER-10`), `streaming2.highwaytraffic.go.th` (`180.180.242.208`), and `camerai1.iticfoundation.org` revealed that `streaming2` has its Wowza streaming port (`443`/`1935`) down upstream, while 13+ unlisted active Isan DOH streams are broadcasting live on `streaming1` (`PER_4_004`, `PER_4_009`, `PER_6_027`, `PER_6_031`, `PER_6_034`, `PER_7_006`, `PER_7_008`, `PER_7_013`, `PER_8_002`, `PER_8_006`, `PER-9-014`, `PER_10_002`, `PER_10_007`).
+- **Resolution**:
+  1. **GIS Map Popup Live Video & Instant Poster via `go2rtc` (`frigate-nvr/web/assets/analytics.js` `v124` & `app.js` `v214`)**:
+     - Added `window.resolvePlayableStreamName(camId)` and `window.captureActiveTilePoster(camId)` in `app.js` and exposed `window.Camera = Camera`.
+     - Updated `resolvePreviewSource(camId, cam)` and `startPopupPreview(camId, cam)` in `analytics.js` so non-HLS cameras return `{ type: 'go2rtc', stream: streamName, url: '/nvr/live/webrtc/api/frame.jpeg?src=' + streamName }`, immediately displaying the captured canvas frame (`0ms` if already open in a grid tile) or live `go2rtc` `frame.jpeg` poster (~150ms) and streaming live video via `new window.Camera(..., { forceGo2rtc: true, preferMSE: true })`.
+     - Updated `Camera.prototype.startSnapshotStream()` in `app.js` to use `/live/webrtc/api/frame.jpeg?src=...` instead of Frigate's `/api/<cam>/latest.jpg`.
+  2. **DOH Wowza `#EXT-X-DISCONTINUITY` Stripper & Automatic `go2rtc` Fallback (`app.js` `v214` & `analytics.js` `v124`)**:
+     - Updated `createDohPlaylistLoader` in `app.js` to strip bogus `#EXT-X-DISCONTINUITY` and `#EXT-X-DISCONTINUITY-SEQUENCE` lines from DOH Wowza chunklists while clamping `#EXT-X-TARGETDURATION` (`1..12s`) and dynamically setting `liveSyncDuration` (`~55%` of the 3-segment window).
+     - Added automatic fallback to `go2rtc` (`this._hlsFallbackToGo2rtc = true` in `app.js` and `fallbackPopupToGo2rtc()` in `analytics.js`) if direct HLS encounters fatal errors or playlist stalls.
+  3. **Strict 1-to-1 Authentic DOH (`doh_per_*`) + ITIC (`itic_kk*`) Camera Mapping (`camera_gps.json`, `config.yml`, & `go2rtc`, `app.js` `v216`, `analytics.js` `v125`)**:
+     - Reverted all 32 cross-mapped `upstream_primary_url` entries back to their strict 1-to-1 authentic URLs (e.g. `doh_per_13_009` -> `https://streaming2.highwaytraffic.go.th/PER-13/PER_13_009.stream/playlist.m3u8`) so no camera pin ever displays another location's video stream.
+     - Added the 5 additional authentic Isan DOH cameras active on `streaming1.highwaytraffic.go.th` at their official DOH GPS coordinates (`doh_per_6_027` อุดรธานี, `doh_per_6_031` นครราชสีมา, `doh_per_6_034` นครราชสีมา, `doh_per_7_013` อำนาจเจริญ — fixing DOH's own hyphen typo `PER-7-013.stream` -> `PER_7_013.stream`, and `doh_per_8_001` ชัยภูมิ), unhid `doh_per_6_026` and `doh_per_7_015`, and marked the `streaming2.highwaytraffic.go.th` (`180.180.242.208`) cameras honestly as `Offline` while DOH's `streaming2` port 443 is down upstream.
+     - Updated `resolveHlsUrl(camId, cam)` in `analytics.js` (`v125`) to prioritize `cam.url` over cached `window.DYNAMIC_HLS_MAP` and refreshed `cfg._cachedHlsMap` in `app.js` (`v216`).
+- **Files Changed**: `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/assets/analytics.js`, `frigate-nvr/web/index.html`, `frigate-nvr/config/dashboard-settings/camera_gps.json`, `frigate-nvr/config/config.yml`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Midday 2) - Fix Temporal Dead Zone (TDZ) `ReferenceError: Cannot access 'state' before initialization` & Blank Purple Screen on Browsers with Cached Channels (Incident 2.185, v212-v213)
 - **Problem / User Request**:
   - User reported: *"ระบบยังไม่มาครับ"* / *"ยังไม่มาเลยครับ"* accompanied by iPhone (`media_1792640873663_82e9c6b8.png`) and PC Chrome (`media_1792642261676_eca0ef73.png`) screenshots.
   - Screen status: The central screen remained completely blank (purple background), clock stayed stuck on static HTML `--:--:--` or hidden, counters showed `ออนไลน์ 0  เชื่อมต่อ 0  ออฟไลน์ 0`, and no camera grid tiles or layout switch buttons appeared.

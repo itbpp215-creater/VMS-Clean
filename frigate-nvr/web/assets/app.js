@@ -418,6 +418,10 @@ function loadCfg() {
   });
   cfg._cachedUserProfile = saved._cachedUserProfile || null;
   cfg._cachedCameraNames = saved._cachedCameraNames || null;
+  cfg._cachedHlsMap = saved._cachedHlsMap || null;
+  if (cfg._cachedHlsMap && typeof cfg._cachedHlsMap === 'object') {
+    window.DYNAMIC_HLS_MAP = { ...(window.DYNAMIC_HLS_MAP || {}), ...cfg._cachedHlsMap };
+  }
   return cfg;
 }
 function saveCfg() {
@@ -427,6 +431,7 @@ function saveCfg() {
     railClasses: cfg.railClasses,
     _cachedUserProfile: (typeof state !== 'undefined' && state.userProfile) ? state.userProfile : (cfg._cachedUserProfile || null),
     _cachedCameraNames: (typeof state !== 'undefined' && state.cameraNames) ? state.cameraNames : (cfg._cachedCameraNames || null),
+    _cachedHlsMap: (typeof window !== 'undefined' && window.DYNAMIC_HLS_MAP && Object.keys(window.DYNAMIC_HLS_MAP).length > 0) ? window.DYNAMIC_HLS_MAP : (cfg._cachedHlsMap || null),
   })); } catch (e) { /* private mode ฯลฯ — ข้ามได้ */ }
 }
 
@@ -1202,6 +1207,28 @@ function playableGridStream(ch) {
   return ch.sub || ch.hd || ch.src;
 }
 
+window.resolvePlayableStreamName = function(camId) {
+  if (!camId || typeof camId !== 'string') return '';
+  if (getHlsUrl(camId)) return camId;
+  return playableGridStream({ src: camId }) || camId;
+};
+
+window.captureActiveTilePoster = function(camId) {
+  if (!camId || typeof state === 'undefined' || !Array.isArray(state.tiles)) return '';
+  const baseTarget = String(camId).replace(/_(sub|hd|main)$/i, '');
+  for (const t of state.tiles) {
+    if (!t || !t.video || !t.cam || !t.cam.isLive) continue;
+    const ch = (cfg && Array.isArray(cfg.channels)) ? cfg.channels[t.idx] : null;
+    const tileSrc = (ch && ch.src) || (t.cam && t.cam.src) || '';
+    const baseTile = String(tileSrc).replace(/_(sub|hd|main)$/i, '');
+    if (baseTile && baseTile === baseTarget && t.video.videoWidth > 0) {
+      const snap = captureVideoPoster(t.video, 480);
+      if (snap) return snap;
+    }
+  }
+  return '';
+};
+
 /**
  * CLAUDE.md Section 10: Central Reverse Proxy URL Rewriter for External Streams
  * Routes external HLS streams through Nginx reverse proxies to prevent CORS/SSL failures:
@@ -1267,7 +1294,7 @@ function getHlsUrl(src) {
 }
 
 // กล้องกรมทางหลวง (DOH) ใช้ Wowza ที่มีเพียง 3 segments ในหน้าต่างสตรีม แต่ค้างค่า #EXT-X-TARGETDURATION สูงสุดตลอดกาล
-// จึงต้อง normalize TARGETDURATION และซิงก์เข้ากึ่งกลาง segment ที่ 2 เสมอ (Incident 2.119)
+// และใส่ #EXT-X-DISCONTINUITY หน้าทุก segment แม้ PTS ต่อเนื่องกัน จึงต้องลบ discontinuity เทียมออกและปรับระยะซิงก์ตามหน้าต่างจริง (Incident 2.119 & 2.183)
 function isDohHlsSource(srcOrUrl) {
   if (!srcOrUrl || typeof srcOrUrl !== 'string') return false;
   if (/^doh_/i.test(srcOrUrl) || /^\/proxy-doh-streaming[12]\//.test(srcOrUrl)) return true;
@@ -1287,21 +1314,13 @@ function createDohPlaylistLoader(getHlsInstance) {
           const infMatches = [...response.data.matchAll(/#EXTINF:([\d.]+)/g)]
             .map(m => parseFloat(m[1]))
             .filter(n => Number.isFinite(n) && n > 0);
-          const dLast = infMatches.length ? infMatches[infMatches.length - 1] : 6;
-          const normTd = Math.max(3, Math.min(6, Math.floor(dLast)));
-          response.data = response.data.replace(/#EXT-X-TARGETDURATION:\d+/g, `#EXT-X-TARGETDURATION:${normTd}`);
-
-          const hlsInst = typeof getHlsInstance === 'function' ? getHlsInstance() : null;
-          if (hlsInst && hlsInst.config && infMatches.length >= 2) {
-            const dPrev = infMatches[infMatches.length - 2];
-            const totalDur = infMatches.reduce((a, b) => a + b, 0);
-            const targetSync = Math.max(normTd + 1, Math.min(35, Math.round((dLast + 0.5 * dPrev) * 10) / 10));
-            if (!hlsInst._dohSyncInit) {
-              hlsInst._dohSyncInit = true;
-              hlsInst.config.liveSyncDuration = targetSync;
-              hlsInst.config.liveMaxLatencyDuration = Math.max(60, Math.round(totalDur + 25));
-            }
-          }
+          const dLast = infMatches.length ? infMatches[infMatches.length - 1] : 4;
+          const totalDur = infMatches.length ? infMatches.reduce((a, b) => a + b, 0) : 12;
+          const avgDur = infMatches.length ? (totalDur / infMatches.length) : dLast;
+          const normTd = Math.max(2, Math.min(12, Math.round(Math.min(dLast, avgDur))));
+          response.data = response.data
+            .replace(/^#EXT-X-DISCONTINUITY(?:-SEQUENCE:[^\r\n]*)?\r?\n?/gm, '')
+            .replace(/#EXT-X-TARGETDURATION:\d+/g, `#EXT-X-TARGETDURATION:${normTd}`);
         }
         origSuccess(response, stats, ctx, networkDetails);
       };
@@ -1357,7 +1376,7 @@ function captureVideoPoster(videoEl, maxW = 480) {
 
 class Camera {
   constructor(src, videoEl, onStatus, opts) {
-    if (typeof src === 'string' && src && !/_(sub|hd|main)$/i.test(src) && !getHlsUrl(src)) {
+    if (typeof src === 'string' && src && !/_(sub|hd|main)$/i.test(src) && (!getHlsUrl(src) || (opts && opts.forceGo2rtc))) {
       if (SPLIT_SUB_CAM_RE.test(src)) {
         src = src + '_sub';
       } else if (SPLIT_HD_CAM_RE.test(src)) {
@@ -1439,7 +1458,14 @@ class Camera {
     this.lastFrameTime = Date.now();
     this.lastPacketTime = Date.now();
     this.softRecoveryCount = 0;
-    if (this.video && this.video.poster && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
+    if (
+      this.video &&
+      this.video.poster &&
+      this.currentMode !== 'mjpeg' &&
+      this.currentMode !== 'snapshot' &&
+      this.video.readyState >= 3 &&
+      this.video.currentTime > 0.15
+    ) {
       this.video.removeAttribute('poster');
     }
     this.onStatus('live');
@@ -1464,7 +1490,7 @@ class Camera {
       }
     }
 
-    const hlsUrl = getHlsUrl(this.src);
+    const hlsUrl = (this.opts && this.opts.forceGo2rtc) || this._hlsFallbackToGo2rtc ? null : getHlsUrl(this.src);
     if (hlsUrl) {
       this.connectHls(hlsUrl);
       return;
@@ -1613,6 +1639,10 @@ class Camera {
       }, 2800);
 
       this.video.preload = 'auto';
+      if (this.video.videoWidth > 0) {
+        const snap = captureVideoPoster(this.video, 480);
+        if (snap) this.video.poster = snap;
+      }
       if (this.video.srcObject) {
         this.video.srcObject = null;
       }
@@ -1783,7 +1813,13 @@ class Camera {
             }
             if (frameAdvanced) {
               this.lastFrameTime = Date.now();
-              if (this.video.poster && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
+              if (
+                this.video.poster &&
+                this.currentMode !== 'mjpeg' &&
+                this.currentMode !== 'snapshot' &&
+                this.video.readyState >= 3 &&
+                this.video.currentTime > 0.15
+              ) {
                 this.video.removeAttribute('poster');
               }
               if (this.webrtcFallbackT) {
@@ -1801,7 +1837,13 @@ class Camera {
       this.onPlaying = () => {
         if (this.video && this.video.videoWidth > 0) {
           this.lastFrameTime = Date.now();
-          if (this.video.poster && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
+          if (
+            this.video.poster &&
+            this.currentMode !== 'mjpeg' &&
+            this.currentMode !== 'snapshot' &&
+            this.video.readyState >= 3 &&
+            this.video.currentTime > 0.15
+          ) {
             this.video.removeAttribute('poster');
           }
           if (this.webrtcFallbackT) {
@@ -1945,35 +1987,41 @@ class Camera {
               }
 
               if (this.video) {
-                // Jump over disjoint MSE buffer holes (e.g. 50ms micro-gap on WAN RTSP) or unbuffered start0
-                if (sb.buffered.length > 1 && this.video.currentTime < startLast) {
+                const nowMs = Date.now();
+                const canSeekNow = (nowMs - (this._lastMseSeekAt || 0)) > 8000;
+                // Jump over disjoint MSE buffer holes ONLY when playback is genuinely stalled at the end of an older range
+                if (sb.buffered.length > 1 && this.video.currentTime < startLast && canSeekNow) {
                   let hasHeadroomInOldRange = false;
                   for (let i = 0; i < lastIdx; i++) {
-                    if (this.video.currentTime >= sb.buffered.start(i) && (sb.buffered.end(i) - this.video.currentTime) > 0.3) {
+                    if (this.video.currentTime >= sb.buffered.start(i) - 0.1 && (sb.buffered.end(i) - this.video.currentTime) > 0.12) {
                       hasHeadroomInOldRange = true;
                       break;
                     }
                   }
-                  if (!hasHeadroomInOldRange) {
-                    try { this.video.currentTime = Math.max(startLast + 0.05, end - 0.5); } catch (e) {}
+                  const isStalledAtHole = (this.video.readyState < 3) || ((nowMs - (this.lastFrameTime || 0)) > 1800);
+                  if (!hasHeadroomInOldRange && isStalledAtHole) {
+                    this._lastMseSeekAt = nowMs;
+                    try { this.video.currentTime = startLast; } catch (e) {}
                   }
-                } else if (this.video.currentTime < start0) {
-                  try { this.video.currentTime = Math.max(start0 + 0.05, end - 0.5); } catch (e) {}
+                } else if (this.video.currentTime + 0.25 < start0 && canSeekNow) {
+                  this._lastMseSeekAt = nowMs;
+                  try { this.video.currentTime = start0; } catch (e) {}
                 }
 
                 if (!this.viewerPaused && !this.paused) {
                   const gap = end - this.video.currentTime;
-                  if (gap > 4.0) {
-                    try { this.video.currentTime = Math.max(startLast + 0.05, end - 0.6); } catch (e) {}
-                    this.video.playbackRate = 1.0;
-                  } else if (gap > 1.8) {
-                    this.video.playbackRate = 1.12; // Smooth catch-up without stalling the decoder
-                  } else if (gap > 0.9) {
-                    this.video.playbackRate = 1.05;
-                  } else if (gap < 0.25) {
-                    this.video.playbackRate = 0.95; // Prevent buffer underflow
-                  } else {
-                    this.video.playbackRate = 1.0;
+                  // Incident 2.187: Never seek at gap > 4.0s because cameras with 4-8s GOPs snap back to the previous
+                  // IDR keyframe, causing an infinite 20Hz seek flicker loop. Only hard-seek when drift > 12s with cooldown.
+                  if (gap > 12.0 && (end - startLast) >= 2.0 && (nowMs - (this._lastMseSeekAt || 0)) > 10000) {
+                    this._lastMseSeekAt = nowMs;
+                    try { this.video.currentTime = Math.max(startLast, end - 1.5); } catch (e) {}
+                    if (this.video.playbackRate !== 1.0) this.video.playbackRate = 1.0;
+                  } else if (gap > 3.2) {
+                    if (this.video.playbackRate !== 1.06) this.video.playbackRate = 1.06;
+                  } else if (gap < 0.2) {
+                    if (this.video.playbackRate !== 0.98) this.video.playbackRate = 0.98;
+                  } else if (gap >= 0.5 && gap <= 2.2) {
+                    if (this.video.playbackRate !== 1.0) this.video.playbackRate = 1.0;
                   }
                   if (this.video.paused) {
                     this.video.play().catch(() => {});
@@ -2075,7 +2123,7 @@ class Camera {
         this.connect();
         return;
       }
-      const snapUrl = apiUrl('/api/' + encodeURIComponent(baseCam) + '/latest.jpg?t=' + Date.now());
+      const snapUrl = apiUrl('/live/webrtc/api/frame.jpeg?src=' + encodeURIComponent(this.src) + '&t=' + Date.now());
       try {
         const res = await originalFetch(snapUrl, { credentials: 'same-origin', cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2145,12 +2193,21 @@ class Camera {
   jumpToLiveEdge() {
     if (this.dead || !this.video) return;
     try {
-      if (this.sb && !this.sb.updating && this.sb.buffered && this.sb.buffered.length > 0) {
+      const nowMs = Date.now();
+      if (
+        this.sb &&
+        !this.sb.updating &&
+        this.sb.buffered &&
+        this.sb.buffered.length > 0 &&
+        (nowMs - (this._lastMseSeekAt || 0)) > 8000
+      ) {
         const lastIdx = this.sb.buffered.length - 1;
         const end = this.sb.buffered.end(lastIdx);
+        const start0 = this.sb.buffered.start(0);
         const startLast = this.sb.buffered.start(lastIdx);
-        if (end - this.video.currentTime > 0.8 || this.video.currentTime < startLast) {
-          this.video.currentTime = Math.max(startLast + 0.05, end - 0.4);
+        if ((end - this.video.currentTime > 3.5 && (end - startLast) >= 1.5) || this.video.currentTime + 0.2 < start0) {
+          this._lastMseSeekAt = nowMs;
+          this.video.currentTime = Math.max(startLast, end - 1.2);
         }
       }
       this.video.playbackRate = 1.0;
@@ -2189,11 +2246,26 @@ class Camera {
       const now = Date.now();
 
       // ตรวจสอบจำนวนเฟรมวิดีโอที่ถูกถอดรหัสจริงจากฮาร์ดแวร์/ซอฟต์แวร์ทุก 1 วินาที (รองรับทั้ง WebRTC, MSE, HLS)
-      if (this.video && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot' && typeof this.video.getVideoPlaybackQuality === 'function') {
-        const q = this.video.getVideoPlaybackQuality();
-        if (q && typeof q.totalVideoFrames === 'number' && this.video.videoWidth > 0) {
-          if (q.totalVideoFrames > (this._watchdogDecodedFrames || 0)) {
-            this._watchdogDecodedFrames = q.totalVideoFrames;
+      if (this.video && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
+        if (typeof this.video.getVideoPlaybackQuality === 'function') {
+          const q = this.video.getVideoPlaybackQuality();
+          if (q && typeof q.totalVideoFrames === 'number' && this.video.videoWidth > 0) {
+            if (q.totalVideoFrames > (this._watchdogDecodedFrames || 0)) {
+              this._watchdogDecodedFrames = q.totalVideoFrames;
+              this.lastFrameTime = now;
+            }
+          }
+        }
+        // Incident 2.187: รองรับกรณี Chromium Compositor ชะลอการอัปเดต totalVideoFrames ของช่องเล็กในตาราง 9-16 กล้อง
+        // หาก currentTime เดินหน้าปกติ มีภาพ (videoWidth > 0) และมีแพ็กเก็ตไหลเข้าต่อเนื่อง ให้ถือว่าสตรีมยังเดินปกติ
+        if (
+          this.video.videoWidth > 0 &&
+          this.video.readyState >= 3 &&
+          !this.video.paused &&
+          this.video.currentTime !== (this._watchdogLastCt || -1)
+        ) {
+          this._watchdogLastCt = this.video.currentTime;
+          if (!this.lastPacketTime || (now - this.lastPacketTime) < 3500) {
             this.lastFrameTime = now;
           }
         }
@@ -2241,15 +2313,17 @@ class Camera {
         }
       }
 
-      // หากไม่มีเฟรมวิดีโอใหม่ถูกถอดรหัสเกินเวลาที่กำหนด ให้กู้คืนสตรีมแบบ 2 ขั้นตอน (Two-Stage Recovery — Incident 2.181)
-      const softLimitMs = this.hls ? 10000 : 4000;
-      const hardLimitMs = this.hls ? 16000 : 7500;
+      // หากไม่มีเฟรมวิดีโอใหม่ถูกถอดรหัสเกินเวลาที่กำหนด ให้กู้คืนสตรีมแบบ 2 ขั้นตอน (Two-Stage Recovery — Incident 2.181 & 2.187)
+      // หากแพ็กเก็ตวิดีโอยังไหลเข้า WebSocket ปกติ ให้ขยายเพดานเวลารอ GOP (I-frame 4-8 วินาที) เพื่อไม่ให้เกิดอาการกระพริบรีเซ็ตซ้ำ
+      const packetsFlowing = this.lastPacketTime > 0 && (now - this.lastPacketTime) < 3500;
+      const softLimitMs = this.hls ? 14000 : (packetsFlowing ? 12000 : 6500);
+      const hardLimitMs = this.hls ? 24000 : (packetsFlowing ? 22000 : 11000);
       const silentMs = this.lastFrameTime > 0 ? (now - this.lastFrameTime) : 0;
       if (this.lastFrameTime > 0 && silentMs > softLimitMs) {
         if (this.hls && !this._hlsWatchdogRecovered) {
           this._hlsWatchdogRecovered = true;
           try {
-            console.warn(`[HLS ${this.src}] Video frame stalled >10s, attempting recoverMediaError()`);
+            console.warn(`[HLS ${this.src}] Video frame stalled >14s, attempting recoverMediaError()`);
             this.hls.recoverMediaError();
             return;
           } catch (e) {}
@@ -2257,14 +2331,14 @@ class Camera {
         if (!this.hls && !this._mseSoftRecovered && this.video) {
           this._mseSoftRecovered = true;
           this._mseSoftRecoverTime = now;
-          console.warn(`[Stream ${this.src}] Video frame stalled >4s, jumping to live edge`);
+          console.warn(`[Stream ${this.src}] Video frame stalled >${Math.round(softLimitMs / 1000)}s, jumping to live edge`);
           this.jumpToLiveEdge();
           return;
         }
         if (silentMs > hardLimitMs) {
           clearInterval(this.watchdogT);
           if (this.currentMode === 'webrtc' && typeof this.startMSE === 'function') {
-            console.warn(`[Stream ${this.src}] WebRTC video stalled >7.5s, switching to MSE fallback`);
+            console.warn(`[Stream ${this.src}] WebRTC video stalled >${Math.round(hardLimitMs / 1000)}s, switching to MSE fallback`);
             this.startMSE();
           } else {
             console.warn(`[Stream ${this.src}] Video frame frozen >${Math.round(silentMs / 1000)}s after soft recovery, forcing reconnect`);
@@ -2351,15 +2425,11 @@ class Camera {
             maxMaxBufferLength: 120,
             backBufferLength: 30,
             liveBackBufferLength: 30,
-            liveSyncDuration: 14,
+            liveSyncDuration: 4,
             liveMaxLatencyDuration: 60,
-            maxLiveSyncPlaybackRate: 1.1,
+            maxLiveSyncPlaybackRate: 1.04,
             maxBufferHole: 2.5,
-            highBufferWatchdogPeriod: 0.5,
-            detectStallWithCurrentTimeMs: 600,
-            nudgeOffset: 0.25,
-            nudgeMaxRetry: 10,
-            liveMaxUnchangedPlaylistRefresh: 8,
+            liveMaxUnchangedPlaylistRefresh: 25,
             fragLoadingTimeOut: 15000,
             fragLoadingMaxRetry: 3,
             fragLoadingRetryDelay: 1000,
@@ -2384,15 +2454,17 @@ class Camera {
         const markLive = () => {
           if (this.dead || this.hls !== hls) return;
           this.lastFrameTime = Date.now();
-          this.startWatchdog();
-          this.video.muted = true;
-          this.video.play().catch(() => {});
+          if (!this.watchdogT) this.startWatchdog();
+          if (this.video && this.video.paused) {
+            this.video.muted = true;
+            this.video.play().catch(() => {});
+          }
           if (this.video && this.video.videoWidth > 0) {
             this.markLive();
           }
         };
 
-        hls.on(Hls.Events.FRAG_LOADED, markLive);
+        hls.on(Hls.Events.MANIFEST_PARSED, markLive);
         if (this.video) {
           this.onPlaying = markLive;
           this.video.addEventListener('playing', markLive);
@@ -2404,7 +2476,8 @@ class Camera {
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (this.dead || this.hls !== hls) return;
           if (data.details === Hls.ErrorDetails.PLAYLIST_UNCHANGED_ERROR) {
-            console.warn('[HLS] Playlist unchanged limit reached for', this.src, '— refreshing master session');
+            console.warn('[HLS] Playlist unchanged limit reached for', this.src, '— falling back to go2rtc');
+            if (this.isDohSource) this._hlsFallbackToGo2rtc = true;
             this.fail();
             return;
           }
@@ -2416,7 +2489,8 @@ class Camera {
                   console.warn('[HLS] Fatal network error for', this.src, '— restarting load');
                   hls.startLoad();
                 } else {
-                  console.warn('[HLS] Fatal network error for', this.src, '— reconnecting master playlist');
+                  console.warn('[HLS] Fatal network error for', this.src, '— falling back to go2rtc / reconnecting');
+                  if (this.isDohSource) this._hlsFallbackToGo2rtc = true;
                   this.fail();
                 }
                 break;
@@ -2427,11 +2501,13 @@ class Camera {
                   hls.recoverMediaError();
                 } else {
                   console.error('[HLS] Media recovery failed for', this.src);
+                  if (this.isDohSource) this._hlsFallbackToGo2rtc = true;
                   this.fail();
                 }
                 break;
               default:
                 console.error('[HLS] Fatal unrecoverable error for', this.src, data);
+                if (this.isDohSource) this._hlsFallbackToGo2rtc = true;
                 this.fail();
                 break;
             }
@@ -2695,6 +2771,8 @@ class Camera {
     this.connect();
   }
 }
+
+window.Camera = Camera;
 
 let modalSuspensionDepth = 0;
 
@@ -3094,7 +3172,8 @@ function rebuildGrid(forceFull = false) {
     t.configured = cfg.demo || !!ch.src; // ช่องว่างที่ยังไม่เพิ่มกล้องไม่ถูกนับใน status bar
     t._boundSrc = ch.src || '';
     t._boundSub = ch.sub || '';
-    t._slotKey = `${ch.src || ''}|${gridStream}|${ch.enabled !== false}|${isPersonallyVisible}`;
+    const isHlsSlot = Boolean(ch.src && getHlsUrl(ch.src));
+    t._slotKey = `${ch.src || ''}|${gridStream}|${ch.enabled !== false}|${isPersonallyVisible}|${isHlsSlot}`;
     grid.appendChild(t.el);
     state.tiles.push(t);
 
@@ -3167,7 +3246,8 @@ function syncGridDiffSmoothly() {
     const isHiddenByMe = !!(ch.src && hiddenSet.has(ch.src));
     const isExplicitlyVisible = visibleSet.size === 0 || visibleSet.has(ch.src) || visibleSet.has(String(i)) || visibleSet.has(chNum);
     const isPersonallyVisible = !isHiddenByMe && isExplicitlyVisible;
-    const nextSlotKey = `${ch.src || ''}|${gridStream}|${ch.enabled !== false}|${isPersonallyVisible}`;
+    const isHlsSlot = Boolean(ch.src && getHlsUrl(ch.src));
+    const nextSlotKey = `${ch.src || ''}|${gridStream}|${ch.enabled !== false}|${isPersonallyVisible}|${isHlsSlot}`;
     const oldTile = state.tiles[i];
 
     // ถ้าช่องเดิมไม่ได้เปลี่ยนสตรีมหรือสถานะการมองเห็น ให้อัปเดตเฉพาะชื่อกล้องแบบ In-Place
@@ -3188,7 +3268,11 @@ function syncGridDiffSmoothly() {
       continue;
     }
 
-    // ช่องนี้มีการเปลี่ยนแหล่งสตรีมจริง -> เปลี่ยนเฉพาะช่องนี้ช่องเดียว
+    // ช่องนี้มีการเปลี่ยนแหล่งสตรีมจริง -> แคปภาพเฟรมล่าสุดไว้ก่อนเพื่อไม่ให้กระพริบดำระหว่างสลับสตรีม (Incident 2.187)
+    let prevPoster = '';
+    if (oldTile && oldTile._boundSrc === (ch.src || '') && oldTile.video) {
+      prevPoster = captureVideoPoster(oldTile.video, 480) || oldTile.video.poster || '';
+    }
     if (oldTile) {
       if (oldTile.recorder && oldTile.recorder.state === 'recording') {
         try { oldTile.recorder.stop(); } catch (e) {}
@@ -3196,6 +3280,9 @@ function syncGridDiffSmoothly() {
       if (oldTile.cam) oldTile.cam.destroy();
     }
     const newTile = tileTemplate(i, ch);
+    if (prevPoster && newTile.video) {
+      newTile.video.poster = prevPoster;
+    }
     newTile.cam = null;
     newTile.status = 'offline';
     newTile.configured = cfg.demo || !!ch.src;
@@ -12392,12 +12479,15 @@ function run24x7HealthScrubber() {
     if (cam.sb && !cam.sb.updating && cam.sb.buffered && cam.sb.buffered.length > 0) {
       try {
         const start0 = cam.sb.buffered.start(0);
-        const end = cam.sb.buffered.end(cam.sb.buffered.length - 1);
-        if (end - start0 > 10) {
-          cam.sb.remove(start0, end - 6);
+        const lastIdx = cam.sb.buffered.length - 1;
+        const startLast = cam.sb.buffered.start(lastIdx);
+        const end = cam.sb.buffered.end(lastIdx);
+        if (end - start0 > 35) {
+          cam.sb.remove(start0, end - 18);
         }
-        if (v && end - v.currentTime > 3.5) {
-          v.currentTime = Math.max(0, end - 0.6);
+        if (v && end - v.currentTime > 12.0 && (end - startLast) >= 2.0) {
+          cam._lastMseSeekAt = Date.now();
+          v.currentTime = Math.max(startLast, end - 1.5);
         }
       } catch (e) {}
     }
@@ -12569,11 +12659,12 @@ async function init() {
 
   window.DYNAMIC_HLS_MAP = window.DYNAMIC_HLS_MAP || {};
 
-  const hlsPromise = fetch('/api/public-config/hls-map', { signal: timeoutSignal(3500) })
+  const hlsPromise = fetch('/api/public-config/hls-map?t=' + Date.now(), { signal: timeoutSignal(3500) })
     .then(r => (r.ok ? r.json() : {}))
     .then(data => {
       if (data && typeof data === 'object') {
         window.DYNAMIC_HLS_MAP = { ...window.DYNAMIC_HLS_MAP, ...data };
+        cfg._cachedHlsMap = window.DYNAMIC_HLS_MAP;
       }
     })
     .catch(e => console.error('Failed to load HLS map', e));
@@ -12592,13 +12683,16 @@ async function init() {
       window.cachedCameraGPS = gpsData;
       let addedHls = false;
       for (const [cid, cdata] of Object.entries(gpsData)) {
-        if (cdata && cdata.url && !window.DYNAMIC_HLS_MAP[cid]) {
+        if (cdata && cdata.url && window.DYNAMIC_HLS_MAP[cid] !== cdata.url) {
           window.DYNAMIC_HLS_MAP[cid] = cdata.url;
           addedHls = true;
         }
       }
-      if (addedHls && typeof syncGridDiffSmoothly === 'function') {
-        syncGridDiffSmoothly();
+      if (addedHls) {
+        cfg._cachedHlsMap = window.DYNAMIC_HLS_MAP;
+        if (typeof syncGridDiffSmoothly === 'function') {
+          syncGridDiffSmoothly();
+        }
       }
     }
   });
