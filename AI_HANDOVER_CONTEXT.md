@@ -1,4 +1,19 @@
-﻿## Update 2026-10-23 (Early Morning) - Full Cutover from Docker (`BPP-VMS`) to Standalone Native Program (`Sloth-BPP215` / `BPP-VMS.exe`) Serving `:8443`, `:80`, `:443`, and `https://vms.local` (Incident 2.198)
+﻿## Update 2026-10-23 (Early Morning 2) - 1-Click PC Program Client Updater (`#bppWinUpdateBtn` in `BPP-VMS.exe`) + Cloud/Local Dual-Mode Client & Mobile URL Architecture (Incident 2.199)
+- **Problem / User Request**:
+  - User requested: *"สำหรับมือถือถ้าจะเข้าดูภายนอกเข้าผ่าน url แต่สำหรับคอมอยากให้เป็น program client ที่กดอัพเดทได้เหมือนกันได้ไหมครับจะได้ไม่มีบัค"* ("For mobile phones, if accessing from outside, access via URL, while for PCs, I want it to be a program client that can also click to update in the same way so there are no bugs").
+- **Architecture & Features Implemented**:
+  1. **Built-In 1-Click Program Update Button (`🔄 อัปเดต`) in `BPP-VMS.exe` Topbar & System Tray (`frigate-nvr/tools/native-exe/BppVmsShell.cs`)**:
+     - Added the glowing **`🔄 อัปเดต` (`#bppWinUpdateBtn`)** button directly inside `#bppSlothNativeWindowControls` at the top-right of the `BPP-VMS.exe` window (alongside Minimize, Maximize, Close) and `"🔄 อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุด (1-Click Program Update)"` in the System Tray right-click menu.
+     - Clicking **`🔄 อัปเดต`** executes `TriggerFullProgramUpdateAsync()`, which triggers both `/api/config/system/update/apply` and `/api/config/system/update/web-sync`, clears WebView2's HTTP/disk cache via DevTools Protocol (`Network.clearBrowserCache`), reloads the UI cleanly without any stale cached `.js`/`.css` files, and shows a confirmation notification.
+     - Added Tray menu mode switches (`🏠 โหมด Local Engine (http://127.0.0.1:8443)` and `🌐 โหมด Remote PC Client (https://vms.local)`) so any PC (at HQ or remote) can run `BPP-VMS.exe` as a standalone desktop Program Client.
+  2. **Conflict-Free Full Update & Auto-Sync of `native/*.py` Runtime Scripts (`frigate-nvr/config-api/system_updater.py`)**:
+     - Expanded `PROTECTED_LOCAL_FILES` to protect `camera_sources.json`, `camera_templates.json`, `camera_credentials.env`, `nvr_groups.json`, `drones_qcs_state.json`, `program_logs.json`, `user_groups.json`, `ai_schedules.json`, and `manual_recordings.json`.
+     - Added `git reset --hard origin/<branch>` fallback in `apply_full_update()` (guarded by `_restore_local_machine_files` in `finally:`) so dirty working-tree code files or CRLF differences never cause `git pull --ff-only` to fail.
+     - Added `_sync_native_runtime_scripts()` to automatically copy updated `native_gateway.py`, `native_ai_worker.py`, and `gpu_accelerator.py` from `repo/frigate-nvr/tools/native-exe/` into `native/` on every update.
+     - Recompiled `D:\Sloth-BPP215\native\BPP-VMS.exe`, `D:\Sloth-BPP215\BPP-VMS-Setup.exe`, and `D:\SLOTH-BPP-VMS-Installer\native\BPP-VMS.exe`.
+- **Files Changed**: `frigate-nvr/tools/native-exe/BppVmsShell.cs`, `frigate-nvr/config-api/system_updater.py`, `frigate-nvr/config/system_updater.py`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-23 (Early Morning) - Full Cutover from Docker (`BPP-VMS`) to Standalone Native Program (`Sloth-BPP215` / `BPP-VMS.exe`) Serving `:8443`, `:80`, `:443`, and `https://vms.local` (Incident 2.198)
 - **Problem / User Request**:
   - User requested: *"ลองสลับมาใช้ตัวโปรแกรมแทน docker"* ("Try switching to using the standalone program instead of docker").
 - **Architecture & Cutover Actions Executed**:

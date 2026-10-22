@@ -124,11 +124,21 @@ namespace BppVmsNative
         {
             _trayMenu = new ContextMenuStrip();
             _trayMenu.Items.Add("เปิดหน้าต่างโปรแกรม (Show BPP-VMS)", null, (s, e) => ShowMainWindow());
+            _trayMenu.Items.Add("🔄 อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุด (1-Click Program Update)", null, async (s, e) => await TriggerFullProgramUpdateAsync());
+            _trayMenu.Items.Add("⚡ ซิงค์หน้าเว็บทันที (Zero-Downtime Web Sync)", null, async (s, e) => await TriggerWebSyncAsync());
+            _trayMenu.Items.Add(new ToolStripSeparator());
+            _trayMenu.Items.Add("🏠 โหมด Local Engine (http://127.0.0.1:8443)", null, (s, e) =>
+            {
+                if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
+            });
+            _trayMenu.Items.Add("🌐 โหมด Remote PC Client (https://sloth.bpp215.com)", null, (s, e) =>
+            {
+                if (_coreWebView != null) _coreWebView.Navigate("https://sloth.bpp215.com/");
+            });
             _trayMenu.Items.Add("เปิดในเบราว์เซอร์ (http://127.0.0.1:8443)", null, (s, e) =>
             {
                 Process.Start(new ProcessStartInfo(_gatewayUrl) { UseShellExecute = true });
             });
-            _trayMenu.Items.Add("⚡ ซิงค์หน้าเว็บทันที (Zero-Downtime Web Sync)", null, async (s, e) => await TriggerWebSyncAsync());
             _trayMenu.Items.Add(new ToolStripSeparator());
             _trayMenu.Items.Add("ออกจากโปรแกรม (Exit BPP-VMS)", null, (s, e) => ExitApplication());
 
@@ -258,6 +268,10 @@ namespace BppVmsNative
             {
                 BeginInvoke(new Action(async () => { await TriggerWebSyncAsync(); }));
             }
+            else if (msg == "update-program")
+            {
+                BeginInvoke(new Action(async () => { await TriggerFullProgramUpdateAsync(); }));
+            }
             else if (msg == "open-browser")
             {
                 BeginInvoke(new Action(() =>
@@ -267,9 +281,13 @@ namespace BppVmsNative
             }
             else if (msg == "reload")
             {
-                BeginInvoke(new Action(() =>
+                BeginInvoke(new Action(async () =>
                 {
-                    if (_coreWebView != null) _coreWebView.Reload();
+                    if (_coreWebView != null)
+                    {
+                        try { await _coreWebView.CallDevToolsProtocolMethodAsync("Network.clearBrowserCache", "{}"); } catch { }
+                        _coreWebView.Reload();
+                    }
                 }));
             }
         }
@@ -437,7 +455,7 @@ namespace BppVmsNative
   };
 
   function injectSlothCyberChrome() {
-    if (location.protocol === 'about:' || (location.href.indexOf('127.0.0.1:8443') === -1 && location.href.indexOf('localhost:8443') === -1)) return;
+    if (location.protocol === 'about:') return;
     if (document.getElementById('bppSlothNativeWindowControls')) return;
 
     var style = document.createElement('style');
@@ -446,7 +464,7 @@ namespace BppVmsNative
       /* Futuristic SLOTH-BPP215 Custom Window Frame & Flush Inside-Topbar Window Controls */
       header.topbar, header {
         position: relative !important;
-        padding-right: 122px !important;
+        padding-right: 205px !important;
         user-select: none;
       }
       .bpp-native-win-cluster {
@@ -456,14 +474,39 @@ namespace BppVmsNative
         z-index: 40 !important;
         display: inline-flex !important;
         align-items: center !important;
-        gap: 3px !important;
-        padding: 3px 5px !important;
+        gap: 4px !important;
+        padding: 3px 6px !important;
         border-radius: 10px !important;
-        background: rgba(10, 8, 22, 0.65) !important;
-        border: 1px solid rgba(168, 85, 247, 0.32) !important;
+        background: rgba(10, 8, 22, 0.72) !important;
+        border: 1px solid rgba(168, 85, 247, 0.36) !important;
         height: 36px !important;
         box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35) !important;
       }
+      .bpp-win-update-btn {
+        height: 28px;
+        padding: 0 9px;
+        border: 1px solid rgba(52, 226, 168, 0.42);
+        border-radius: 7px;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(168, 85, 247, 0.22));
+        color: #ecfdf5;
+        font-size: 11.5px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        transition: all 0.16s ease;
+        white-space: nowrap;
+      }
+      .bpp-win-update-btn:hover {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.38), rgba(168, 85, 247, 0.38));
+        border-color: #34e2a8;
+        box-shadow: 0 0 10px rgba(52, 226, 168, 0.32);
+      }
+      .bpp-win-update-btn.is-updating svg {
+        animation: bppSpin 0.9s linear infinite;
+      }
+      @keyframes bppSpin { to { transform: rotate(360deg); } }
       .bpp-win-ctrl-btn {
         width: 30px;
         height: 28px;
@@ -513,6 +556,10 @@ namespace BppVmsNative
     winCluster.id = 'bppSlothNativeWindowControls';
     winCluster.className = 'bpp-native-win-cluster';
     winCluster.innerHTML = `
+      <button type='button' class='bpp-win-update-btn' id='bppWinUpdateBtn' title='อัปเดตโปรแกรมและหน้าเว็บเป็นเวอร์ชันล่าสุดทันที (1-Click Program Update & Cache Clear)'>
+        <svg viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='#34e2a8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'><path d='M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16'/><path d='M16 16h5v5'/></svg>
+        <span id='bppWinUpdateLabel'>อัปเดต</span>
+      </button>
       <button type='button' class='bpp-win-ctrl-btn' id='bppWinMinBtn' title='ย่อหน้าต่าง (Minimize)'>
         <svg viewBox='0 0 12 12' width='11' height='11'><rect x='2' y='5.5' width='8' height='1.4' fill='currentColor'/></svg>
       </button>
@@ -525,6 +572,18 @@ namespace BppVmsNative
     `;
     hdr.appendChild(winCluster);
 
+    document.getElementById('bppWinUpdateBtn').addEventListener('click', async function() {
+      var btn = document.getElementById('bppWinUpdateBtn');
+      var lbl = document.getElementById('bppWinUpdateLabel');
+      if (btn.classList.contains('is-updating')) return;
+      btn.classList.add('is-updating');
+      if (lbl) lbl.textContent = 'กำลังอัปเดต...';
+      try {
+        await fetch('/api/config/system/update/apply', { method: 'POST', credentials: 'same-origin' });
+        await fetch('/api/config/system/update/web-sync', { method: 'POST', credentials: 'same-origin' });
+      } catch (err) {}
+      postNative('update-program');
+    });
     document.getElementById('bppWinMinBtn').addEventListener('click', function() { postNative('minimize'); });
     document.getElementById('bppWinMaxBtn').addEventListener('click', function() { postNative('maximize-toggle'); });
     document.getElementById('bppWinCloseBtn').addEventListener('click', function() { postNative('close'); });
@@ -655,7 +714,56 @@ namespace BppVmsNative
             });
             if (_coreWebView != null)
             {
+                try { await _coreWebView.CallDevToolsProtocolMethodAsync("Network.clearBrowserCache", "{}"); } catch { }
                 _coreWebView.Reload();
+            }
+        }
+
+        private async Task TriggerFullProgramUpdateAsync()
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var req = (HttpWebRequest)WebRequest.Create(_gatewayUrl + "/api/config/system/update/apply");
+                    req.Method = "POST";
+                    req.Timeout = 45000;
+                    using (var resp = (HttpWebResponse)req.GetResponse())
+                    {
+                    }
+                }
+                catch
+                {
+                }
+                try
+                {
+                    var req2 = (HttpWebRequest)WebRequest.Create(_gatewayUrl + "/api/config/system/update/web-sync");
+                    req2.Method = "POST";
+                    req2.Timeout = 25000;
+                    using (var resp2 = (HttpWebResponse)req2.GetResponse())
+                    {
+                    }
+                }
+                catch
+                {
+                }
+            });
+            if (_coreWebView != null)
+            {
+                try { await _coreWebView.CallDevToolsProtocolMethodAsync("Network.clearBrowserCache", "{}"); } catch { }
+                _coreWebView.Reload();
+            }
+            try
+            {
+                _trayIcon.ShowBalloonTip(
+                    2500,
+                    "อัปเดตโปรแกรม SLOTH × BPP-VMS สำเร็จ",
+                    "ดึงเวอร์ชันล่าสุดและล้างแคชของโปรแกรมเรียบร้อยแล้ว",
+                    ToolTipIcon.Info
+                );
+            }
+            catch
+            {
             }
         }
 

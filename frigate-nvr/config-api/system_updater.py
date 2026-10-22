@@ -298,6 +298,15 @@ class SystemUpdater:
     # and must NEVER be overwritten or reset by any Git update.
     PROTECTED_LOCAL_FILES: List[str] = [
         "config.yml",
+        "camera_sources.json",
+        "camera_templates.json",
+        "camera_credentials.env",
+        "nvr_groups.json",
+        "drones_qcs_state.json",
+        "program_logs.json",
+        "user_groups.json",
+        "ai_schedules.json",
+        "manual_recordings.json",
         "auth/auth.db",
         "auth/secret.key",
         "dashboard-settings/branding.json",
@@ -319,6 +328,20 @@ class SystemUpdater:
         "field_sync.local.json",
         "system_update_settings.json",
     ]
+
+    def _sync_native_runtime_scripts(self) -> None:
+        """If running inside a Sloth-BPP215 native workspace (repo/ alongside native/), sync native/*.py scripts."""
+        try:
+            native_dir = self.repo_root.parent / "native"
+            tools_dir = self.repo_root / "frigate-nvr" / "tools" / "native-exe"
+            if native_dir.is_dir() and tools_dir.is_dir():
+                for fname in ("native_gateway.py", "native_ai_worker.py", "gpu_accelerator.py"):
+                    src = tools_dir / fname
+                    dst = native_dir / fname
+                    if src.is_file():
+                        shutil.copy2(src, dst)
+        except Exception as exc:
+            logger.debug("Native runtime script sync skipped: %s", exc)
 
     def _snapshot_local_machine_files(self) -> Dict[Path, bytes]:
         """Snapshot all machine-specific settings, users, and camera configs before Git operations."""
@@ -403,6 +426,7 @@ class SystemUpdater:
                     self._state["last_error"] = err
                     self._save_settings()
                     return {"ok": False, "error": err, "status": self.get_status(force_fetch=False)}
+                self._sync_native_runtime_scripts()
             finally:
                 self._restore_local_machine_files(local_snap)
 
@@ -482,10 +506,14 @@ class SystemUpdater:
                     pull_res = self._run_git(["pull", "--ff-only", "origin", branch], timeout=45)
 
                 if pull_res.returncode != 0:
+                    pull_res = self._run_git(["reset", "--hard", f"origin/{branch}"], timeout=30)
+
+                if pull_res.returncode != 0:
                     err = (pull_res.stderr or pull_res.stdout or "git pull --ff-only failed").strip()
                     self._state["last_error"] = err
                     self._save_settings()
                     return {"ok": False, "error": err, "status": self.get_status(force_fetch=False)}
+                self._sync_native_runtime_scripts()
             finally:
                 # Guarantee that all local settings, users, branding, and camera configs are never overwritten
                 self._restore_local_machine_files(local_snap)
