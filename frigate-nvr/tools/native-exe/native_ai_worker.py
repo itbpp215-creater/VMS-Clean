@@ -22,7 +22,12 @@ import numpy as np
 
 # Ensure lpr-service is importable for VehicleAttrOnnx and FaceOnnxEngine
 _HERE = Path(__file__).resolve().parent
-_REPO_FRIGATE = _HERE.parents[1]
+_REPO_FRIGATE = (
+    _HERE.parents[1]
+    if (_HERE.name == "native-exe" and len(_HERE.parents) >= 2)
+    else (_HERE.parent / "repo" / "frigate-nvr")
+)
+_WORKSPACE_ROOT = _REPO_FRIGATE.parents[1] if len(_REPO_FRIGATE.parents) >= 2 else _HERE.parent
 _LPR_DIR = _REPO_FRIGATE / "lpr-service"
 if str(_LPR_DIR) not in sys.path:
     sys.path.insert(0, str(_LPR_DIR))
@@ -110,8 +115,8 @@ class NativeAiEngine:
         self.providers = self.caps.ort_selected_providers
 
         default_model_dir = _REPO_FRIGATE / "LicensePlateRECOG" / "model" / "attr"
-        sloth_model_dir = _REPO_FRIGATE.parents[1] / "models" / "sloth"
-        native_model_dir = _REPO_FRIGATE.parents[1] / "native" / "models"
+        sloth_model_dir = _WORKSPACE_ROOT / "models" / "sloth"
+        native_model_dir = _WORKSPACE_ROOT / "native" / "models"
         resolved_model_dir = default_model_dir
         for cand in (default_model_dir, sloth_model_dir, native_model_dir):
             if cand.is_dir():

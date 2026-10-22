@@ -570,7 +570,7 @@
   tailscale:
     container_name: tailscale-service
     image: tailscale/tailscale:latest
-    hostname: ${TAILSCALE_HOSTNAME:-bpp215-vms}
+    hostname: ${TAILSCALE_HOSTNAME:-nvr-dashboard}
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -579,7 +579,7 @@
       - /dev/net/tun:/dev/net/tun
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTHKEY:-}
-      - TS_HOSTNAME=${TAILSCALE_HOSTNAME:-bpp215-vms}
+      - TS_HOSTNAME=${TAILSCALE_HOSTNAME:-nvr-dashboard}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=false
       - TS_EXTRA_ARGS=--accept-routes

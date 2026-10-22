@@ -1,0 +1,10 @@
+{
+  "auto_web_sync": true,
+  "interval_minutes": 15,
+  "branch": "",
+  "last_checked_at": "2026-10-22T05:42:43.410205+00:00",
+  "last_web_sync_at": "2026-10-22T05:42:43.410205+00:00",
+  "last_full_update_at": "2026-10-22T05:42:43.410205+00:00",
+  "last_sync_commit": "a762641",
+  "last_error": null
+}

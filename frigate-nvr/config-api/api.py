@@ -61,12 +61,10 @@ from frigate_validator import (
     FrigateValidatorUnavailable,
     validate_yaml_with_frigate,
 )
-try:
-    import stream_probe
-except ImportError:
-    import sys
+import sys
+if "/config" not in sys.path:
     sys.path.append("/config")
-    import stream_probe
+import stream_probe
 
 
 # The FastAPI instance exposes only config-service routes; authorization is

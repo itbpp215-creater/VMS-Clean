@@ -129,7 +129,12 @@ def detect_gpu_capabilities(native_root: Optional[Path] = None, force_refresh: b
     if not force_refresh and _CACHED_GPU_CAPS is not None:
         return _CACHED_GPU_CAPS
 
-    default_native_root = Path(__file__).resolve().parents[3] / "native"
+    _here = Path(__file__).resolve().parent
+    default_native_root = (
+        (_here.parents[2] / "native")
+        if (_here.name == "native-exe" and len(_here.parents) >= 3)
+        else _here
+    )
     root = native_root or Path(os.environ.get("BPP_NATIVE_ROOT", str(default_native_root)))
     cache_file = root / "runtime" / "gpu_caps_cache.json"
     current_pc = os.environ.get("COMPUTERNAME", "")

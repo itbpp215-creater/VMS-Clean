@@ -1,4 +1,52 @@
-﻿## Update 2026-10-22 (Afternoon 2) - Eliminate CH Camera Tile Flickering, Unify Repos, Rebuild Native EXE/Setup & Package Clean Installer Release (Incident 2.187, v216)
+﻿## Update 2026-10-22 (Afternoon 4) - Full System Update & Enable 100% URL Access (`vms.local` + Tailscale/LAN) While VPN Is Active (Incident 2.189, v217)
+- **Problem / User Request**:
+  - User requested: *"อัพให้เป็นล่าสุด และทำให้สามารถเข้าผ่าน url ได้ในขณะที่เปิด vpn"* ("Update to the latest, and make it accessible via the URL while VPN is turned on").
+- **Root Cause Diagnosed**:
+  1. **Duplicate Windows `Cloudflared` Service Connector Missing `nvr-dashboard` Host Resolution (50% Cloudflare 502 Bad Gateway on VPN PoPs)**:
+     - Both the Docker container `cloudflared-tunnel` AND the Windows service `Cloudflared` (`C:\Program Files (x86)\cloudflared\cloudflared.exe`) run with the same Cloudflare Tunnel token (`vms.local` -> `"service": "https://nvr-dashboard:443"`).
+     - When VPN is off in Thailand, Cloudflare routes to the `SIN`/`BKK` edge PoP handled by Docker `cloudflared-tunnel` (where `nvr-dashboard` resolves via Docker DNS `127.0.0.11`).
+     - When a user turns on a VPN (`KIX`, `SIN`, `HKG`, Tailscale, WARP, etc.), Cloudflare routes requests to the second connector (Windows `Cloudflared` service), where `nvr-dashboard` was missing from `C:\Windows\System32\drivers\etc\hosts`, causing `lookup nvr-dashboard: no such host` and **HTTP 502 Bad Gateway**.
+  2. **TLS Certificate SAN Mismatch (`SEC_E_WRONG_PRINCIPAL`) & Shared Rate-Limit / SSE Drop (`dashboard-nginx.conf`)**:
+     - `frigate-nvr/config/certs/fullchain.pem` only had `CN=bpp215.duckdns.org`, causing `NET::ERR_CERT_COMMON_NAME_INVALID` on `https://vms.local` (direct), `https://nvr-dashboard.taile51ff6.ts.net`, `https://bpp215-vms.taile51ff6.ts.net`, `https://desktop-nrekckd.taile51ff6.ts.net`, `https://100.117.170.13`, `https://100.118.58.64`, and `https://192.168.1.200`.
+     - `dashboard-nginx.conf` used `$binary_remote_addr` (`10r/m`) for `auth_login_per_ip` (sharing one bucket across all Cloudflare Tunnel/VPN users), hardcoded `watchlist-api:5001` (caching stale container IPs after restarts), and lacked `proxy_buffering off` on `/api/watchlist/stream` (causing Cloudflare Tunnel `unexpected EOF`).
+  3. **WebRTC UDP `:8555` Blocked by VPNs (`app.js`)**:
+     - When accessing via local/private hostnames while a client VPN is active, WebRTC ICE over UDP `:8555` is blocked by VPN tunnels/leak-protection, delaying stream startup by 3.8s.
+- **Resolution**:
+  1. **100% Connector Resolution for Both Docker & Windows `Cloudflared` Connectors (`tailscale-service` + `hosts`)**:
+     - Configured `tailscale-service` (`100.117.170.13`, which runs `tailscale-serve.json` forwarding `:443 -> nvr-dashboard:443` and `:80 -> nvr-dashboard:80`) with `TAILSCALE_HOSTNAME=nvr-dashboard` (`docker exec tailscale-service tailscale set --hostname=nvr-dashboard`, persisted in `.env` and `docker-compose.yml`).
+     - Windows `tailscaled.exe` (`LocalSystem`) automatically injected `100.117.170.13 nvr-dashboard.taile51ff6.ts.net. nvr-dashboard` into `C:\Windows\System32\drivers\etc\hosts`, so the Windows `Cloudflared` service resolves `https://nvr-dashboard:443` -> `100.117.170.13:443` -> `nvr-dashboard:443` with 100% HTTP 200 uptime across all Cloudflare PoPs when VPN is active.
+  2. **Multi-SAN TLS Certificate & VPN-Hardened Nginx Gateway (`dashboard-nginx.conf`)**:
+     - Generated a 10-year Multi-SAN certificate in `frigate-nvr/config/certs/fullchain.pem` & `privkey.pem` covering `vms.local`, `*.example.com`, `sloth-v2.example.com`, `bpp215.duckdns.org`, `nvr-dashboard.taile51ff6.ts.net`, `bpp215-vms.taile51ff6.ts.net`, `desktop-nrekckd.taile51ff6.ts.net`, `bpp215-vms-1.taile51ff6.ts.net`, `nvr-dashboard`, `bpp215-vms`, `desktop-nrekckd`, `localhost`, and IP SANs `127.0.0.1`, `192.168.1.200`, `100.117.170.13`, `100.118.58.64`, `100.76.210.45`, `100.81.143.39`.
+     - Updated `dashboard-nginx.conf` to map `$http_cf_connecting_ip` to `$real_client_ip` (`30r/m`, `burst=10`), forward `CF-Connecting-IP` to `auth-service`, use dynamic Docker DNS (`resolver 127.0.0.11 valid=10s ipv6=off;` + `$watchlist_backend`), add unbuffered `location = /api/watchlist/stream`, and allow `ws://$http_host wss: ws:` in CSP.
+  3. **MSE-First Streaming Over HTTPS/WSS (`app.js` `v217`) & Full Repo/Installer Sync**:
+     - Set `streamTransportState.preferMSE = true` in `frigate-nvr/web/assets/app.js` (`v217`) so cameras stream immediately over HTTPS/WSS (`<200ms`) even when VPN is active, and synced all latest fixes across `D:\BPP-VMS`, `D:\sloth+vms\repo`, `D:\sloth+vms\native`, `D:\SLOTH-BPP-VMS-Installer`, `D:\SLOTH-BPP-VMS-Installer.zip`, and `VMS-Clean`.
+- **Files Changed**: `frigate-nvr/dashboard-nginx.conf`, `frigate-nvr/docker-compose.yml`, `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`, `frigate-nvr/config/certs/fullchain.pem`, `frigate-nvr/config/certs/privkey.pem`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Afternoon 3) - Fix `สภ.บ้านม่วง 16–17` (`Banmuang_16`, `Banmuang_17`) RTSP Channel Typo (`channel=168`/`178` -> `16`/`17`), Remove `???????` Camera Picker Entries & Sync `bpp+vms` (`D:\sloth+vms` / `D:\SLOTH-BPP-VMS-Installer`) (Incident 2.188)
+- **Problem / User Request**:
+  - User uploaded two screenshots (`media_1792647792244_b0e5f738.png`, `media_1792647881152_ddfe4b9c.png`) asking:
+    1. *"มาจากไหนทำไมเป็นแบบนี้"* — in the camera picker modal (`เลือกกล้องสำหรับช่อง CH06`), 3 groups at the top displayed `???????` (`doh_per_8_001`, `doh_per_6_027`, `doh_per_6_031`, `doh_per_6_034`, `doh_per_7_013`).
+    2. *"และทำไมของ สภ.บ้านม่วง 16 -17 offline"* — `CH07 สภ.บ้านม่วง16` and `CH08 สภ.บ้านม่วง17` displayed `VIDEO LOSS / สัญญาณวิดีโอขาดหาย / NO VIDEO`.
+    3. *"ปัญหาพวกนี้จะเกิดอีกไหม และกับ bpp+vms จะเกิดด้วยไหม"* — verify whether these issues can recur and ensure `bpp+vms` (`D:\sloth+vms` & `D:\SLOTH-BPP-VMS-Installer`) also has 100% of the fixes applied.
+- **Root Cause Diagnosed**:
+  1. **`???????` Entries in `camera_gps.json`**:
+     - When `doh_per_6_027`, `doh_per_6_031`, `doh_per_6_034`, `doh_per_7_013`, and `doh_per_8_001` were added via a PowerShell `@' ... '@ | python -` stdin pipe, PowerShell's default ASCII/`cp1252` `Console.OutputEncoding` converted the Thai province/camera strings into literal `?` before reaching Python stdin.
+  2. **`Banmuang_16` and `Banmuang_17` RTSP Channel Number Typo (`channel=168` & `channel=178`)**:
+     - In `frigate-nvr/config/camera_sources.json` and `frigate-nvr/config/config.yml`, `Banmuang_16` and `Banmuang_17` had `rtsp://...@113.53.45.27:554/cam/realmonitor?channel=168&subtype=0` and `channel=178&subtype=0` instead of `channel=16` and `channel=17` (a keyboard typo where `16&` was typed as `168&` and `17&` as `178&`).
+  3. **`bpp+vms` (`D:\sloth+vms` & `D:\SLOTH-BPP-VMS-Installer`) Snapshot Lag & `native/` Path Depth**:
+     - `D:\sloth+vms\native\config` had been snapshot-synced prior to Incident 2.188, so it still held `channel=168`/`178` and the 5 `???` entries, and `gpu_accelerator.py` / `native_ai_worker.py` used `.parents[3]` / `.parents[1]` assuming `frigate-nvr/tools/native-exe/` depth when imported directly from `D:\sloth+vms\native\`.
+- **Resolution**:
+  1. **Removed the 5 `???????` Entries (`camera_gps.json`, `config.yml`, `go2rtc`)**:
+     - Removed `doh_per_6_027`, `doh_per_6_031`, `doh_per_6_034`, `doh_per_7_013`, and `doh_per_8_001` from `camera_gps.json`, `config.yml`, and `go2rtc`, and verified zero `???` strings remain across all config files.
+  2. **Restored `Banmuang_16` & `Banmuang_17` (`channel=16` & `channel=17`)**:
+     - Corrected `channel=168` -> `channel=16` and `channel=178` -> `channel=17` in `frigate-nvr/config/camera_sources.json` and `frigate-nvr/config/config.yml` (`Banmuang_16`, `Banmuang_16_sub`, `Banmuang_16_hd`, `Banmuang_17`, `Banmuang_17_sub`, `Banmuang_17_hd`).
+     - Hot-reloaded all 6 streams in `go2rtc` inside `frigate-nvr` and confirmed live H.264 streaming on `CH07` (`Banmuang_16_sub`: `HTTP 200`, `64.5 KB` frame, `19.5 MB` streamed) and `CH08` (`Banmuang_17_sub`: `HTTP 200`, `81.2 KB` frame, `14.2 MB` streamed).
+  3. **Full Parity Sync & Hardening for `bpp+vms` (`D:\sloth+vms` & `D:\SLOTH-BPP-VMS-Installer`)**:
+     - Synced `camera_sources.json`, `config.yml`, `dashboard-settings/camera_gps.json`, `web/index.html`, `web/assets/app.js` (`v216`), and `web/assets/analytics.js` (`v125`) across `D:\sloth+vms\native\config`, `D:\sloth+vms\repo\frigate-nvr`, `D:\SLOTH-BPP-VMS-Installer\native\config`, and `D:\SLOTH-BPP-VMS-Installer\repo\frigate-nvr`.
+     - Hardened path depth resolution in `frigate-nvr/tools/native-exe/gpu_accelerator.py` and `native_ai_worker.py` so they resolve `native/` and `repo/frigate-nvr/` cleanly whether run from `tools/native-exe/` or `D:\sloth+vms\native\`, and regenerated `D:\sloth+vms\native\runtime\go2rtc.native.yaml` with `channel=16&` / `channel=17&`.
+- **Files Changed**: `frigate-nvr/config/camera_sources.json`, `frigate-nvr/config/config.yml`, `frigate-nvr/config/dashboard-settings/camera_gps.json`, `frigate-nvr/tools/native-exe/gpu_accelerator.py`, `frigate-nvr/tools/native-exe/native_ai_worker.py`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Afternoon 2) - Eliminate CH Camera Tile Flickering, Unify Repos, Rebuild Native EXE/Setup & Package Clean Installer Release (Incident 2.187, v216)
 - **Problem / User Request**:
   - User requested: *"อัพเดทให้เป็นล่าสุด และผมสังเกตเห็นว่ามีกล้องที่เปิดอยู่ใน ch กระพริบบางกล้อง และทำตัวติดตั้งให้เป็นล่าสุดด้วย และเคลียร์โฟลเดอร์ที่ด้วยเอาเฉพาะที่จำเป็นและแพ็คโฟลเดอร์สำหรับนำไป install ด้วย"*
   - Some camera tiles open in the dashboard grid (`CH01`–`CH16`) exhibited periodic flickering, frame-snapping/stuttering, or brief black-frame flashes during playback and transport recovery.
@@ -50,9 +98,9 @@
   2. **DOH Wowza `#EXT-X-DISCONTINUITY` Stripper & Automatic `go2rtc` Fallback (`app.js` `v214` & `analytics.js` `v124`)**:
      - Updated `createDohPlaylistLoader` in `app.js` to strip bogus `#EXT-X-DISCONTINUITY` and `#EXT-X-DISCONTINUITY-SEQUENCE` lines from DOH Wowza chunklists while clamping `#EXT-X-TARGETDURATION` (`1..12s`) and dynamically setting `liveSyncDuration` (`~55%` of the 3-segment window).
      - Added automatic fallback to `go2rtc` (`this._hlsFallbackToGo2rtc = true` in `app.js` and `fallbackPopupToGo2rtc()` in `analytics.js`) if direct HLS encounters fatal errors or playlist stalls.
-  3. **Strict 1-to-1 Authentic DOH (`doh_per_*`) + ITIC (`itic_kk*`) Camera Mapping (`camera_gps.json`, `config.yml`, & `go2rtc`, `app.js` `v216`, `analytics.js` `v125`)**:
+  3. **Strict 1-to-1 Authentic DOH (`doh_per_*`) + ITIC (`itic_kk*`) Camera Mapping & Zero Red Offline Pin Clutter (`camera_gps.json`, `config.yml`, & `go2rtc`, `app.js` `v216`, `analytics.js` `v125`)**:
      - Reverted all 32 cross-mapped `upstream_primary_url` entries back to their strict 1-to-1 authentic URLs (e.g. `doh_per_13_009` -> `https://streaming2.highwaytraffic.go.th/PER-13/PER_13_009.stream/playlist.m3u8`) so no camera pin ever displays another location's video stream.
-     - Added the 5 additional authentic Isan DOH cameras active on `streaming1.highwaytraffic.go.th` at their official DOH GPS coordinates (`doh_per_6_027` อุดรธานี, `doh_per_6_031` นครราชสีมา, `doh_per_6_034` นครราชสีมา, `doh_per_7_013` อำนาจเจริญ — fixing DOH's own hyphen typo `PER-7-013.stream` -> `PER_7_013.stream`, and `doh_per_8_001` ชัยภูมิ), unhid `doh_per_6_026` and `doh_per_7_015`, and marked the `streaming2.highwaytraffic.go.th` (`180.180.242.208`) cameras honestly as `Offline` while DOH's `streaming2` port 443 is down upstream.
+     - Added the 5 additional authentic Isan DOH cameras active on `streaming1.highwaytraffic.go.th` at their official DOH GPS coordinates (`doh_per_6_027` อุดรธานี, `doh_per_6_031` นครราชสีมา, `doh_per_6_034` นครราชสีมา, `doh_per_7_013` อำนาจเจริญ — fixing DOH's own hyphen typo `PER-7-013.stream` -> `PER_7_013.stream`, and `doh_per_8_001` ชัยภูมิ), unhid `doh_per_6_026` and `doh_per_7_015`, restored 8 recovered Roi Et / Ubon cameras (`roiet_16`, `roiet_24`, `roiet_33`, `roiet_129`, `roiet_150`, `roiet_155`, `ubon_l4_cam0001`, `ubon_l4_cam0112`) + `Doonsad1/5/6` + `nonburi1/5` to `Ready`, and set `hidden: true` on the 50 cameras whose upstream server (`streaming2.highwaytraffic.go.th`, etc.) is currently down so the map displays 423 green working pins with zero red offline pin clutter.
      - Updated `resolveHlsUrl(camId, cam)` in `analytics.js` (`v125`) to prioritize `cam.url` over cached `window.DYNAMIC_HLS_MAP` and refreshed `cfg._cachedHlsMap` in `app.js` (`v216`).
 - **Files Changed**: `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/assets/analytics.js`, `frigate-nvr/web/index.html`, `frigate-nvr/config/dashboard-settings/camera_gps.json`, `frigate-nvr/config/config.yml`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
 

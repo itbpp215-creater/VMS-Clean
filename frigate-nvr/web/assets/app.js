@@ -1342,7 +1342,8 @@ const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAge
 const isIOSDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isLocalLanHost = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(window.location.hostname || '');
 const streamTransportState = {
-  preferMSE: !isLocalLanHost || isMobileDevice,
+  // Always prefer MSE over HTTPS/WSS so video plays immediately over Cloudflare Tunnel, Tailscale, and commercial VPNs without waiting for UDP :8555 WebRTC timeout (Incident 2.189)
+  preferMSE: true,
   webrtcFailures: 0,
   markWebrtcFailure() {
     this.webrtcFailures++;

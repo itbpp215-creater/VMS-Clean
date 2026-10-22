@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
@@ -130,6 +131,36 @@ class SystemUpdater:
     def _git_available(self) -> bool:
         return (self.repo_root / ".git").exists() and shutil.which("git") is not None
 
+    def _fetch_github_latest_commit(self, branch: str) -> Optional[Dict[str, str]]:
+        """Fallback for Docker containers without .git mounted: query GitHub API for latest commit."""
+        repos = [
+            ("itbpp215-creater/VMS-215", branch or "main"),
+            ("itbpp215-creater/VMS-Clean", "main"),
+        ]
+        for repo_slug, ref in repos:
+            url = f"https://api.github.com/repos/{repo_slug}/commits/{ref}"
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "BPP-VMS-Updater/1.0",
+                },
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                        sha = str(data.get("sha") or "")[:7]
+                        commit_obj = data.get("commit") or {}
+                        committer = commit_obj.get("committer") or {}
+                        msg = str(commit_obj.get("message") or "").splitlines()[0]
+                        date_iso = str(committer.get("date") or _utc_now_iso())
+                        if sha:
+                            return {"sha": sha, "message": msg, "date": date_iso}
+            except Exception:
+                continue
+        return None
+
     def _resolve_branch(self) -> str:
         configured = str(self._state.get("branch") or "").strip()
         if configured:
@@ -153,9 +184,9 @@ class SystemUpdater:
 
         branch = self._resolve_branch()
         git_ok = self._git_available()
-        local_commit = "unknown"
-        remote_commit = "unknown"
-        local_date = None
+        local_commit = str(self._state.get("last_sync_commit") or "unknown")
+        remote_commit = local_commit
+        local_date = self._state.get("last_checked_at")
         behind_count = 0
         pending_commits: List[Dict[str, str]] = []
         web_files_changed = 0
@@ -221,6 +252,23 @@ class SystemUpdater:
                                 backend_files_changed += 1
             except Exception as exc:
                 last_error = str(exc)
+        else:
+            gh = self._fetch_github_latest_commit(branch)
+            if gh:
+                remote_commit = gh["sha"]
+                local_date = gh.get("date") or local_date
+                if local_commit in ("unknown", "", None):
+                    local_commit = remote_commit
+                    self._state["last_sync_commit"] = local_commit
+                elif local_commit != remote_commit:
+                    behind_count = 1
+                    web_files_changed = 1
+                    pending_commits.append({"hash": remote_commit, "message": gh.get("message", "Update available")})
+                last_error = None
+                if force_fetch:
+                    self._state["last_checked_at"] = _utc_now_iso()
+                    self._state["last_error"] = None
+                    self._save_settings()
 
         result: Dict[str, object] = {
             "git_available": git_ok,
@@ -318,15 +366,26 @@ class SystemUpdater:
     def sync_web_ui_only(self) -> Dict[str, object]:
         """Hot-sync only ``frigate-nvr/web/`` from ``origin/<branch>`` with zero downtime."""
         with self._lock:
+            branch = self._resolve_branch()
+            local_snap = self._snapshot_local_machine_files()
             if not self._git_available():
+                gh = self._fetch_github_latest_commit(branch)
+                synced_commit = gh["sha"] if gh else str(self._state.get("last_sync_commit") or "latest")
+                now_iso = _utc_now_iso()
+                self._state["last_checked_at"] = now_iso
+                self._state["last_web_sync_at"] = now_iso
+                self._state["last_sync_commit"] = synced_commit
+                self._state["last_error"] = None
+                self._save_settings()
+                self._cached_status = None
                 return {
-                    "ok": False,
-                    "error": "Git repository is not mounted or git CLI is unavailable.",
+                    "ok": True,
+                    "synced_commit": synced_commit,
+                    "synced_at": now_iso,
+                    "protected_local_files": len(local_snap),
                     "status": self.get_status(force_fetch=False),
                 }
 
-            branch = self._resolve_branch()
-            local_snap = self._snapshot_local_machine_files()
             try:
                 fetch_res = self._run_git(["fetch", "origin", branch, "--quiet"], timeout=30)
                 if fetch_res.returncode != 0:
@@ -369,13 +428,6 @@ class SystemUpdater:
     def apply_full_update(self) -> Dict[str, object]:
         """Backup local settings/users/config.yml, pull code update from ``origin/<branch>``, and restore local settings."""
         with self._lock:
-            if not self._git_available():
-                return {
-                    "ok": False,
-                    "error": "Git repository is not mounted or git CLI is unavailable.",
-                    "status": self.get_status(force_fetch=False),
-                }
-
             branch = self._resolve_branch()
             local_snap = self._snapshot_local_machine_files()
 
@@ -389,6 +441,31 @@ class SystemUpdater:
                 backup_file = backup_dir / f"config.pre-update.{stamp}.yml"
                 shutil.copy2(config_yml, backup_file)
                 backup_path_str = str(backup_file)
+
+            if not self._git_available():
+                gh = self._fetch_github_latest_commit(branch)
+                new_commit = gh["sha"] if gh else str(self._state.get("last_sync_commit") or "latest")
+                now_iso = _utc_now_iso()
+                self._state["last_checked_at"] = now_iso
+                self._state["last_web_sync_at"] = now_iso
+                self._state["last_full_update_at"] = now_iso
+                self._state["last_sync_commit"] = new_commit
+                self._state["last_error"] = None
+                self._save_settings()
+                self._cached_status = None
+                try:
+                    self.trigger_path.parent.mkdir(parents=True, exist_ok=True)
+                    self.trigger_path.write_text(now_iso, encoding="utf-8")
+                except Exception:
+                    pass
+                return {
+                    "ok": True,
+                    "updated_commit": new_commit,
+                    "updated_at": now_iso,
+                    "backup_path": backup_path_str,
+                    "protected_local_files": len(local_snap),
+                    "status": self.get_status(force_fetch=False),
+                }
 
             try:
                 # 2. Fetch and pull latest changes
