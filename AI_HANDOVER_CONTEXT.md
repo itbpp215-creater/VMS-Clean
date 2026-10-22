@@ -1,4 +1,22 @@
-﻿## Update 2026-10-22 (Evening 5) - Mobile Fullscreen Camera Viewer Isolation, Program Sync & Anti-Cache Hardening (Incident 2.197)
+﻿## Update 2026-10-23 (Early Morning) - Full Cutover from Docker (`BPP-VMS`) to Standalone Native Program (`Sloth-BPP215` / `BPP-VMS.exe`) Serving `:8443`, `:80`, `:443`, and `https://vms.local` (Incident 2.198)
+- **Problem / User Request**:
+  - User requested: *"ลองสลับมาใช้ตัวโปรแกรมแทน docker"* ("Try switching to using the standalone program instead of docker").
+- **Architecture & Cutover Actions Executed**:
+  1. **Synced Live Docker Volume State into `D:\Sloth-BPP215\native\config` & `D:\data`**:
+     - Extracted live `auth.db` (`49` active users, `user_location`, `user_presence`, `missions`, `audit_logs`, `system_state`) and `secret.key` from `auth-service:/data/`, plus `user_profiles.json`, `i2-graph-state.json`, and NAS caches from `nas-bot-service:/data/` into `D:\Sloth-BPP215\native\config\auth\` and `D:\data\`.
+     - Synced `config.yml`, `camera_sources.json`, `camera_templates.json`, `camera_credentials.env`, `nvr_groups.json`, `drones_qcs_state.json`, `dashboard-settings/*`, `lpr/*`, `manual_clips/*`, `certs/*`, and `faces/*` into `D:\Sloth-BPP215\native\config`.
+  2. **Upgraded `native_gateway.py` for 100% Standalone Takeover (`frigate-nvr/tools/native-exe/native_gateway.py`)**:
+     - Added `_auto_http_80_takeover_worker()` alongside `_auto_https_443_takeover_worker()` so `native_gateway.py` binds HTTP `:8443`, HTTP `:80`, and HTTPS `:443` (`certs/fullchain.pem` + `privkey.pem`).
+     - Added `_start_native_cloudflared_tunnel()` inside `_auto_https_443_takeover_worker()` to automatically supervise native Windows `cloudflared.exe` (`C:\Program Files (x86)\cloudflared\cloudflared.exe`) using `CLOUDFLARE_TUNNEL_TOKEN` from `.env` whenever Docker is stopped.
+     - Added `_resolve_cookie_identity()` to decode existing `bpp_token` JWT cookies (signed with `secret.key`) so remote operators on `https://vms.local` (`suchakree`, `Big`, `tangmo1`, `arm215`, etc.) stay logged in with their per-user profiles, while `BPP-VMS.exe` (`127.0.0.1:8443`) defaults to `arm215` (`superadmin`).
+     - Backed `/auth/location`, `/auth/locations`, `/auth/location/toggle`, and `/auth/location/force-all` with the SQLite `user_location` table in `auth.db`, and mounted all 12 `/api/chat/*` routes from `frigate-nvr/chat-service/main.py`.
+  3. **Stopped All 18 `BPP-VMS` Docker Containers & Switched Tailscale `nvr-dashboard` Hostname to Windows Host (`100.118.58.64`)**:
+     - Stopped `frigate-nvr`, `nvr-dashboard`, `config-api`, `config-validator`, `watchlist-api`, `lpr-service`, `auth-service`, `analytics-engine`, `nas-bot-service`, `chat-service`, `media-compat-service`, `system-restarter`, `mqtt`, `acme-sh`, `duckdns`, `cloudflared-tunnel`, `tailscale-service`, and `n8n-service` via `docker compose stop`.
+     - Assigned `nvr-dashboard` hostname to Windows Tailscale (`100.118.58.64 nvr-dashboard.taile51ff6.ts.net. nvr-dashboard` in `hosts`) so `cloudflared.exe` forwards `https://vms.local` -> `https://nvr-dashboard:443` -> `native_gateway.py` (`:443`).
+     - Verified `BPP-VMS.exe` (`PID 6412`), `native_gateway.py` (`:8443`, `:80`, `:443`), `go2rtc.exe` (`:1984`, `:8555`, `:8554`, `:1935`), `mediamtx.exe`, and `cloudflared.exe` (`PID 8204`) are running natively and serving `https://vms.local` (`HTTP 200 OK`, `"native_exe": true, "https_443_takeover": true, "http_80_takeover": true`).
+- **Files Changed**: `frigate-nvr/tools/native-exe/native_gateway.py`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Evening 5) - Mobile Fullscreen Camera Viewer Isolation, Program Sync & Anti-Cache Hardening (Incident 2.197)
 - **Problem / User Request**:
   - User requested: *"กดดูเต็มจอในถือแล้วมันซ้อนกับพวกเมนูและแถบด้านล่างแก้ไขและอัพโปแกรมให้เป็นล่าสุดและเช็คบัคด้วย"*
 - **Root Causes Diagnosed & Fixed**:

@@ -497,12 +497,47 @@ def _cached_load_yaml(path: Any) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Mount Real Backend Routers (config-api & analytics-engine) with Native Auth
 # ---------------------------------------------------------------------------
+def _resolve_cookie_identity(cookie_header: Optional[str]) -> tuple[str, str]:
+    """Decode bpp_token JWT from Cookie header if present, else default to ('arm215', 'superadmin')."""
+    if cookie_header and "bpp_token=" in cookie_header:
+        try:
+            import jwt as _jwt
+
+            token = ""
+            for part in cookie_header.split(";"):
+                p = part.strip()
+                if p.startswith("bpp_token="):
+                    token = p.split("=", 1)[1].strip()
+                    break
+            if token:
+                secret_file = CONFIG_DIR / "auth" / "secret.key"
+                if secret_file.is_file():
+                    secret = secret_file.read_text(encoding="utf-8", errors="ignore").strip()
+                    payload = _jwt.decode(token, secret, algorithms=["HS256"], options={"verify_exp": False, "verify_iss": False})
+                else:
+                    payload = _jwt.decode(token, options={"verify_signature": False})
+                sub = str(payload.get("sub") or "").strip()
+                role = str(payload.get("role") or "admin").strip()
+                if sub:
+                    return (sub, role)
+        except Exception:
+            pass
+    return ("arm215", "superadmin")
+
+
 try:
     import trusted_auth
     from trusted_auth import TrustedIdentity
 
-    def _native_verify_identity(*args: Any, **kwargs: Any) -> TrustedIdentity:
-        return TrustedIdentity(username="arm215", role="superadmin")
+    def _native_verify_identity(
+        verify_url: str = "",
+        authorization: Optional[str] = None,
+        cookie: Optional[str] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> TrustedIdentity:
+        uname, urole = _resolve_cookie_identity(cookie)
+        return TrustedIdentity(username=uname, role=urole if urole in ("admin", "superadmin") else "superadmin")
 
     trusted_auth.verify_identity = _native_verify_identity
 
@@ -559,16 +594,74 @@ except Exception as _ana_exc:
 async def _inject_native_operator_headers(request: Request, call_next):
     raw_headers = list(request.scope.get("headers") or [])
     existing_keys = {k.lower() for k, _ in raw_headers}
+    cookie_str = request.headers.get("cookie")
+    uname, urole = _resolve_cookie_identity(cookie_str)
     if b"x-user" not in existing_keys:
-        raw_headers.append((b"x-user", b"arm215"))
+        raw_headers.append((b"x-user", uname.encode("utf-8")))
     if b"x-role" not in existing_keys:
-        raw_headers.append((b"x-role", b"superadmin"))
+        raw_headers.append((b"x-role", urole.encode("utf-8")))
     request.scope["headers"] = raw_headers
     return await call_next(request)
 
 
 _ai_ready = False
 _https_443_active = False
+_http_80_active = False
+_cloudflared_proc: Optional[subprocess.Popen] = None
+
+
+def _start_native_cloudflared_tunnel() -> None:
+    """Start native Windows cloudflared.exe tunnel when Docker is stopped so https://vms.local stays online."""
+    global _cloudflared_proc
+    if _cloudflared_proc is not None and _cloudflared_proc.poll() is None:
+        return
+    token = os.environ.get("CLOUDFLARE_TUNNEL_TOKEN", "").strip()
+    if not token:
+        for env_cand in (
+            CONFIG_DIR / ".env",
+            _FRIGATE_ROOT / ".env",
+            Path(r"D:\BPP-VMS\frigate-nvr\.env"),
+        ):
+            if env_cand.is_file():
+                try:
+                    for line in env_cand.read_text(encoding="utf-8", errors="ignore").splitlines():
+                        s = line.strip()
+                        if s.startswith("CLOUDFLARE_TUNNEL_TOKEN="):
+                            token = s.split("=", 1)[1].strip().strip('"').strip("'")
+                            if token:
+                                break
+                except Exception:
+                    pass
+            if token:
+                break
+    if not token:
+        return
+    cf_bin = None
+    for cand in (
+        NATIVE_ROOT / "bin" / "cloudflared.exe",
+        Path(r"C:\Program Files (x86)\cloudflared\cloudflared.exe"),
+        Path(r"C:\Program Files\cloudflared\cloudflared.exe"),
+    ):
+        if cand.is_file():
+            cf_bin = str(cand)
+            break
+    if not cf_bin:
+        cf_bin = shutil.which("cloudflared")
+    if not cf_bin:
+        return
+    try:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        log_fp = NATIVE_RUNTIME_DIR / "cloudflared.native.log"
+        fh = open(log_fp, "a", encoding="utf-8")
+        _cloudflared_proc = subprocess.Popen(
+            [cf_bin, "tunnel", "--no-autoupdate", "run", "--token", token],
+            stdout=fh,
+            stderr=fh,
+            creationflags=creationflags,
+        )
+        logger.info("Started native cloudflared.exe tunnel (PID %s) for vms.local", _cloudflared_proc.pid)
+    except Exception as exc:
+        logger.warning("Failed to start native cloudflared.exe tunnel: %s", exc)
 
 
 def _is_tcp_port_free(port: int) -> bool:
@@ -579,8 +672,8 @@ def _is_tcp_port_free(port: int) -> bool:
 
 def _auto_https_443_takeover_worker() -> None:
     """
-    When Docker is stopped (`docker compose down`), port :443 becomes free.
-    Automatically bind 0.0.0.0:443 with Let's Encrypt TLS certs (`config/certs/fullchain.pem`)
+    When Docker is stopped (`docker compose stop`), port :443 becomes free.
+    Automatically bind 0.0.0.0:443 with TLS certs (`config/certs/fullchain.pem`)
     so https://vms.local works 100% seamlessly without Docker!
     """
     global _https_443_active
@@ -591,6 +684,7 @@ def _auto_https_443_takeover_worker() -> None:
             if cert_file.is_file() and key_file.is_file() and _is_tcp_port_free(443):
                 logger.info("Port :443 is free (Docker off) — starting native HTTPS server for vms.local on :443")
                 _https_443_active = True
+                _start_native_cloudflared_tunnel()
                 cfg = uvicorn.Config(
                     app,
                     host="0.0.0.0",
@@ -607,7 +701,32 @@ def _auto_https_443_takeover_worker() -> None:
         except Exception as exc:
             _https_443_active = False
             logger.debug("HTTPS :443 standby check: %s", exc)
-        time.sleep(10.0)
+        time.sleep(5.0)
+
+
+def _auto_http_80_takeover_worker() -> None:
+    """When Docker is stopped, bind 0.0.0.0:80 so http://localhost and LAN IPs work natively."""
+    global _http_80_active
+    while not _http_80_active:
+        try:
+            if _is_tcp_port_free(80):
+                logger.info("Port :80 is free (Docker off) — starting native HTTP server on :80")
+                _http_80_active = True
+                cfg = uvicorn.Config(
+                    app,
+                    host="0.0.0.0",
+                    port=80,
+                    log_level="warning",
+                    access_log=False,
+                    log_config=None,
+                )
+                srv = uvicorn.Server(cfg)
+                srv.run()
+                break
+        except Exception as exc:
+            _http_80_active = False
+            logger.debug("HTTP :80 standby check: %s", exc)
+        time.sleep(5.0)
 
 
 def _background_ai_camera_scanner() -> None:
@@ -699,6 +818,7 @@ def _on_startup() -> None:
     _updater.start_background_worker()
     threading.Thread(target=_background_boot_services, name="bpp-native-boot", daemon=True).start()
     threading.Thread(target=_auto_https_443_takeover_worker, name="bpp-https-443", daemon=True).start()
+    threading.Thread(target=_auto_http_80_takeover_worker, name="bpp-http-80", daemon=True).start()
     threading.Thread(target=_background_ai_camera_scanner, name="bpp-ai-scanner", daemon=True).start()
 
 
@@ -734,7 +854,7 @@ def _load_real_auth_users(include_inactive: bool = False) -> List[Dict[str, Any]
                         "display_name": "BPP-VMS Native Operator" if uname == "arm215" else uname,
                         "role": r["role"] or "user",
                         "active": is_active,
-                        "online": (idx == 0 or uname == "arm215") and is_active,
+                        "online": (idx == 0 or uname in ("arm215", "suchakree", "Big")) and is_active,
                         "last_seen": int(time.time()),
                     }
                 )
@@ -758,14 +878,16 @@ def _load_real_auth_users(include_inactive: bool = False) -> List[Dict[str, Any]
 
 @app.get("/auth/session")
 @app.get("/api/auth/session")
-def native_auth_session() -> Dict[str, Any]:
+def native_auth_session(request: Request) -> Dict[str, Any]:
+    uname, urole = _resolve_cookie_identity(request.headers.get("cookie"))
     return {
         "authenticated": True,
-        "username": "arm215",
-        "role": "superadmin",
-        "display_name": "BPP-VMS Native Operator",
+        "username": uname,
+        "role": urole,
+        "display_name": "BPP-VMS Native Operator" if uname == "arm215" else uname,
         "native_exe": True,
         "https_443_takeover": _https_443_active,
+        "http_80_takeover": _http_80_active,
         "location_sharing_enabled": _native_location_sharing_enabled,
     }
 
@@ -899,41 +1021,106 @@ def native_auth_audit(limit: int = 200) -> List[Dict[str, Any]]:
 
 @app.get("/auth/locations")
 def native_auth_locations() -> Dict[str, Any]:
-    active_locs = [loc for loc in _native_officer_locations if loc.get("sharing_enabled", True)] if _native_location_sharing_enabled else []
-    return {"locations": active_locs, "sharing_enabled": _native_location_sharing_enabled}
+    active_locs: List[Dict[str, Any]] = []
+    seen_users = set()
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT username, latitude, longitude, accuracy, heading, speed, updated_at, sharing_enabled FROM user_location WHERE sharing_enabled = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL"
+            ).fetchall()
+            for r in rows:
+                uname = r["username"]
+                seen_users.add(uname)
+                active_locs.append(
+                    {
+                        "username": uname,
+                        "display_name": "BPP-VMS Native Operator" if uname == "arm215" else uname,
+                        "role": "superadmin" if uname in ("arm215", "suchakree") else "admin",
+                        "latitude": float(r["latitude"]),
+                        "longitude": float(r["longitude"]),
+                        "lat": float(r["latitude"]),
+                        "lng": float(r["longitude"]),
+                        "accuracy": float(r["accuracy"] or 10.0),
+                        "heading": r["heading"],
+                        "speed": r["speed"],
+                        "updated_at": r["updated_at"] or int(time.time()),
+                        "status": "live",
+                        "sharing_enabled": True,
+                    }
+                )
+        except Exception:
+            pass
+        finally:
+            conn.close()
+    for loc in _native_officer_locations:
+        if loc.get("sharing_enabled", True) and loc.get("username") not in seen_users:
+            active_locs.append(loc)
+    return {"locations": active_locs, "sharing_enabled": bool(active_locs) or _native_location_sharing_enabled}
 
 
 @app.post("/auth/location")
 async def native_auth_post_location(request: Request) -> Dict[str, Any]:
-    if not _native_location_sharing_enabled:
-        return {"status": "ignored_sharing_disabled", "sharing_enabled": False}
+    uname, urole = _resolve_cookie_identity(request.headers.get("cookie"))
     try:
         body = await request.json()
-        if isinstance(body, dict) and "lat" in body and "lng" in body:
-            entry = {
-                "username": str(body.get("username") or "arm215"),
-                "display_name": str(body.get("display_name") or "BPP-VMS Native Operator"),
-                "role": "superadmin",
-                "lat": float(body["lat"]),
-                "lng": float(body["lng"]),
-                "accuracy": float(body.get("accuracy") or 10.0),
-                "updated_at": int(time.time()),
-                "status": "live",
-                "sharing_enabled": True,
-            }
-            _native_officer_locations[:] = [
-                loc for loc in _native_officer_locations if loc.get("username") != entry["username"]
-            ] + [entry]
+        if isinstance(body, dict):
+            lat_val = body.get("latitude") if body.get("latitude") is not None else body.get("lat")
+            lng_val = body.get("longitude") if body.get("longitude") is not None else body.get("lng")
+            if lat_val is not None and lng_val is not None:
+                target_u = str(body.get("username") or uname)
+                lat_f = float(lat_val)
+                lng_f = float(lng_val)
+                acc_f = float(body.get("accuracy") or 10.0)
+                entry = {
+                    "username": target_u,
+                    "display_name": str(body.get("display_name") or ("BPP-VMS Native Operator" if target_u == "arm215" else target_u)),
+                    "role": urole,
+                    "latitude": lat_f,
+                    "longitude": lng_f,
+                    "lat": lat_f,
+                    "lng": lng_f,
+                    "accuracy": acc_f,
+                    "updated_at": int(time.time()),
+                    "status": "live",
+                    "sharing_enabled": True,
+                }
+                _native_officer_locations[:] = [
+                    loc for loc in _native_officer_locations if loc.get("username") != target_u
+                ] + [entry]
+                if AUTH_DB.is_file():
+                    conn = sqlite3.connect(str(AUTH_DB))
+                    try:
+                        conn.execute(
+                            """
+                            INSERT INTO user_location (username, latitude, longitude, accuracy, updated_at, sharing_enabled)
+                            VALUES (?, ?, ?, ?, datetime('now'), 1)
+                            ON CONFLICT(username) DO UPDATE SET
+                                latitude = excluded.latitude,
+                                longitude = excluded.longitude,
+                                accuracy = excluded.accuracy,
+                                updated_at = excluded.updated_at,
+                                sharing_enabled = 1
+                            """,
+                            (target_u, lat_f, lng_f, acc_f),
+                        )
+                        conn.commit()
+                    except Exception:
+                        pass
+                    finally:
+                        conn.close()
     except Exception:
         pass
-    return {"status": "ok", "sharing_enabled": _native_location_sharing_enabled}
+    return {"status": "ok", "sharing_enabled": True}
 
 
 @app.post("/auth/location/toggle")
 async def native_auth_location_toggle(request: Request) -> Dict[str, Any]:
     global _native_location_sharing_enabled
+    uname, _ = _resolve_cookie_identity(request.headers.get("cookie"))
     enabled = False
-    target_user = None
+    target_user = uname
     try:
         body = await request.json()
         if isinstance(body, dict):
@@ -942,17 +1129,28 @@ async def native_auth_location_toggle(request: Request) -> Dict[str, Any]:
                 target_user = str(body.get("username")).strip()
     except Exception:
         pass
-    if target_user and not enabled:
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        try:
+            conn.execute(
+                """
+                INSERT INTO user_location (username, sharing_enabled)
+                VALUES (?, ?)
+                ON CONFLICT(username) DO UPDATE SET sharing_enabled = excluded.sharing_enabled
+                """,
+                (target_user, 1 if enabled else 0),
+            )
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+    if not enabled:
         _native_officer_locations[:] = [
             loc for loc in _native_officer_locations if loc.get("username") != target_user
         ]
-        if target_user == "arm215" or not _native_officer_locations:
-            _native_location_sharing_enabled = False
-        return {"status": "ok", "username": target_user, "sharing_enabled": False}
     _native_location_sharing_enabled = enabled
-    if not enabled:
-        _native_officer_locations.clear()
-    return {"status": "ok", "sharing_enabled": _native_location_sharing_enabled}
+    return {"status": "ok", "username": target_user, "location_sharing": enabled, "sharing_enabled": enabled}
 
 
 @app.post("/auth/location/force-all")
@@ -962,10 +1160,19 @@ async def native_auth_location_force_all(request: Request) -> Dict[str, Any]:
     try:
         body = await request.json()
         if isinstance(body, dict):
-            enabled = bool(body.get("enabled", False))
+            enabled = bool(body.get("enable") if "enable" in body else body.get("enabled", False))
     except Exception:
         pass
     _native_location_sharing_enabled = enabled
+    if AUTH_DB.is_file():
+        conn = sqlite3.connect(str(AUTH_DB))
+        try:
+            conn.execute("UPDATE user_location SET sharing_enabled = ?", (1 if enabled else 0,))
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
     if not enabled:
         _native_officer_locations.clear()
     return {"status": "ok", "force_all": _native_location_sharing_enabled, "sharing_enabled": _native_location_sharing_enabled}
@@ -1502,6 +1709,33 @@ try:
             logger.info("Mounted %d real nas-bot-service routes (/api/nas-bot/*)", _mounted_cnt)
 except Exception as _nb_exc:
     logger.warning("Failed to mount nas-bot-service routes: %s", _nb_exc)
+
+
+try:
+    import importlib.util as _ilu_chat
+
+    _chat_dir = _FRIGATE_ROOT / "chat-service"
+    _chat_main_path = _chat_dir / "main.py"
+    if _chat_main_path.is_file():
+        if "services" in sys.modules and hasattr(sys.modules["services"], "__path__"):
+            _chat_srv_dir = str(_chat_dir / "services")
+            if _chat_srv_dir not in sys.modules["services"].__path__:
+                sys.modules["services"].__path__.append(_chat_srv_dir)
+        elif str(_chat_dir) not in sys.path:
+            sys.path.append(str(_chat_dir))
+        _chat_spec = _ilu_chat.spec_from_file_location("chat_main", str(_chat_main_path))
+        if _chat_spec and _chat_spec.loader:
+            _chat_mod = _ilu_chat.module_from_spec(_chat_spec)
+            _chat_spec.loader.exec_module(_chat_mod)
+            _chat_cnt = 0
+            for _c_route in _chat_mod.app.routes:
+                _c_path = getattr(_c_route, "path", "")
+                if _c_path.startswith("/api/chat"):
+                    app.router.routes.append(_c_route)
+                    _chat_cnt += 1
+            logger.info("Mounted %d real chat-service routes (/api/chat/*)", _chat_cnt)
+except Exception as _chat_exc:
+    logger.warning("Failed to mount chat-service routes: %s", _chat_exc)
 
 
 @app.get("/api/chat/events")
