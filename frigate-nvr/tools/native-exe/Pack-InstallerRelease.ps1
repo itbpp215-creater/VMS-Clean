@@ -1,5 +1,5 @@
-param(
-    [string]$SourceRoot = "D:\sloth+vms",
+﻿param(
+    [string]$SourceRoot = "D:\Sloth-BPP215",
     [string]$PackageDir = "D:\SLOTH-BPP-VMS-Installer",
     [string]$ZipPath = "D:\SLOTH-BPP-VMS-Installer.zip",
     [switch]$CreateZip = $true
@@ -109,7 +109,7 @@ $readmeLines = @(
     "================================================================================",
     "",
     "How to Install on Any Windows 10/11 PC:",
-    "1. Copy this folder to the target drive (e.g., D:\sloth+vms or C:\sloth+vms).",
+    "1. Copy this folder to the target drive (e.g., D:\Sloth-BPP215 or C:\Sloth-BPP215).",
     "2. Double-click 'BPP-VMS-Setup.exe' (or 'Install-On-New-PC.bat').",
     "3. Choose your installation mode in the Setup Wizard:",
     "   - Mode 1: Clean New Machine (0 cameras, fresh configuration)",

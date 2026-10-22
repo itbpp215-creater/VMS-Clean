@@ -1,6 +1,6 @@
-param(
-    [string]$OutputDir = "D:\sloth+vms\native",
-    [string]$SlothSourceDir = "D:\sloth-bpp215\SLOTH-BPP215"
+﻿param(
+    [string]$OutputDir = "D:\Sloth-BPP215\native",
+    [string]$SlothSourceDir = "D:\Sloth-BPP215\native\bin"
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,10 +52,15 @@ if (-not (Test-Path $g2rDest)) {
     Remove-Item $g2rZip -Force -ErrorAction SilentlyContinue
 }
 if (Test-Path $SlothSourceDir) {
+    $destBinDir = Join-Path $OutputDir "bin"
+    if (-not (Test-Path $destBinDir)) {
+        New-Item -ItemType Directory -Path $destBinDir -Force | Out-Null
+    }
     foreach ($toolExe in @("mediamtx.exe", "bore.exe")) {
         $srcExe = Join-Path $SlothSourceDir $toolExe
-        if (Test-Path $srcExe) {
-            Copy-Item $srcExe (Join-Path $OutputDir "bin\$toolExe") -Force
+        $dstExe = Join-Path $destBinDir $toolExe
+        if ((Test-Path $srcExe) -and ($srcExe.ToLower() -ne $dstExe.ToLower())) {
+            Copy-Item $srcExe $dstExe -Force
         }
     }
 }

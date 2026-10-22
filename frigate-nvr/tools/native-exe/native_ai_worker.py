@@ -123,7 +123,13 @@ class NativeAiEngine:
                 resolved_model_dir = cand
                 break
         self.model_dir = model_dir or resolved_model_dir
-        self.faces_dir = faces_dir or (_REPO_FRIGATE / "config" / "faces")
+        env_faces = os.environ.get("BPP_FACES_DIR", "").strip()
+        default_faces = Path(env_faces) if env_faces else (
+            (_WORKSPACE_ROOT / "native" / "config" / "faces")
+            if (_WORKSPACE_ROOT / "native" / "config").is_dir()
+            else (_REPO_FRIGATE / "config" / "faces")
+        )
+        self.faces_dir = faces_dir or default_faces
         self.faces_dir.mkdir(parents=True, exist_ok=True)
 
         # Vehicle Color (15-class) & Brand (24-class) — Lazy loaded on first inference

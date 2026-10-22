@@ -85,8 +85,8 @@ def detect_host_gpu() -> str:
             _CACHED_HOST_GPU = "vaapi"
             return _CACHED_HOST_GPU
 
-    # 4. Fallback: inspect existing config.yml in /config to see if Frigate uses hardware transcode
-    config_file = "/config/config.yml"
+    # 4. Fallback: inspect existing config.yml to see if Frigate uses hardware transcode
+    config_file = os.environ.get("CONFIG_API_CONFIG_PATH") or "/config/config.yml"
     if os.path.exists(config_file):
         try:
             with open(config_file, "r", encoding="utf-8") as f:
@@ -115,6 +115,9 @@ def resolve_stream_credentials(url: str, credentials_file: str = "/config/camera
     """
     if "{" not in url or "}" not in url:
         return url
+
+    if credentials_file == "/config/camera_credentials.env":
+        credentials_file = os.environ.get("CONFIG_API_CREDENTIALS_ENV") or credentials_file
 
     env_map: Dict[str, str] = dict(os.environ)
 

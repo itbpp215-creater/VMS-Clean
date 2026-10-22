@@ -133,7 +133,7 @@ def _resolve_default_model_dir() -> Path:
     candidates = [
         Path("/models/attr"),
         here.parent / "LicensePlateRECOG" / "model" / "attr",
-        Path(r"D:\sloth+vms\models\sloth"),
+        Path(r"D:\Sloth-BPP215\models\sloth"),
     ]
     for c in candidates:
         if (c / "color.onnx").is_file() or (c / "brand.onnx").is_file():

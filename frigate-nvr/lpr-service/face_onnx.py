@@ -38,8 +38,8 @@ def _resolve_model_dir() -> Path:
     candidates = [
         Path("/models/attr"),
         here.parent / "LicensePlateRECOG" / "model" / "attr",
-        Path(r"D:\sloth+vms\repo\frigate-nvr\LicensePlateRECOG\model\attr"),
-        Path(r"D:\sloth+vms\models\sloth"),
+        Path(r"D:\Sloth-BPP215\repo\frigate-nvr\LicensePlateRECOG\model\attr"),
+        Path(r"D:\Sloth-BPP215\models\sloth"),
         Path(r"D:\BPP-VMS\frigate-nvr\LicensePlateRECOG\model\attr"),
     ]
     for c in candidates:
@@ -56,11 +56,12 @@ def _resolve_faces_dir() -> Path:
         return p
     here = Path(__file__).resolve().parent
     candidates = [
+        Path(r"D:\Sloth-BPP215\native\config\faces"),
         here.parent / "config" / "faces",
         Path(r"D:\BPP-VMS\frigate-nvr\config\faces"),
-        Path(r"D:\sloth+vms\native\config\faces"),
-        Path("/config/faces"),
     ]
+    if os.name != "nt":
+        candidates.append(Path("/config/faces"))
     for c in candidates:
         if c.is_dir():
             return c
@@ -80,7 +81,7 @@ def _resolve_dossiers_dir() -> Optional[Path]:
         return Path(env_dossiers)
     here = Path(__file__).resolve().parent
     candidates = [
-        Path(r"D:\sloth+vms\native\nas-storage\Dossiers"),
+        Path(r"D:\Sloth-BPP215\native\nas-storage\Dossiers"),
         Path("/data/nas-storage/Dossiers"),
         here.parent / "storage" / "nas-storage" / "Dossiers",
         Path(r"D:\BPP-VMS\frigate-nvr\storage\nas-storage\Dossiers"),

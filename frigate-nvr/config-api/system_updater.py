@@ -51,7 +51,7 @@ def _detect_config_dir(repo_root: Path) -> Path:
     env_cfg = os.environ.get("BPP_CONFIG_DIR", "").strip()
     if env_cfg:
         return Path(env_cfg).resolve()
-    if Path("/config").exists() and Path("/config").is_dir():
+    if os.name != "nt" and Path("/config").exists() and Path("/config").is_dir():
         return Path("/config")
     candidate = repo_root / "frigate-nvr" / "config"
     if candidate.exists():

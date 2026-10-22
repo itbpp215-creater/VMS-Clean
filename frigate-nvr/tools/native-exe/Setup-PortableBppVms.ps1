@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path,
     [ValidateSet("clean", "custom", "full", "keep")]
     [string]$MigrationMode = "keep",
@@ -18,6 +18,15 @@ $ErrorActionPreference = "Stop"
 
 function Write-Step([int]$Pct, [string]$Msg) {
     Write-Host "[PROGRESS:$Pct] $Msg"
+}
+
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+function Write-Utf8File([string]$FilePath, [string]$Content) {
+    $parent = Split-Path -Parent $FilePath
+    if ($parent -and -not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText($FilePath, $Content, $Utf8NoBom)
 }
 
 Write-Step 5 "กำลังเตรียมโครงสร้างโฟลเดอร์ระบบที่ $WorkspaceRoot ..."
@@ -50,24 +59,24 @@ function Initialize-CleanConfig([string]$TargetCfg, [string]$SystemTitle) {
     if (Test-Path $cleanYml) {
         Copy-Item $cleanYml (Join-Path $TargetCfg "config.yml") -Force
     } else {
-        Set-Content -Path (Join-Path $TargetCfg "config.yml") -Value "mqtt:`n  enabled: false`ncameras: {}`ndetect:`n  enabled: true`n" -Encoding UTF8
+        Write-Utf8File (Join-Path $TargetCfg "config.yml") "mqtt:`n  enabled: false`ncameras: {}`ndetect:`n  enabled: true`n"
     }
-    Set-Content -Path (Join-Path $TargetCfg "camera_credentials.env") -Value "" -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "nvr_groups.json") -Value '{"groups": []}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "camera_templates.json") -Value '{}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "camera_sources.json") -Value '{}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "gpsone_devices.local.json") -Value '{"devices": {}, "permissions": {}}' -Encoding UTF8
+    Write-Utf8File (Join-Path $TargetCfg "camera_credentials.env") ""
+    Write-Utf8File (Join-Path $TargetCfg "nvr_groups.json") '{"groups": []}'
+    Write-Utf8File (Join-Path $TargetCfg "camera_templates.json") '{}'
+    Write-Utf8File (Join-Path $TargetCfg "camera_sources.json") '{}'
+    Write-Utf8File (Join-Path $TargetCfg "gpsone_devices.local.json") '{"devices": {}, "permissions": {}}'
 
     $safeTitle = if ($SystemTitle -and $SystemTitle.Trim()) { $SystemTitle.Trim() } else { "SLOTH BPP-VMS" }
     $brandingObj = @{ title = $safeTitle; subtitle = "AI CCTV Surveillance Platform" } | ConvertTo-Json -Compress
-    Set-Content -Path (Join-Path $TargetCfg "dashboard-settings\branding.json") -Value $brandingObj -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "dashboard-settings\channels.json") -Value '{}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "dashboard-settings\camera_names.json") -Value '{}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "dashboard-settings\camera_gps.json") -Value '{}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "dashboard-settings\nodes.json") -Value '[]' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "lpr\lpr_cameras.txt") -Value "" -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "lpr\lpr_zones.json") -Value '{}' -Encoding UTF8
-    Set-Content -Path (Join-Path $TargetCfg "lpr\object_alerts.json") -Value '{}' -Encoding UTF8
+    Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\branding.json") $brandingObj
+    Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\channels.json") '{}'
+    Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\camera_names.json") '{}'
+    Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\camera_gps.json") '{}'
+    Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\nodes.json") '[]'
+    Write-Utf8File (Join-Path $TargetCfg "lpr\lpr_cameras.txt") ""
+    Write-Utf8File (Join-Path $TargetCfg "lpr\lpr_zones.json") '{}'
+    Write-Utf8File (Join-Path $TargetCfg "lpr\object_alerts.json") '{}'
 
     foreach ($cached in @("go2rtc.native.yaml", "gpu_caps_cache.json")) {
         $cp = Join-Path $RuntimeDir $cached
@@ -146,7 +155,7 @@ else {
 }
 
 # Stamp current PC's COMPUTERNAME into .machine_id so native_gateway.py recognizes this PC
-Set-Content -Path (Join-Path $ConfigDir ".machine_id") -Value $env:COMPUTERNAME -Encoding UTF8 -NoNewline
+Write-Utf8File (Join-Path $ConfigDir ".machine_id") $env:COMPUTERNAME
 Write-Step 40 "ผูกสิทธิ์การตั้งค่าเข้ากับเครื่อง $env:COMPUTERNAME เรียบร้อยแล้ว"
 
 # 2. Verify Python & Create/Update Local venv (All-GPU: CUDA / DirectML / CPU)
@@ -158,11 +167,15 @@ if (-not $pythonCmd) {
 }
 
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
+$pyvenvCfg  = Join-Path $VenvDir "pyvenv.cfg"
 $venvValid = $false
-if (Test-Path $venvPython) {
+if ((Test-Path $venvPython) -and (Test-Path $pyvenvCfg)) {
     try {
-        & $venvPython --version *> $null
-        if ($LASTEXITCODE -eq 0) { $venvValid = $true }
+        $cfgText = Get-Content $pyvenvCfg -Raw -ErrorAction Stop
+        if ($cfgText -like "*$VenvDir*") {
+            & $venvPython --version *> $null
+            if ($LASTEXITCODE -eq 0) { $venvValid = $true }
+        }
     } catch { $venvValid = $false }
 }
 
@@ -171,20 +184,20 @@ if (-not $venvValid) {
     if (Test-Path $VenvDir) {
         Remove-Item -Path $VenvDir -Recurse -Force -ErrorAction SilentlyContinue
     }
-    python -m venv $VenvDir
+    python -m venv --system-site-packages $VenvDir
 }
 
 Write-Step 65 "กำลังตรวจสอบไลบรารีระบบและเอนจิน All-GPU ONNX Runtime..."
 $depsReady = $false
 try {
-    & $venvPython -c "import fastapi, uvicorn, yaml, websockets, cv2, numpy, PIL, pydantic, multipart, httpx, onnxruntime" *> $null
+    & $venvPython -c "import fastapi, uvicorn, yaml, ruamel.yaml, websockets, cv2, numpy, PIL, pydantic, multipart, httpx, onnxruntime" *> $null
     if ($LASTEXITCODE -eq 0) { $depsReady = $true }
 } catch { $depsReady = $false }
 
 if (-not $depsReady) {
     Write-Step 68 "กำลังติดตั้งไลบรารีระบบและเอนจิน All-GPU ONNX Runtime..."
     & $venvPython -m pip install --upgrade pip --quiet
-    & $venvPython -m pip install fastapi uvicorn pyyaml websockets opencv-python-headless numpy pillow pydantic python-multipart httpx onnxruntime-directml --quiet
+    & $venvPython -m pip install fastapi uvicorn pyyaml "ruamel.yaml" websockets opencv-python-headless numpy pillow pydantic python-multipart httpx onnxruntime-directml --quiet
 } else {
     Write-Step 72 "ตรวจพบไลบรารี AI และ ONNX Runtime ครบถ้วนพร้อมใช้งานแล้ว"
 }

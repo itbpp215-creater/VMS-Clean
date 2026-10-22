@@ -41,9 +41,9 @@ def _default_thlprv2_paths() -> List[Path]:
             here.parent / "LicensePlateRECOG" / "model" / "attr" / "thlprv2.onnx",
             here.parent / "models" / "lpr" / "thlprv2.onnx",
             here.parent / "models" / "thlprv2.onnx",
-            Path(r"D:\sloth+vms\models\sloth\thlprv2.onnx"),
-            Path(r"D:\sloth+vms\models\lpr\thlprv2.onnx"),
-            Path(r"D:\sloth+vms\models\thlprv2.onnx"),
+            Path(r"D:\Sloth-BPP215\models\sloth\thlprv2.onnx"),
+            Path(r"D:\Sloth-BPP215\models\lpr\thlprv2.onnx"),
+            Path(r"D:\Sloth-BPP215\models\thlprv2.onnx"),
         ]
     )
     return candidates

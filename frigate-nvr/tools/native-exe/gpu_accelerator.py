@@ -86,9 +86,12 @@ def resolve_ffmpeg_binary(native_root: Optional[Path] = None) -> str:
                 native_root / "ffmpeg.exe",
             ]
         )
-    sloth_ffmpeg = Path(r"D:\sloth-bpp215\SLOTH-BPP215\ffmpeg.exe")
-    if sloth_ffmpeg.is_file():
-        candidates.append(sloth_ffmpeg)
+    for sloth_ffmpeg in (
+        Path(r"D:\Sloth-BPP215\native\bin\ffmpeg.exe"),
+        Path(r"D:\Sloth-BPP215\native\ffmpeg.exe"),
+    ):
+        if sloth_ffmpeg.is_file():
+            candidates.append(sloth_ffmpeg)
 
     for cand in candidates:
         if cand.is_file():
@@ -108,9 +111,12 @@ def resolve_go2rtc_binary(native_root: Optional[Path] = None) -> str:
                 native_root / "go2rtc.exe",
             ]
         )
-    sloth_g2r = Path(r"D:\sloth-bpp215\SLOTH-BPP215\go2rtc.exe")
-    if sloth_g2r.is_file():
-        candidates.append(sloth_g2r)
+    for sloth_g2r in (
+        Path(r"D:\Sloth-BPP215\native\bin\go2rtc.exe"),
+        Path(r"D:\Sloth-BPP215\native\go2rtc.exe"),
+    ):
+        if sloth_g2r.is_file():
+            candidates.append(sloth_g2r)
 
     for cand in candidates:
         if cand.is_file():

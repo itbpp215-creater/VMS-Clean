@@ -58,36 +58,25 @@ NATIVE_RUNTIME_DIR = Path(os.environ.get("BPP_NATIVE_RUNTIME_DIR", str(NATIVE_RO
 
 
 def _ensure_machine_local_config(native_cfg: Path, frigate_root: Path, runtime_dir: Path) -> None:
-    """Ensure each PC gets its own independent configuration when copied to a new machine."""
+    """Ensure local native configuration is initialized on first run without ever wiping existing config."""
     current_pc = os.environ.get("COMPUTERNAME", "").strip() or "LOCAL-PC"
     machine_id_file = native_cfg / ".machine_id"
     stored_pc = ""
     if machine_id_file.is_file():
         try:
-            stored_pc = machine_id_file.read_text(encoding="utf-8").strip()
+            stored_pc = machine_id_file.read_text(encoding="utf-8-sig").strip().lstrip("\ufeff")
         except Exception:
             stored_pc = ""
 
     is_first_run = not (native_cfg / "config.yml").is_file()
-    is_copied_to_new_pc = bool(stored_pc and stored_pc != current_pc)
 
-    if not is_first_run and not is_copied_to_new_pc:
-        if not stored_pc:
+    if not is_first_run:
+        if stored_pc != current_pc:
             try:
                 machine_id_file.write_text(current_pc, encoding="utf-8")
             except Exception:
                 pass
         return
-
-    # Initialize clean independent configuration for this new machine
-    if is_copied_to_new_pc and native_cfg.is_dir():
-        shutil.rmtree(native_cfg, ignore_errors=True)
-        for cached_f in (runtime_dir / "go2rtc.native.yaml", runtime_dir / "gpu_caps_cache.json"):
-            if cached_f.is_file():
-                try:
-                    cached_f.unlink()
-                except Exception:
-                    pass
 
     native_cfg.mkdir(parents=True, exist_ok=True)
     (native_cfg / "dashboard-settings").mkdir(parents=True, exist_ok=True)
@@ -134,6 +123,9 @@ if __name__ == "__main__":
         pass
 
 # Configure environment variables BEFORE importing config-api / analytics-engine
+os.environ.setdefault("BPP_REPO_ROOT", str(_REPO_ROOT))
+os.environ.setdefault("BPP_CONFIG_DIR", str(CONFIG_DIR))
+os.environ.setdefault("BPP_FACES_DIR", str(CONFIG_DIR / "faces"))
 os.environ.setdefault("CONFIG_API_CONFIG_PATH", str(CONFIG_DIR / "config.yml"))
 os.environ.setdefault("CONFIG_API_GROUPS_PATH", str(CONFIG_DIR / "nvr_groups.json"))
 os.environ.setdefault("CONFIG_API_CREDENTIALS_ENV", str(CONFIG_DIR / "camera_credentials.env"))
@@ -448,6 +440,12 @@ class FieldNetworkAndUplinkManager:
 app = FastAPI(title="BPP-VMS Native Windows Gateway", version="2.1.0-native")
 
 _gpu_caps = detect_gpu_capabilities(NATIVE_ROOT)
+if _gpu_caps.vendor == "nvidia" or _gpu_caps.go2rtc_hw_profile == "nvidia":
+    os.environ.setdefault("HOST_HARDWARE_ACCEL", "nvidia")
+elif _gpu_caps.vendor in ("intel", "amd") or _gpu_caps.go2rtc_hw_profile in ("vaapi", "qsv", "d3d11va"):
+    os.environ.setdefault("HOST_HARDWARE_ACCEL", "vaapi")
+else:
+    os.environ.setdefault("HOST_HARDWARE_ACCEL", "cpu")
 _go2rtc_sup = Go2RtcSupervisor(_gpu_caps)
 _rtmp_sup = RtmpMediaMtxSupervisor()
 _updater = SystemUpdater(repo_root=_REPO_ROOT, config_dir=CONFIG_DIR)
@@ -986,6 +984,61 @@ async def set_native_network_config(request: Request) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 4. Watchlist, LPR Archive & NAS-Bot / Chat Compatibility Endpoints
 # ---------------------------------------------------------------------------
+def _ensure_watchlist_db_schema() -> None:
+    try:
+        WATCHLIST_DB.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(WATCHLIST_DB))
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS watchlist (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plate TEXT NOT NULL UNIQUE,
+                    plate_display TEXT NOT NULL,
+                    province TEXT DEFAULT '',
+                    owner_name TEXT DEFAULT '',
+                    owner_address TEXT DEFAULT '',
+                    user_name TEXT DEFAULT '',
+                    criminal_history TEXT DEFAULT '',
+                    phone TEXT DEFAULT '',
+                    network TEXT DEFAULT '',
+                    danger_level TEXT DEFAULT 'medium',
+                    notes TEXT DEFAULT '',
+                    active INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                    updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+                CREATE TABLE IF NOT EXISTS lpr_candidates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT DEFAULT '',
+                    camera TEXT DEFAULT '',
+                    plate_text TEXT NOT NULL,
+                    province TEXT DEFAULT '',
+                    detector_confidence REAL DEFAULT 0.0,
+                    ocr_confidence REAL DEFAULT 0.0,
+                    vehicle_color TEXT DEFAULT '',
+                    vehicle_brand TEXT DEFAULT '',
+                    vehicle_type TEXT DEFAULT '',
+                    crop_path TEXT DEFAULT '',
+                    full_frame_path TEXT DEFAULT '',
+                    source TEXT DEFAULT 'native_ai',
+                    review_status TEXT DEFAULT 'pending',
+                    reviewed_by TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                    updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("Failed to initialize watchlist.db schema: %s", exc)
+
+
+_ensure_watchlist_db_schema()
+
+
 def _query_lpr_candidates(
     limit: int = 200,
     source: Optional[str] = None,
@@ -1355,6 +1408,30 @@ def frigate_compat_events(limit: int = Query(default=50, ge=1, le=500)) -> List[
             }
         )
     return events
+
+
+@app.get("/nvr/api/events/{event_id}/snapshot.jpg")
+@app.get("/nvr/api/events/{event_id}/thumbnail.jpg")
+@app.get("/api/events/{event_id}/snapshot.jpg")
+@app.get("/api/events/{event_id}/thumbnail.jpg")
+def frigate_compat_event_snapshot(event_id: str) -> Response:
+    if WATCHLIST_DB.is_file():
+        conn = sqlite3.connect(str(WATCHLIST_DB))
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT crop_path, camera FROM lpr_candidates WHERE event_id = ? OR ('native-' || id) = ? LIMIT 1",
+                (event_id, event_id),
+            ).fetchone()
+            if row and row["crop_path"]:
+                crop_file = LPR_CROPS_DIR / os.path.basename(str(row["crop_path"]))
+                if crop_file.is_file():
+                    return FileResponse(str(crop_file), media_type="image/jpeg")
+        except Exception:
+            pass
+        finally:
+            conn.close()
+    raise HTTPException(status_code=404, detail="Snapshot not found")
 
 
 @app.get("/nvr/api/faces")
@@ -1763,6 +1840,7 @@ def serve_login() -> RedirectResponse:
     return RedirectResponse(url="/")
 
 
+LPR_CROPS_DIR.mkdir(parents=True, exist_ok=True)
 if LPR_CROPS_DIR.is_dir():
     app.mount("/lpr-crops", StaticFiles(directory=str(LPR_CROPS_DIR)), name="lpr-crops")
 if WEB_DIR.is_dir():
