@@ -439,21 +439,33 @@ body.editing-layout .tile::after { content: '⇄ ลากเพื่อสล�
 .clock { font-family: var(--font-ui); font-weight: 600; font-size: 19px; color: #eef0f8; font-variant-numeric: tabular-nums; letter-spacing: 1px; text-shadow: 0 0 14px rgba(168,85,247,.4); }
 
 /* ---------- fullscreen camera viewer ---------- */
-.cam-viewer { position: absolute; inset: 0; z-index: 55; background: #05060c; }
+.cam-viewer {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 98 !important;
+  background: #05060c;
+}
 .cam-viewer video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #05060c; }
 /* Direct Zero-Load Live Passthrough Fullscreen Viewer:
    ยกวิดีโอสดจากช่องตารางเดิมขึ้นแสดงเต็มจอทันที (0.00ms) โดยไม่ต้องเปิดการเชื่อมต่อใหม่หรือรอ Keyframe */
 .tile.viewer-active-tile {
   transform: none !important;
   overflow: visible !important;
-  z-index: 54 !important;
+  z-index: 96 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
 .tile.viewer-active-tile .tile-feed {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  z-index: 54 !important;
+  height: 100dvh !important;
+  z-index: 96 !important;
   background: #05060c !important;
   pointer-events: none !important;
 }
@@ -472,11 +484,95 @@ body.editing-layout .tile::after { content: '⇄ ลากเพื่อสล�
   opacity: 0 !important;
   pointer-events: none !important;
 }
+/* Fullscreen Isolation (Incident 2.197): ซ่อน Topbar, Bottombar, Rail Tab และไม่ให้ .mid/.grid ตัดขอบวิดีโอบนมือถือ */
+body.cam-viewer-open,
+body:has(#camViewer:not([hidden])),
+body.cam-viewer-open .app,
+body:has(#camViewer:not([hidden])) .app,
+body.cam-viewer-open .frame,
+body:has(#camViewer:not([hidden])) .frame {
+  background: #05060c !important;
+}
+body.cam-viewer-open .topbar,
+body:has(#camViewer:not([hidden])) .topbar,
+body.cam-viewer-open .bottombar,
+body:has(#camViewer:not([hidden])) .bottombar,
+body.cam-viewer-open .rail-tab,
+body:has(#camViewer:not([hidden])) .rail-tab,
+body.cam-viewer-open #railTab,
+body:has(#camViewer:not([hidden])) #railTab,
+body.cam-viewer-open .events-rail,
+body:has(#camViewer:not([hidden])) .events-rail,
+body.cam-viewer-open .events-backdrop,
+body:has(#camViewer:not([hidden])) .events-backdrop,
+body.cam-viewer-open #slothChatWidget,
+body:has(#camViewer:not([hidden])) #slothChatWidget,
+body.cam-viewer-open .chat-widget-fab,
+body:has(#camViewer:not([hidden])) .chat-widget-fab,
+body.cam-viewer-open .bot-chat-fab,
+body:has(#camViewer:not([hidden])) .bot-chat-fab {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+body.cam-viewer-open .mid,
+body:has(#camViewer:not([hidden])) .mid,
+body.cam-viewer-open .grid,
+body:has(#camViewer:not([hidden])) .grid {
+  overflow: visible !important;
+  -webkit-overflow-scrolling: auto !important;
+  z-index: 96 !important;
+}
+body.cam-viewer-open .tile:not(.viewer-active-tile),
+body:has(#camViewer:not([hidden])) .tile:not(.viewer-active-tile),
+body.cam-viewer-open .tile.viewer-active-tile > :not(.tile-feed),
+body:has(#camViewer:not([hidden])) .tile.viewer-active-tile > :not(.tile-feed) {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 .cv-demo-bg { position: absolute; inset: 0; background-size: cover; }
 .cv-top {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2; padding: 12px 16px;
   display: flex; align-items: center; gap: 10px;
   background: linear-gradient(180deg, rgba(6,7,15,.78), transparent);
+}
+@media (max-width: 640px) {
+  .cv-top {
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 12px !important;
+    gap: 6px !important;
+    background: linear-gradient(180deg, rgba(6,7,15,.92) 0%, rgba(6,7,15,.65) 75%, transparent 100%) !important;
+  }
+  .cv-top .ch-chip {
+    font-size: 11px !important;
+    padding: 2px 6px !important;
+  }
+  .cv-name {
+    font-size: 13.5px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .cv-main-badge {
+    font-size: 9.5px !important;
+    padding: 2px 7px !important;
+    letter-spacing: 0.8px !important;
+  }
+  .cv-top .zoom-btn,
+  .cv-top .modal-close.small {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+  }
+  .cv-status {
+    margin-left: 2px !important;
+    gap: 4px !important;
+  }
+}
+@media (max-width: 520px) {
+  #cvStatusText {
+    display: none !important;
+  }
 }
 .cv-top .ch-chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; }
 .cv-name { font-family: var(--font-ui); font-weight: 600; font-size: 16px; color: #eef0f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

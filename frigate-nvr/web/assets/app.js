@@ -4318,10 +4318,12 @@ function openViewer(i) {
     }
   });
   state.viewerOpen = true;
+  document.body.classList.add('cam-viewer-open');
   if (camViewer) camViewer.hidden = false;
 }
 
 function closeViewer() {
+  document.body.classList.remove('cam-viewer-open');
   if (!state.viewerOpen) return;
   const viewingSrc = state.viewingSrc;
   const viewingIdx = state.viewerIdx;
@@ -15345,6 +15347,12 @@ document.addEventListener('DOMContentLoaded', () => {
         .pure-cam-pin.pin-other-slot { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 10px rgba(16,185,129,0.6); }
         .pure-cam-pin.pin-available { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
         .pure-map-roads-boost { filter: contrast(1.3) brightness(1.12) saturate(1.35); }
+        @media (max-width: 640px) {
+          #bppSlotCamPickerModal .bpp-picker-card { width: 96vw !important; max-height: 92dvh !important; height: 90dvh !important; }
+          #slotPickerMapPane { min-height: 0 !important; flex: 1 1 0% !important; }
+          #slotPickerPureMapCanvas { height: 100% !important; min-height: 230px !important; flex: 1 1 0% !important; }
+          .slot-mode-tab { padding: 7px 8px !important; font-size: 12px !important; }
+        }
       </style>
       <div class="bpp-picker-header">
         <div>

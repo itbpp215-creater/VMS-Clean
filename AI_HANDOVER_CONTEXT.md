@@ -1,4 +1,21 @@
-﻿## Update 2026-10-22 (Evening 4) - Unified Program & Activity Log Engine, Drag-and-Drop / 1-Click User Groups Management & Dual-Mode `CH` Camera Picker (List + Pure Camera Pin Map) (Incident 2.196)
+﻿## Update 2026-10-22 (Evening 5) - Mobile Fullscreen Camera Viewer Isolation, Program Sync & Anti-Cache Hardening (Incident 2.197)
+- **Problem / User Request**:
+  - User requested: *"กดดูเต็มจอในถือแล้วมันซ้อนกับพวกเมนูและแถบด้านล่างแก้ไขและอัพโปแกรมให้เป็นล่าสุดและเช็คบัคด้วย"*
+- **Root Causes Diagnosed & Fixed**:
+  1. **Mobile Fullscreen Camera Viewer Overlap with `.topbar`, `.bottombar`, and `.rail-tab` (`frigate-nvr/web/assets/app.css`, `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`)**:
+     - On mobile devices (`<= 768px`), tapping a camera tile opens the Fullscreen Camera Viewer (`openViewer(i)` / `#camViewer`) in **passthrough mode** where `.tile.viewer-active-tile .tile-feed` is stretched to `position: fixed; inset: 0; z-index: 66` and `#camViewer` sits at `z-index: 70`. However, `.rail-tab` had `z-index: 90 !important`, `.mid` had `overflow: hidden !important`, and `.grid` had `overflow-y: auto !important; -webkit-overflow-scrolling: touch !important` (which traps `position: fixed` descendants inside the scroll container on iOS Safari / Android Chrome), causing the top navigation bar (`.topbar`), bottom status bar (`.bottombar`), and event drawer tab (`.rail-tab`) to overlap on top of the fullscreen video.
+     - Fixed by:
+       - Toggling `document.body.classList.add('cam-viewer-open')` in `openViewer()` and `document.body.classList.remove('cam-viewer-open')` in `closeViewer()` (`app.js?v=224`).
+       - Elevating `.cam-viewer` to `position: fixed !important; inset: 0 !important; height: 100dvh !important; z-index: 98 !important;` and `.tile.viewer-active-tile .tile-feed` to `z-index: 96 !important; height: 100dvh !important;` (`app.css?v=166`).
+       - Adding `body.cam-viewer-open` & `body:has(#camViewer:not([hidden]))` isolation rules that hide `.topbar`, `.bottombar`, `.rail-tab`, `#railTab`, `.events-rail`, `.events-backdrop`, and chat FABs (`visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; z-index: -1 !important`) while keeping layout height intact so `#grid` scroll position is preserved when exiting fullscreen.
+       - Setting `overflow: visible !important; -webkit-overflow-scrolling: auto !important; z-index: 96 !important` on `.mid` and `.grid` while fullscreen viewer is active so mobile browsers never clip `.tile-feed`.
+       - Adding responsive `@media (max-width: 640px)` rules for `.cv-top` (`safe-area-inset-top` padding, compact action buttons, and hiding `#cvStatusText` on `<= 520px` while keeping the status dot so the Thai camera title `#cvName` fits cleanly) and responsive mobile styles for `#bppSlotCamPickerModal`.
+  2. **Standalone Program (`Sloth-BPP215` & `SLOTH-BPP-VMS-Installer`) Sync & Anti-Cache Middleware (`frigate-nvr/tools/native-exe/native_gateway.py`)**:
+     - Added `_disable_stale_static_cache` HTTP middleware to `native_gateway.py` returning `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` for `/`, `.html`, `.js`, and `.css` so WebView2 and mobile browsers never serve stale frontend bundles.
+     - Synced all latest files (`app.css?v=166`, `app.js?v=224`, `admin.js`, `index.html`, `api.py`, `native_gateway.py`) across `D:\BPP-VMS`, `D:\Sloth-BPP215\repo`, and `D:\SLOTH-BPP-VMS-Installer\repo`, restarted `native_gateway.py` (`:8443`), and verified 9/9 Web & Native endpoints return `HTTP 200 OK` with zero syntax or runtime errors.
+- **Files Changed**: `frigate-nvr/web/assets/app.css`, `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`, `frigate-nvr/tools/native-exe/native_gateway.py`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Evening 4) - Unified Program & Activity Log Engine, Drag-and-Drop / 1-Click User Groups Management & Dual-Mode `CH` Camera Picker (List + Pure Camera Pin Map) (Incident 2.196)
 - **Problem / User Request**:
   - User requested: *"ทำระบบเก็บ log ของโปรแกรมด้วย และทำให้สามารถสร้างกลุ่มของผู้ใช้ได้ด้วย และสามารถลากผู้ใช้หรือกดเพิ่มเข้ากลุ่มได้ทันที การเลือกกล้องจาก ch ให้เลือกได้จากรายการและให้มีขึ้นแผนที่เพียวๆที่มีแต่หมุดกล้องมาให้เลือกได้ด้วย"*
 - **Features & Architecture Implemented Across `BPP-VMS` (`https://vms.local`) & `Sloth-BPP215` (`http://127.0.0.1:8443`)**:

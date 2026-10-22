@@ -2000,9 +2000,22 @@ async def native_fallback_ws(client_ws: WebSocket, unhandled_ws_path: str) -> No
 # ---------------------------------------------------------------------------
 # 7. Static Web UI Serving (100% Shared with vms.local)
 # ---------------------------------------------------------------------------
+@app.middleware("http")
+async def _disable_stale_static_cache(request: Request, call_next: Any) -> Response:
+    resp = await call_next(request)
+    p = request.url.path.lower()
+    if p == "/" or p.endswith((".html", ".js", ".css")):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 @app.get("/")
 def serve_index() -> FileResponse:
-    return FileResponse(str(WEB_DIR / "index.html"))
+    return FileResponse(
+        str(WEB_DIR / "index.html"),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
 
 
 @app.get("/login.html")
