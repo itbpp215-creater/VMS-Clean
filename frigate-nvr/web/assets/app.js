@@ -1799,6 +1799,9 @@ class Camera {
         if (this.video && this.video.currentTime !== this.lastCurrentTime) {
           this.lastCurrentTime = this.video.currentTime;
           if (this.video.videoWidth > 0) {
+            if (!this.isLive) {
+              this.markLive();
+            }
             // ตรวจสอบว่าเฟรมวิดีโอถูกถอดรหัสเพิ่มขึ้นจริง ไม่ใช่เวลาขยับเฉพาะแทร็กเสียงขณะที่ภาพค้าง (Incident 2.181)
             let frameAdvanced = true;
             if (typeof this.video.getVideoPlaybackQuality === 'function') {
@@ -1858,6 +1861,8 @@ class Camera {
       };
       this.video.addEventListener('playing', this.onPlaying);
       this.video.addEventListener('loadeddata', this.onPlaying);
+      this.video.addEventListener('canplay', this.onPlaying);
+      this.video.addEventListener('resize', this.onPlaying);
       this.onError = () => {
         if (!this.dead && this.currentMode === 'mse' && this.video && this.video.error) {
           console.warn(`[MSE ${this.src}] Video element decode error (${this.video.error.code}), reconnecting`);
@@ -1966,72 +1971,77 @@ class Camera {
           this.sb = sb;
           sb.mode = 'segments';
           sb.addEventListener('updateend', () => {
-            if (!sb.updating && mseBufLen > 0) {
+            if (this.dead || this.sb !== sb || !this.ms || this.ms.readyState !== 'open') return;
+            try {
+              if (!sb.updating && sb.buffered && sb.buffered.length) {
+                const lastIdx = sb.buffered.length - 1;
+                const end = sb.buffered.end(lastIdx);
+                const start0 = sb.buffered.start(0);
+                const startLast = sb.buffered.start(lastIdx);
+
+                // Trim MSE buffer only when > 30s accumulated, keeping at least 15s (1-2 full GOPs)
+                // Prevents W3C Coded Frame Removal from evicting the active keyframe under currentTime
+                if ((end - start0) > 30) {
+                  const trimEnd = end - 15;
+                  if (trimEnd > start0) {
+                    try { sb.remove(start0, trimEnd); } catch (e) {}
+                    try { ms.setLiveSeekableRange(trimEnd, end); } catch (e) {}
+                  }
+                }
+
+                if (this.video) {
+                  const nowMs = Date.now();
+                  // Do not apply the 8s seek cooldown during initial startup before video is live & rendering
+                  const isStartup = !this.isLive || !this.video.videoWidth || this.video.readyState < 3;
+                  const canSeekNow = isStartup || (nowMs - (this._lastMseSeekAt || 0)) > 8000;
+                  // Jump over disjoint MSE buffer holes ONLY when playback is genuinely stalled at the end of an older range
+                  if (sb.buffered.length > 1 && this.video.currentTime < startLast && canSeekNow) {
+                    let hasHeadroomInOldRange = false;
+                    for (let i = 0; i < lastIdx; i++) {
+                      if (this.video.currentTime >= sb.buffered.start(i) - 0.1 && (sb.buffered.end(i) - this.video.currentTime) > 0.12) {
+                        hasHeadroomInOldRange = true;
+                        break;
+                      }
+                    }
+                    const isStalledAtHole = isStartup || (this.video.readyState < 3) || ((nowMs - (this.lastFrameTime || 0)) > 1800);
+                    if (!hasHeadroomInOldRange && isStalledAtHole) {
+                      if (!isStartup) this._lastMseSeekAt = nowMs;
+                      try { this.video.currentTime = startLast; } catch (e) {}
+                    }
+                  } else if (this.video.currentTime + 0.25 < start0 && canSeekNow) {
+                    if (!isStartup) this._lastMseSeekAt = nowMs;
+                    try { this.video.currentTime = start0; } catch (e) {}
+                  }
+
+                  if (!this.viewerPaused && !this.paused) {
+                    const gap = end - this.video.currentTime;
+                    // Incident 2.187: Never seek at gap > 4.0s because cameras with 4-8s GOPs snap back to the previous
+                    // IDR keyframe, causing an infinite 20Hz seek flicker loop. Only hard-seek when drift > 12s with cooldown.
+                    if (gap > 12.0 && (end - startLast) >= 2.0 && (isStartup || (nowMs - (this._lastMseSeekAt || 0)) > 10000)) {
+                      if (!isStartup) this._lastMseSeekAt = nowMs;
+                      try { this.video.currentTime = Math.max(startLast, end - 1.5); } catch (e) {}
+                      if (this.video.playbackRate !== 1.0) this.video.playbackRate = 1.0;
+                    } else if (gap > 3.2) {
+                      if (this.video.playbackRate !== 1.06) this.video.playbackRate = 1.06;
+                    } else if (gap < 0.2) {
+                      if (this.video.playbackRate !== 0.98) this.video.playbackRate = 0.98;
+                    } else if (gap >= 0.5 && gap <= 2.2) {
+                      if (this.video.playbackRate !== 1.0) this.video.playbackRate = 1.0;
+                    }
+                    if (this.video.paused) {
+                      this.video.play().catch(() => {});
+                    }
+                  }
+                  if (!this.isLive && this.video.videoWidth > 0) {
+                    this.markLive();
+                  }
+                }
+              }
+            } catch (bufErr) {}
+            if (!this.dead && this.sb === sb && this.ms && this.ms.readyState === 'open' && !sb.updating && mseBufLen > 0) {
               const chunk = mseBuf.slice(0, mseBufLen);
               mseBufLen = 0;
               safeAppendMse(chunk);
-            }
-            if (!sb.updating && sb.buffered && sb.buffered.length) {
-              const lastIdx = sb.buffered.length - 1;
-              const end = sb.buffered.end(lastIdx);
-              const start0 = sb.buffered.start(0);
-              const startLast = sb.buffered.start(lastIdx);
-
-              // Trim MSE buffer only when > 30s accumulated, keeping at least 15s (1-2 full GOPs)
-              // Prevents W3C Coded Frame Removal from evicting the active keyframe under currentTime
-              if ((end - start0) > 30) {
-                const trimEnd = end - 15;
-                if (trimEnd > start0) {
-                  try { sb.remove(start0, trimEnd); } catch (e) {}
-                  try { ms.setLiveSeekableRange(trimEnd, end); } catch (e) {}
-                }
-              }
-
-              if (this.video) {
-                const nowMs = Date.now();
-                const canSeekNow = (nowMs - (this._lastMseSeekAt || 0)) > 8000;
-                // Jump over disjoint MSE buffer holes ONLY when playback is genuinely stalled at the end of an older range
-                if (sb.buffered.length > 1 && this.video.currentTime < startLast && canSeekNow) {
-                  let hasHeadroomInOldRange = false;
-                  for (let i = 0; i < lastIdx; i++) {
-                    if (this.video.currentTime >= sb.buffered.start(i) - 0.1 && (sb.buffered.end(i) - this.video.currentTime) > 0.12) {
-                      hasHeadroomInOldRange = true;
-                      break;
-                    }
-                  }
-                  const isStalledAtHole = (this.video.readyState < 3) || ((nowMs - (this.lastFrameTime || 0)) > 1800);
-                  if (!hasHeadroomInOldRange && isStalledAtHole) {
-                    this._lastMseSeekAt = nowMs;
-                    try { this.video.currentTime = startLast; } catch (e) {}
-                  }
-                } else if (this.video.currentTime + 0.25 < start0 && canSeekNow) {
-                  this._lastMseSeekAt = nowMs;
-                  try { this.video.currentTime = start0; } catch (e) {}
-                }
-
-                if (!this.viewerPaused && !this.paused) {
-                  const gap = end - this.video.currentTime;
-                  // Incident 2.187: Never seek at gap > 4.0s because cameras with 4-8s GOPs snap back to the previous
-                  // IDR keyframe, causing an infinite 20Hz seek flicker loop. Only hard-seek when drift > 12s with cooldown.
-                  if (gap > 12.0 && (end - startLast) >= 2.0 && (nowMs - (this._lastMseSeekAt || 0)) > 10000) {
-                    this._lastMseSeekAt = nowMs;
-                    try { this.video.currentTime = Math.max(startLast, end - 1.5); } catch (e) {}
-                    if (this.video.playbackRate !== 1.0) this.video.playbackRate = 1.0;
-                  } else if (gap > 3.2) {
-                    if (this.video.playbackRate !== 1.06) this.video.playbackRate = 1.06;
-                  } else if (gap < 0.2) {
-                    if (this.video.playbackRate !== 0.98) this.video.playbackRate = 0.98;
-                  } else if (gap >= 0.5 && gap <= 2.2) {
-                    if (this.video.playbackRate !== 1.0) this.video.playbackRate = 1.0;
-                  }
-                  if (this.video.paused) {
-                    this.video.play().catch(() => {});
-                  }
-                }
-                if (!this.isLive && this.video.videoWidth > 0) {
-                  this.markLive();
-                }
-              }
             }
           });
         } catch (e) {
@@ -2195,19 +2205,24 @@ class Camera {
     if (this.dead || !this.video) return;
     try {
       const nowMs = Date.now();
+      const isStartup = !this.isLive || !this.video.videoWidth || this.video.readyState < 3;
       if (
         this.sb &&
         !this.sb.updating &&
         this.sb.buffered &&
         this.sb.buffered.length > 0 &&
-        (nowMs - (this._lastMseSeekAt || 0)) > 8000
+        (isStartup || (nowMs - (this._lastMseSeekAt || 0)) > 8000)
       ) {
         const lastIdx = this.sb.buffered.length - 1;
         const end = this.sb.buffered.end(lastIdx);
         const start0 = this.sb.buffered.start(0);
         const startLast = this.sb.buffered.start(lastIdx);
-        if ((end - this.video.currentTime > 3.5 && (end - startLast) >= 1.5) || this.video.currentTime + 0.2 < start0) {
-          this._lastMseSeekAt = nowMs;
+        if (
+          this.video.currentTime < startLast ||
+          (end - this.video.currentTime > 3.5 && (end - startLast) >= 1.5) ||
+          this.video.currentTime + 0.2 < start0
+        ) {
+          if (!isStartup) this._lastMseSeekAt = nowMs;
           this.video.currentTime = Math.max(startLast, end - 1.2);
         }
       }
@@ -2314,11 +2329,12 @@ class Camera {
         }
       }
 
-      // หากไม่มีเฟรมวิดีโอใหม่ถูกถอดรหัสเกินเวลาที่กำหนด ให้กู้คืนสตรีมแบบ 2 ขั้นตอน (Two-Stage Recovery — Incident 2.181 & 2.187)
-      // หากแพ็กเก็ตวิดีโอยังไหลเข้า WebSocket ปกติ ให้ขยายเพดานเวลารอ GOP (I-frame 4-8 วินาที) เพื่อไม่ให้เกิดอาการกระพริบรีเซ็ตซ้ำ
-      const packetsFlowing = this.lastPacketTime > 0 && (now - this.lastPacketTime) < 3500;
-      const softLimitMs = this.hls ? 14000 : (packetsFlowing ? 12000 : 6500);
-      const hardLimitMs = this.hls ? 24000 : (packetsFlowing ? 22000 : 11000);
+      // หากไม่มีเฟรมวิดีโอใหม่ถูกถอดรหัสเกินเวลาที่กำหนด ให้กู้คืนสตรีมแบบ 2 ขั้นตอน (Two-Stage Recovery — Incident 2.181 & 2.187 & 2.190)
+      // ใช้เพดานเวลา 12s/22s เฉพาะเมื่อสตรีมออนไลน์แสดงภาพแล้วเท่านั้น หากยังไม่ออนไลน์ (!this.isLive) ให้กระโดดหา Keyframe ที่ 2.5s และรีคอนเน็กต์ที่ 7s
+      const isPlayingLive = Boolean(this.isLive && this.video && this.video.videoWidth > 0);
+      const packetsFlowing = isPlayingLive && this.lastPacketTime > 0 && (now - this.lastPacketTime) < 3500;
+      const softLimitMs = this.hls ? 14000 : (isPlayingLive ? (packetsFlowing ? 12000 : 6500) : 2500);
+      const hardLimitMs = this.hls ? 24000 : (isPlayingLive ? (packetsFlowing ? 22000 : 11000) : 7000);
       const silentMs = this.lastFrameTime > 0 ? (now - this.lastFrameTime) : 0;
       if (this.lastFrameTime > 0 && silentMs > softLimitMs) {
         if (this.hls && !this._hlsWatchdogRecovered) {
@@ -2608,6 +2624,8 @@ class Camera {
       if (this.onPlaying) {
         this.video.removeEventListener('playing', this.onPlaying);
         this.video.removeEventListener('loadeddata', this.onPlaying);
+        this.video.removeEventListener('canplay', this.onPlaying);
+        this.video.removeEventListener('resize', this.onPlaying);
         this.onPlaying = null;
       }
       if (this.onError) {
@@ -2736,11 +2754,13 @@ class Camera {
       return;
     }
     // กระโดดไปขอบสตรีมสด (Live Edge) ทันทีหลังกลับมาจากการหยุดพัก
-    if (this.video && this.sb && !this.sb.updating && this.sb.buffered && this.sb.buffered.length > 0) {
+    if (this.video && this.sb && this.ms && this.ms.readyState === 'open') {
       try {
-        const end = this.sb.buffered.end(this.sb.buffered.length - 1);
-        if (end - this.video.currentTime > 1.5) {
-          this.video.currentTime = Math.max(0, end - 0.5);
+        if (!this.sb.updating && this.sb.buffered && this.sb.buffered.length > 0) {
+          const end = this.sb.buffered.end(this.sb.buffered.length - 1);
+          if (end - this.video.currentTime > 1.5) {
+            this.video.currentTime = Math.max(0, end - 0.5);
+          }
         }
       } catch (e) {}
     }
@@ -12477,18 +12497,20 @@ function run24x7HealthScrubber() {
   activeCams.forEach(cam => {
     if (!cam || cam.dead || cam.paused || cam.viewerPaused || cam.suspended) return;
     const v = cam.video;
-    if (cam.sb && !cam.sb.updating && cam.sb.buffered && cam.sb.buffered.length > 0) {
+    if (cam.sb && cam.ms && cam.ms.readyState === 'open') {
       try {
-        const start0 = cam.sb.buffered.start(0);
-        const lastIdx = cam.sb.buffered.length - 1;
-        const startLast = cam.sb.buffered.start(lastIdx);
-        const end = cam.sb.buffered.end(lastIdx);
-        if (end - start0 > 35) {
-          cam.sb.remove(start0, end - 18);
-        }
-        if (v && end - v.currentTime > 12.0 && (end - startLast) >= 2.0) {
-          cam._lastMseSeekAt = Date.now();
-          v.currentTime = Math.max(startLast, end - 1.5);
+        if (!cam.sb.updating && cam.sb.buffered && cam.sb.buffered.length > 0) {
+          const start0 = cam.sb.buffered.start(0);
+          const lastIdx = cam.sb.buffered.length - 1;
+          const startLast = cam.sb.buffered.start(lastIdx);
+          const end = cam.sb.buffered.end(lastIdx);
+          if (end - start0 > 35) {
+            cam.sb.remove(start0, end - 18);
+          }
+          if (v && end - v.currentTime > 12.0 && (end - startLast) >= 2.0) {
+            cam._lastMseSeekAt = Date.now();
+            v.currentTime = Math.max(startLast, end - 1.5);
+          }
         }
       } catch (e) {}
     }

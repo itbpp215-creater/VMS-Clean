@@ -663,6 +663,10 @@ namespace BppVmsNative
         {
             Show();
             WindowState = FormWindowState.Normal;
+            if (_webController != null)
+            {
+                try { _webController.IsVisible = true; } catch { }
+            }
             Activate();
         }
 
@@ -671,6 +675,10 @@ namespace BppVmsNative
             if (!_allowExit && e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
+                if (_webController != null)
+                {
+                    try { _webController.IsVisible = false; } catch { }
+                }
                 Hide();
                 _trayIcon.ShowBalloonTip(
                     2000,
@@ -710,6 +718,21 @@ namespace BppVmsNative
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            try
+            {
+                int currentPid = Process.GetCurrentProcess().Id;
+                foreach (Process p in Process.GetProcessesByName("BPP-VMS"))
+                {
+                    if (p.Id != currentPid)
+                    {
+                        try { p.Kill(); } catch { }
+                    }
+                }
+            }
+            catch
+            {
+            }
 
             try
             {

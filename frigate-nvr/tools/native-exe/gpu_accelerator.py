@@ -246,7 +246,8 @@ def _substitute_placeholders(value: str, env_map: Dict[str, str]) -> str:
         key = match.group(1)
         return env_map.get(key, os.environ.get(key, match.group(0)))
 
-    return re.sub(r"\{([A-Za-z0-9_]+)\}", _repl, value)
+    resolved = re.sub(r"\{([A-Za-z0-9_]+)\}", _repl, value)
+    return resolved.replace("host.docker.internal", "127.0.0.1")
 
 
 def _get_local_lan_ips() -> List[str]:
@@ -303,19 +304,30 @@ def build_native_go2rtc_config(
         else:
             resolved_streams[stream_name] = sources
 
+    def _is_port_in_use(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.2)
+            return s.connect_ex(("127.0.0.1", port)) == 0
+
+    webrtc_port = 18555 if _is_port_in_use(8555) else 8555
+    rtsp_port = 28554 if _is_port_in_use(8554) else 8554
+    rtmp_port = 11935 if _is_port_in_use(1935) else 1935
+
     # Merge WebRTC candidates from config.yml + local LAN IPs
     webrtc_sec = go2rtc_sec.get("webrtc") if isinstance(go2rtc_sec.get("webrtc"), dict) else {}
     raw_candidates = webrtc_sec.get("candidates") if isinstance(webrtc_sec.get("candidates"), list) else []
     candidates: List[str] = []
     for c in raw_candidates:
         if isinstance(c, str) and c not in candidates:
+            if webrtc_port != 8555 and c.endswith(":8555") and not c.startswith("stun:"):
+                c = c[:-5] + f":{webrtc_port}"
             candidates.append(c)
     for ip in _get_local_lan_ips():
-        cand = f"{ip}:8555"
+        cand = f"{ip}:{webrtc_port}"
         if cand not in candidates:
             candidates.insert(0, cand)
-    if "127.0.0.1:8555" not in candidates:
-        candidates.append("127.0.0.1:8555")
+    if f"127.0.0.1:{webrtc_port}" not in candidates:
+        candidates.append(f"127.0.0.1:{webrtc_port}")
     if "stun:8555" not in candidates:
         candidates.append("stun:8555")
 
@@ -325,13 +337,13 @@ def build_native_go2rtc_config(
             "origin": "*",
         },
         "rtsp": {
-            "listen": ":8554",
+            "listen": f":{rtsp_port}",
         },
         "rtmp": {
-            "listen": ":1935",
+            "listen": f":{rtmp_port}",
         },
         "webrtc": {
-            "listen": ":8555",
+            "listen": f":{webrtc_port}",
             "candidates": candidates,
         },
         "ffmpeg": {

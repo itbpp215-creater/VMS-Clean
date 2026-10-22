@@ -187,13 +187,13 @@ class Go2RtcSupervisor:
         self.go2rtc_bin = resolve_go2rtc_binary(NATIVE_ROOT)
         self.go2rtc_yaml = NATIVE_RUNTIME_DIR / "go2rtc.native.yaml"
 
-    def ensure_config(self) -> Path:
-        if (
-            self.go2rtc_yaml.is_file()
-            and CONFIG_YML.is_file()
-            and self.go2rtc_yaml.stat().st_mtime >= CONFIG_YML.stat().st_mtime
-        ):
-            return self.go2rtc_yaml
+    def ensure_config(self, force_rebuild: bool = False) -> Path:
+        if not force_rebuild and self.go2rtc_yaml.is_file() and CONFIG_YML.is_file():
+            yml_mtime = self.go2rtc_yaml.stat().st_mtime
+            cfg_mtime = CONFIG_YML.stat().st_mtime
+            env_mtime = CREDENTIALS_ENV.stat().st_mtime if CREDENTIALS_ENV.is_file() else 0.0
+            if yml_mtime >= max(cfg_mtime, env_mtime):
+                return self.go2rtc_yaml
         return build_native_go2rtc_config(
             config_yml_path=CONFIG_YML,
             credentials_env_path=CREDENTIALS_ENV,
@@ -201,24 +201,71 @@ class Go2RtcSupervisor:
             caps=self.caps,
         )
 
-    def start(self) -> bool:
+    def _is_existing_go2rtc_synced(self) -> bool:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:1984/api/streams", timeout=1.5) as resp:
+                if resp.status != 200:
+                    return False
+                live_streams = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                if not isinstance(live_streams, dict):
+                    return False
+        except Exception:
+            return False
+
+        try:
+            if self.go2rtc_yaml.is_file():
+                cfg = yaml.safe_load(self.go2rtc_yaml.read_text(encoding="utf-8")) or {}
+                expected = (cfg.get("streams") or {}) if isinstance(cfg, dict) else {}
+                if isinstance(expected, dict) and expected:
+                    missing = [k for k in expected.keys() if k not in live_streams]
+                    if missing:
+                        logger.info(
+                            "Existing go2rtc on :1984 is missing %d/%d configured streams — restarting go2rtc.exe",
+                            len(missing),
+                            len(expected),
+                        )
+                        return False
+        except Exception:
+            return False
+        return True
+
+    def start(self, force_restart: bool = False) -> bool:
         with self._lock:
-            self.ensure_config()
-            if self.proc is not None and self.proc.poll() is None:
-                return True
+            self.ensure_config(force_rebuild=force_restart)
+            if not force_restart and self.proc is not None and self.proc.poll() is None:
+                if self._is_existing_go2rtc_synced():
+                    return True
             if not Path(self.go2rtc_bin).is_file() and shutil.which(self.go2rtc_bin) is None:
                 logger.warning("go2rtc binary not found at %s", self.go2rtc_bin)
                 return False
 
+            if not force_restart and self._is_existing_go2rtc_synced():
+                logger.info("Existing go2rtc instance on :1984 is healthy and synced")
+                return True
+
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if self.proc is not None and self.proc.poll() is None:
+                try:
+                    self.proc.terminate()
+                    self.proc.wait(timeout=2)
+                except Exception:
+                    try:
+                        self.proc.kill()
+                    except Exception:
+                        pass
+                self.proc = None
+
             try:
-                with urllib.request.urlopen("http://127.0.0.1:1984/api", timeout=1.0) as resp:
-                    if resp.status == 200:
-                        logger.info("Existing go2rtc instance already listening on :1984")
-                        return True
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", "go2rtc.exe"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=3,
+                    creationflags=creationflags,
+                )
             except Exception:
                 pass
 
-            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             cmd = [self.go2rtc_bin, "-config", str(self.go2rtc_yaml)]
             logger.info("Starting native go2rtc.exe: %s", " ".join(cmd))
             self.proc = subprocess.Popen(
@@ -228,7 +275,23 @@ class Go2RtcSupervisor:
                 stderr=subprocess.DEVNULL,
                 creationflags=creationflags,
             )
+            for _ in range(16):
+                time.sleep(0.15)
+                try:
+                    with urllib.request.urlopen("http://127.0.0.1:1984/api", timeout=0.6) as resp:
+                        if resp.status == 200:
+                            break
+                except Exception:
+                    pass
             return True
+
+    def sync_streams_from_config(self) -> None:
+        try:
+            self.ensure_config(force_rebuild=True)
+            if not self._is_existing_go2rtc_synced():
+                self.start(force_restart=True)
+        except Exception as exc:
+            logger.debug("go2rtc stream sync check: %s", exc)
 
     def stop(self) -> None:
         with self._lock:
@@ -257,7 +320,7 @@ class RtmpMediaMtxSupervisor:
             "rtmp": True,
             "rtmpAddress": ":1935",
             "rtsp": True,
-            "rtspAddress": ":18554",
+            "rtspAddress": ":28554",
             "hls": True,
             "hlsAddress": ":18888",
             "paths": {"all": {"source": "publisher"}},
@@ -429,7 +492,13 @@ try:
     _cs_mod.load_yaml_config = _cached_load_yaml
 
     import api as _config_api_mod
+    import frigate_validator as _fv_mod
 
+    def _native_validate_yaml_with_frigate(payload: str, **kwargs: Any) -> None:
+        threading.Timer(0.4, _go2rtc_sup.sync_streams_from_config).start()
+
+    _fv_mod.validate_yaml_with_frigate = _native_validate_yaml_with_frigate
+    _config_api_mod.validate_yaml_with_frigate = _native_validate_yaml_with_frigate
     _config_api_mod.verify_identity = _native_verify_identity
     _config_api_mod.load_yaml_config = _cached_load_yaml
     _config_api_mod.reconcile_cameras_internal = lambda *a, **kw: {"status": "native_noop"}
@@ -1552,7 +1621,12 @@ async def proxy_go2rtc_http(subpath: str, request: Request) -> Response:
         data, status_code, resp_ct = await asyncio.to_thread(_sync_go2rtc_http_call, req, timeout_sec)
         return Response(content=data, status_code=status_code, media_type=resp_ct)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"go2rtc proxy error: {exc}") from exc
+        try:
+            await asyncio.to_thread(_go2rtc_sup.start, False)
+            data, status_code, resp_ct = await asyncio.to_thread(_sync_go2rtc_http_call, req, timeout_sec)
+            return Response(content=data, status_code=status_code, media_type=resp_ct)
+        except Exception:
+            raise HTTPException(status_code=502, detail=f"go2rtc proxy error: {exc}") from exc
 
 
 @app.websocket("/live/webrtc/api/ws")
@@ -1563,36 +1637,117 @@ async def proxy_go2rtc_ws(client_ws: WebSocket) -> None:
     await client_ws.accept()
     query = client_ws.url.query
     upstream_url = "ws://127.0.0.1:1984/api/ws" + (f"?{query}" if query else "")
+    upstream_ws = None
     try:
         import websockets
 
-        async with websockets.connect(upstream_url, max_size=16 * 1024 * 1024) as upstream_ws:
-            async def _client_to_upstream() -> None:
-                try:
-                    while True:
-                        msg = await client_ws.receive()
-                        if "text" in msg and msg["text"] is not None:
-                            await upstream_ws.send(msg["text"])
-                        elif "bytes" in msg and msg["bytes"] is not None:
-                            await upstream_ws.send(msg["bytes"])
-                except Exception:
-                    pass
+        try:
+            upstream_ws = await asyncio.wait_for(
+                websockets.connect(
+                    upstream_url,
+                    max_size=16 * 1024 * 1024,
+                    open_timeout=4.0,
+                    close_timeout=1.0,
+                    ping_interval=20.0,
+                    ping_timeout=20.0,
+                ),
+                timeout=4.5,
+            )
+        except Exception:
+            await asyncio.to_thread(_go2rtc_sup.start, False)
+            upstream_ws = await asyncio.wait_for(
+                websockets.connect(
+                    upstream_url,
+                    max_size=16 * 1024 * 1024,
+                    open_timeout=4.0,
+                    close_timeout=1.0,
+                    ping_interval=20.0,
+                    ping_timeout=20.0,
+                ),
+                timeout=4.5,
+            )
 
-            async def _upstream_to_client() -> None:
-                try:
-                    async for message in upstream_ws:
-                        if isinstance(message, bytes):
-                            await client_ws.send_bytes(message)
-                        else:
-                            await client_ws.send_text(message)
-                except Exception:
-                    pass
+        async def _client_to_upstream() -> None:
+            try:
+                while True:
+                    msg = await client_ws.receive()
+                    if msg.get("type") == "websocket.disconnect":
+                        break
+                    if "text" in msg and msg["text"] is not None:
+                        await upstream_ws.send(msg["text"])
+                    elif "bytes" in msg and msg["bytes"] is not None:
+                        await upstream_ws.send(msg["bytes"])
+            except Exception:
+                pass
 
-            await asyncio.gather(_client_to_upstream(), _upstream_to_client())
+        async def _upstream_to_client() -> None:
+            try:
+                async for message in upstream_ws:
+                    if isinstance(message, bytes):
+                        await client_ws.send_bytes(message)
+                    else:
+                        await client_ws.send_text(message)
+            except Exception:
+                pass
+
+        t_c2u = asyncio.create_task(_client_to_upstream())
+        t_u2c = asyncio.create_task(_upstream_to_client())
+        try:
+            _, pending = await asyncio.wait(
+                {t_c2u, t_u2c},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for p in pending:
+                p.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+        finally:
+            for t in (t_c2u, t_u2c):
+                if not t.done():
+                    t.cancel()
     except WebSocketDisconnect:
         pass
     except Exception as exc:
         logger.debug("WebSocket proxy closed: %s", exc)
+    finally:
+        if upstream_ws is not None:
+            try:
+                await asyncio.wait_for(upstream_ws.close(), timeout=1.0)
+            except Exception:
+                pass
+        try:
+            await client_ws.close()
+        except Exception:
+            pass
+
+
+@app.websocket("/nvr/ws")
+@app.websocket("/ws")
+async def native_frigate_events_ws(client_ws: WebSocket) -> None:
+    """Keep realtime event / command WebSocket cleanly open without hitting StaticFiles."""
+    await client_ws.accept()
+    try:
+        while True:
+            msg = await client_ws.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
+    except Exception:
+        pass
+    finally:
+        try:
+            await client_ws.close()
+        except Exception:
+            pass
+
+
+@app.websocket("/{unhandled_ws_path:path}")
+async def native_fallback_ws(client_ws: WebSocket, unhandled_ws_path: str) -> None:
+    """Prevent unknown WebSocket paths from falling through to StaticFiles and raising AssertionError."""
+    await client_ws.accept()
+    try:
+        await client_ws.close(code=1000)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
