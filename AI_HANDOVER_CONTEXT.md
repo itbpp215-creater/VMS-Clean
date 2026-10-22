@@ -1,25 +1,26 @@
-﻿## Update 2026-10-22 (Midday 2) - Fix Mobile iOS Safari Initialization Halt & Blank Purple Screen Trap (Incident 2.185, v212)
+﻿## Update 2026-10-22 (Midday 2) - Fix Temporal Dead Zone (TDZ) `ReferenceError: Cannot access 'state' before initialization` & Blank Purple Screen on Browsers with Cached Channels (Incident 2.185, v212-v213)
 - **Problem / User Request**:
-  - User reported: *"ระบบยังไม่มาครับ"* (The system is still not appearing) accompanied by an iPhone screenshot (`media_1792640873663_82e9c6b8.png`).
-  - Screen status: The Events Rail drawer was cleanly closed (fixed in v211), but the central screen remained completely blank (purple background), clock stayed stuck on static HTML `--:--:--`, date was empty, counters showed `ออนไลน์ 0  เชื่อมต่อ 0  ออฟไลน์ 0`, and no camera grid tiles or layout switch buttons appeared.
+  - User reported: *"ระบบยังไม่มาครับ"* / *"ยังไม่มาเลยครับ"* accompanied by iPhone (`media_1792640873663_82e9c6b8.png`) and PC Chrome (`media_1792642261676_eca0ef73.png`) screenshots.
+  - Screen status: The central screen remained completely blank (purple background), clock stayed stuck on static HTML `--:--:--` or hidden, counters showed `ออนไลน์ 0  เชื่อมต่อ 0  ออฟไลน์ 0`, and no camera grid tiles or layout switch buttons appeared.
 - **Root Cause Diagnosed**:
-  1. **Premature `bind()` Execution Blocking Core UI Rendering**:
-     - In `app.js`, `async function init()` executed `bind()` before `tickClock()`, `buildLayoutSwitch()`, and `rebuildGrid()`.
-     - When any unguarded DOM query, missing element, or WebKit-specific behavior occurred inside `bind()` (such as direct `.addEventListener` without null check, digital zoom element queries, or touch handlers), an uncaught exception was thrown.
-     - Because `init()` is an async function, an uncaught exception immediately aborted the entire function. Lines 12460-12466 (`tickClock()`, `buildLayoutSwitch()`, `rebuildGrid()`) were never reached, leaving the static HTML default values `--:--:--` and an empty `#grid`.
-  2. **Lack of Fault Isolation in Event Listeners**:
-     - Over 50 event listeners in `bind()` lacked optional chaining `?.` or existence guards. An issue in any non-essential control (e.g. playback zoom, NVR auto-discovery, detail popups) completely crashed the primary live camera view.
+  1. **ES6 Temporal Dead Zone (TDZ) Crash on `state` during Top-Level `loadCfg()` (`app.js`)**:
+     - Captured directly from production browsers via the `/api/client-error` telemetry beacon added in v212:
+       `Uncaught ReferenceError: Cannot access 'state' before initialization at https://vms.local/assets/app.js?v=212:239:19`
+     - In `app.js`, `const cfg = loadCfg();` ran at top-level evaluation (line 333), which called `normalizeChannelStreams(c)` on every channel in `localStorage.getItem('ta-nvr-dashboard')`.
+     - When a browser already had saved channels (`c.src !== ''`), `normalizeChannelStreams(c)` executed `typeof state !== 'undefined'` at line 239.
+     - However, `const state = { ... }` was declared in the same lexical scope much later at line 2711. In ES6+, accessing `typeof state` before a `const`/`let` declaration in the same lexical scope throws a fatal `ReferenceError` (Temporal Dead Zone), immediately aborting the entire `app.js` script at line 333 before any UI, clock, or grid functions could execute!
+     - Fresh browsers with empty `localStorage` returned early at line 232 (`if (!camId) return ch;`), masking the bug in clean-room tests.
+  2. **Premature `bind()` Execution & Unisolated Event Listeners**:
+     - `init()` previously called `bind()` before `tickClock()` and `rebuildGrid()`.
 - **Resolution**:
-  1. **Immediate 0ms Clock & Grid Render Before Event Binding (`frigate-nvr/web/assets/app.js`)**:
-     - Restructured `init()` so that `tickClock()`, `setInterval(tickClock, 1000)`, mobile drawer auto-hide, cached profile restore, and `rebuildGrid()` execute FIRST in dedicated `try...catch` blocks. The camera grid and live clock render in 0ms regardless of any subsequent network or binding issues.
-  2. **Fault-Isolated `bind()` & Sub-Routine Null Guards (`frigate-nvr/web/assets/app.js`)**:
-     - Wrapped `bind()` and all sub-sections (Topbar, Events, Viewer, Layout, Zoom, Snapshot, Playback, Settings) in independent `try...catch` blocks.
-     - Added null guards and safe stubs to `makeVideoZoom()` and `wireZoomControls()`.
-     - Upgraded all `$('id').addEventListener` to `$('id')?.addEventListener`.
-  3. **Global Client Error Telemetry & Startup Rejection Guard (`frigate-nvr/web/assets/app.js`)**:
-     - Added global `error` and `unhandledrejection` listeners at the script root to log errors and send lightweight beacon logs to `/api/client-error`.
-     - Wrapped top-level `startDashboardApp()` with `.catch()` to prevent unhandled promise rejections.
-  4. **Cache Buster Bump**: Updated cache buster to `app.js?v=212` in `index.html` and reloaded Nginx. Verified live via Chrome DevTools Protocol simulating iPhone: 9 camera grid tiles rendered, clock ticking live (`11:07:52`), date displayed, and all 5 WebSockets connected cleanly.
+  1. **Eliminate Temporal Dead Zone on `state` & Early Constants (`frigate-nvr/web/assets/app.js`)**:
+     - Moved `DEFAULT_SPECIAL_CAMERA_NAMES` and `var state = { ... }` to line 172 at the very top of `app.js` (before `getOptimalAutoLayout`, `normalizeChannelStreams`, `loadCfg`, `saveCfg`, and `const cfg = loadCfg()`).
+     - Changed late top-level `let camPickerInitialized` and `let editingCameraName` to `var` to prevent any TDZ issues during synchronous `startDashboardApp()` startup.
+  2. **Immediate 0ms Clock & Grid Render + Fault-Isolated `bind()` (`frigate-nvr/web/assets/app.js`)**:
+     - Restructured `init()` so `tickClock()`, cached profile restore, and `rebuildGrid()` execute FIRST in dedicated `try...catch` blocks, and wrapped all 11 `bind()` sub-sections in independent `try...catch` guards.
+  3. **Cache Buster Bump (`v213`) & Live Production Verification**:
+     - Updated `index.html` to `app.js?v=213` and reloaded Nginx.
+     - Confirmed in live Nginx logs (`04:18:38 UTC`) that the user's browser loaded `app.js?v=213` and immediately fetched `/settings/channels`, `/nvr/api/events`, and started streaming with zero `/api/client-error` beacons.
 - **Files Changed**: `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
 
 ## Update 2026-10-22 (Midday) - Fix Mobile iPhone Events Rail Overlay & "0 รายการ" Black Screen Trap + Auto-Heal API Origin on Cellular (Incident 2.184, v211)

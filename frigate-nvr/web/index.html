@@ -2660,8 +2660,8 @@ SOFTWARE.</pre>
 <!-- Federation client disabled: standalone site deployment -->
 <!-- Hls.js client-side video buffering for KhonKaen HLS camera streams -->
 <script src="assets/hls.min.js"></script>
-<!-- v212: Resilient zero-downtime startup - instant 0ms clock & grid render before event bindings, fault-isolated listeners, mobile Safari crash protection (Incident 2.173) -->
-<script src="assets/app.js?v=212"></script>
+<!-- v213: Fix Temporal Dead Zone (TDZ) ReferenceError on 'state' during loadCfg/normalizeChannelStreams when localStorage has saved channels (Incident 2.185) -->
+<script src="assets/app.js?v=213"></script>
 <script defer src="assets/account-label.js?v=1"></script>
 <!-- v17: Proper error icon in toast & Thai validation messages (Incident 2.82) -->
 <script defer src="assets/admin.js?v=17"></script>

@@ -168,6 +168,106 @@ function normLayout(v) {
   return LAYOUTS.some(l => l.key === v) ? v : '2x2';
 }
 
+/* ============ state (Initialized early to prevent TDZ in loadCfg / normalizeChannelStreams) ============ */
+const DEFAULT_SPECIAL_CAMERA_NAMES = {
+  A01: 'A01 - สามแยกนาโพธิ์ - ดงมัน - ร้อย ตชด.234',
+  A02: 'A02 - สามแยกท่าไคร้ - ร้อย ตชด.234',
+  A03: 'A03 - ปากทางเข้า กศน.นาสีนวล - ร้อย ตชด.234',
+  A04: 'A04 - หน้าเทศบาล ต.ชะโนด - ร้อย ตชด.234',
+  A05: 'A05 - สามแยกหาดมะโนภิรมย์ - ร้อย ตชด.234',
+  A06: 'A06 - แยกหว้านใหญ่ - ร้อย ตชด.234',
+  A07: 'A07 - หน้า รร.บ้านนาคำ - ร้อย ตชด.235',
+  A08: 'A08 - หน้า ฐานทรายมูล - ร้อย ตชด.235',
+  A09: 'A09 - สะพานปากห้วยน้ำก่ำ - ร้อย ตชด.235',
+  A10: 'A10 - หน้า ร้อย ตชด.235 - ร้อย ตชด.235',
+  A11: 'A11 - สามแยก ดอนนางหง (รีสอร์ทครูมังกร) - ร้อย ตชด.235',
+  A12: 'A12 - หลังวัดบ้านห้อม - ร้อย ตชด.236',
+  A13: 'A13 - รร.บ้านท่าค้อ - ร้อย ตชด.236',
+  A14: 'A14 - ดอนปู่ตาบ้านซะโงม - ร้อย ตชด.236',
+  A15: 'A15 - แยกบ้านหนาด - ร้อย ตชด.236',
+  A16: 'A16 - หน้าวัดสุพรรณบ้านกลางน้อย - ร้อย ตชด.236',
+  A17: 'A17 - ทางเข้าถนนเลียบแม่น้ำโขง บ.เชียงยืน - ร้อย ตชด.237',
+  A18: 'A18 - ซอยข้าง รพ.ท่าอุเทน - ร้อย ตชด.237',
+  A19: 'A19 - ซอยตรงข้ามนครหลวงวัสดุก่อสร้าง 99 - ร้อย ตชด.237',
+  A20: 'A20 - ทางเข้าบ้านหนองเทา (ป้อมอาเซียน) - ร้อย ตชด.237',
+  A21: 'A21 - แยกนาพระชัยตรงข้ามเซเว่นฯ - ร้อย ตชด.237',
+  A22: 'A22 - ปากทางเข้าบ้านปากห้วยม่วง - ร้อย ตชด.237',
+  doh_per_4_002: 'DOH นครราชสีมา (PER-4-002 มุ่งหน้า จ.สระบุรี)',
+  doh_per_4_003_1: 'DOH นครราชสีมา (PER-4-003 มุ่งหน้า จ.สระบุรี)',
+  doh_per_4_003_2: 'DOH นครราชสีมา (PER-4-003 มุ่งหน้า ตัวเมืองนครราชสีมา)',
+  doh_per_6_023: 'DOH ขอนแก่น (PER-6-023)',
+  doh_per_6_025: 'DOH ขอนแก่น (PER-6-025)',
+  doh_per_6_026: 'DOH มุกดาหาร (PER-6-026)',
+  doh_per_6_029: 'DOH มหาสารคาม (PER-6-029)',
+  doh_per_6_030: 'DOH ร้อยเอ็ด (PER-6-030)',
+  doh_per_7_007: 'DOH อุบลราชธานี (PER-7-007)',
+  doh_per_7_015: 'DOH นครพนม (PER-7-015)',
+  doh_per_7_017: 'DOH อุบลราชธานี (PER-7-017)',
+  doh_per_7_020: 'DOH นครราชสีมา (PER-7-020)',
+  doh_per_7_021: 'DOH สุรินทร์ (PER-7-021)',
+  doh_per_7_022: 'DOH นครราชสีมา (PER-7-022)',
+  doh_per_8_004: 'DOH สกลนคร (PER-8-004)',
+  doh_per_8_005: 'DOH ศรีสะเกษ (PER-8-005)',
+  doh_per_8_007: 'DOH บึงกาฬ (PER-8-007)',
+  doh_per_8_011: 'DOH บุรีรัมย์-สระแก้ว (PER-8-011)',
+  doh_per_9_008: 'DOH สกลนคร (PER-9-008)',
+  doh_per_9_009: 'DOH อุดรธานี (PER-9-009)',
+  doh_per_9_013: 'DOH ร้อยเอ็ด (PER-9-013)',
+  doh_per_9_015: 'DOH บุรีรัมย์ (PER-9-015)',
+  doh_per_10_012: 'DOH ชัยภูมิ-ลพบุรี (PER-10-012)',
+  doh_per_13_013_1: 'DOH อุดรธานี (PER-13-013 มุ่งหน้า อุดรธานี)',
+  doh_per_13_013_2: 'DOH อุดรธานี (PER-13-013 มุ่งหน้า หนองคาย)',
+  doh_per_13_020_1: 'DOH นครราชสีมา (PER-13-020 มุ่งหน้า สระบุรี)',
+  doh_per_13_020_2: 'DOH นครราชสีมา (PER-13-020 มุ่งหน้า นครราชสีมา)',
+  doh_per_17_014_in: 'DOH อำนาจเจริญ (PER-17-014 มุ่งหน้า อ.เมือง)',
+  doh_per_17_014_out: 'DOH อำนาจเจริญ (PER-17-014 มุ่งหน้า อ.ลืออำนาจ)'
+};
+
+var state = {
+  manualLayoutOverride: false,
+  cameraNames: { ...DEFAULT_SPECIAL_CAMERA_NAMES },
+  activeIdx: 0,
+  query: '',
+  tiles: [],           // [{el, video, cam, status, feedEl, nameEl, chipEl}]
+  events: [],          // normalized: {id, camIdx|null, camera, label, type, mins, dur, conf, thumb, hasClip, startTime}
+  lastEventsReadTime: Number(localStorage.getItem('bpp_events_last_read') || 0),
+  eventFilter: 'all',
+  emgrCameraFilter: '', // Empty means every camera in the event archive.
+  emgrDateFilter: '', // Empty means every retained day in the event archive.
+  emgrArchiveNextBefore: null, // Cursor for the next older Frigate event page.
+  emgrArchiveHasMore: false, // Enables progressive loading without discarding retained history.
+  emgrArchiveLoadingMore: false, // Prevents duplicate cursor requests from repeated clicks/scrolls.
+  emgrThumbObserver: null, // Disconnects stale thumbnail observers when the archive re-renders.
+  emgrScrollObserver: null, // Disconnects stale infinite scroll observers when the archive re-renders.
+  selCh: 0,
+  dirty: {},
+  connDirty: false,
+  storageDirty: false, // เพดานพื้นที่ว่าง (%) ถูกแก้ในฟอร์มแต่ยังไม่บันทึก
+  frigateCams: null,   // Set ชื่อกล้องจริงใน Frigate (โหลดตอนเปิด settings)
+  objBase: {},         // { camName: [track...] } ค่าเดิมจาก Frigate
+  objDraft: {},        // { camName: [track...] } ค่าที่กำลังแก้ในฟอร์ม
+  objDirty: {},        // { camName: true } กล้องที่ object ถูกแก้แต่ยังไม่บันทึก
+  draft: null,       // สำเนา channels ระหว่างแก้ใน settings — apply เข้า cfg เมื่อกดบันทึกเท่านั้น
+  evSignature: null, // กัน re-render events rail ซ้ำเมื่อข้อมูลไม่เปลี่ยน (focus/click จะได้ไม่หลุด)
+  playerEv: null,
+  viewerCam: null,   // Camera instance ของหน้าดูเต็มจอ (ดึงสตรีมหลักแยก connection)
+  viewerOpen: false,
+  demoPlay: { t: 0, playing: false },
+  dlToken: 0,        // ใช้ยกเลิกงานดาวน์โหลดค้างเมื่อปิด player/เปลี่ยน event
+  dlTimer: null,
+  reconnecting: false,
+  emgrEvents: [],    // เหตุการณ์ในหน้าคลังวิดีโอ (พร้อม description)
+  emgrQuery: '',     // คำค้นในหน้าคลังวิดีโอ
+  emgrTypeFilter: 'all', // กรองตามชนิดวัตถุในคลังวิดีโอ
+  emgrLprFilter: 'all', // Same-page LPR review status; never fabricates a Frigate plate value.
+  emgrLprByEvent: new Map(), // event ID -> Set of candidate buckets loaded from admin-only metadata.
+  emgrDescOnly: false,   // แสดงเฉพาะที่มีคำอธิบาย
+  emgrEv: null,      // เหตุการณ์ที่เปิดดูรายละเอียดอยู่
+  lprCams: null,     // Set ชื่อกล้องที่เปิด LPR (null = ยังไม่โหลด/โหลดพัง → ปุ่มซ่อน)
+  lprZones: {},      // โซนจับป้ายต่อกล้อง {cam: [x,y,w,h] normalized} จาก /settings/lpr_zones
+  lprDirty: false,   // มีการสลับเปิด/ปิด LPR ที่ยังไม่เขียนไฟล์
+};
+
 /**
  * คำนวณขนาดกริดที่เหมาะสมที่สุดตามจำนวนกล้องที่เปิดใช้งานจริงและตำแหน่งช่องสูงสุด
  * กฎเกณฑ์ที่กำหนด:
@@ -2651,106 +2751,6 @@ window.unmaskFrigateSecret = function(masked, original) {
     return masked.replace('***:***', match[1]);
   }
   return masked;
-};
-
-/* ============ state ============ */
-const DEFAULT_SPECIAL_CAMERA_NAMES = {
-  A01: 'A01 - สามแยกนาโพธิ์ - ดงมัน - ร้อย ตชด.234',
-  A02: 'A02 - สามแยกท่าไคร้ - ร้อย ตชด.234',
-  A03: 'A03 - ปากทางเข้า กศน.นาสีนวล - ร้อย ตชด.234',
-  A04: 'A04 - หน้าเทศบาล ต.ชะโนด - ร้อย ตชด.234',
-  A05: 'A05 - สามแยกหาดมะโนภิรมย์ - ร้อย ตชด.234',
-  A06: 'A06 - แยกหว้านใหญ่ - ร้อย ตชด.234',
-  A07: 'A07 - หน้า รร.บ้านนาคำ - ร้อย ตชด.235',
-  A08: 'A08 - หน้า ฐานทรายมูล - ร้อย ตชด.235',
-  A09: 'A09 - สะพานปากห้วยน้ำก่ำ - ร้อย ตชด.235',
-  A10: 'A10 - หน้า ร้อย ตชด.235 - ร้อย ตชด.235',
-  A11: 'A11 - สามแยก ดอนนางหง (รีสอร์ทครูมังกร) - ร้อย ตชด.235',
-  A12: 'A12 - หลังวัดบ้านห้อม - ร้อย ตชด.236',
-  A13: 'A13 - รร.บ้านท่าค้อ - ร้อย ตชด.236',
-  A14: 'A14 - ดอนปู่ตาบ้านซะโงม - ร้อย ตชด.236',
-  A15: 'A15 - แยกบ้านหนาด - ร้อย ตชด.236',
-  A16: 'A16 - หน้าวัดสุพรรณบ้านกลางน้อย - ร้อย ตชด.236',
-  A17: 'A17 - ทางเข้าถนนเลียบแม่น้ำโขง บ.เชียงยืน - ร้อย ตชด.237',
-  A18: 'A18 - ซอยข้าง รพ.ท่าอุเทน - ร้อย ตชด.237',
-  A19: 'A19 - ซอยตรงข้ามนครหลวงวัสดุก่อสร้าง 99 - ร้อย ตชด.237',
-  A20: 'A20 - ทางเข้าบ้านหนองเทา (ป้อมอาเซียน) - ร้อย ตชด.237',
-  A21: 'A21 - แยกนาพระชัยตรงข้ามเซเว่นฯ - ร้อย ตชด.237',
-  A22: 'A22 - ปากทางเข้าบ้านปากห้วยม่วง - ร้อย ตชด.237',
-  doh_per_4_002: 'DOH นครราชสีมา (PER-4-002 มุ่งหน้า จ.สระบุรี)',
-  doh_per_4_003_1: 'DOH นครราชสีมา (PER-4-003 มุ่งหน้า จ.สระบุรี)',
-  doh_per_4_003_2: 'DOH นครราชสีมา (PER-4-003 มุ่งหน้า ตัวเมืองนครราชสีมา)',
-  doh_per_6_023: 'DOH ขอนแก่น (PER-6-023)',
-  doh_per_6_025: 'DOH ขอนแก่น (PER-6-025)',
-  doh_per_6_026: 'DOH มุกดาหาร (PER-6-026)',
-  doh_per_6_029: 'DOH มหาสารคาม (PER-6-029)',
-  doh_per_6_030: 'DOH ร้อยเอ็ด (PER-6-030)',
-  doh_per_7_007: 'DOH อุบลราชธานี (PER-7-007)',
-  doh_per_7_015: 'DOH นครพนม (PER-7-015)',
-  doh_per_7_017: 'DOH อุบลราชธานี (PER-7-017)',
-  doh_per_7_020: 'DOH นครราชสีมา (PER-7-020)',
-  doh_per_7_021: 'DOH สุรินทร์ (PER-7-021)',
-  doh_per_7_022: 'DOH นครราชสีมา (PER-7-022)',
-  doh_per_8_004: 'DOH สกลนคร (PER-8-004)',
-  doh_per_8_005: 'DOH ศรีสะเกษ (PER-8-005)',
-  doh_per_8_007: 'DOH บึงกาฬ (PER-8-007)',
-  doh_per_8_011: 'DOH บุรีรัมย์-สระแก้ว (PER-8-011)',
-  doh_per_9_008: 'DOH สกลนคร (PER-9-008)',
-  doh_per_9_009: 'DOH อุดรธานี (PER-9-009)',
-  doh_per_9_013: 'DOH ร้อยเอ็ด (PER-9-013)',
-  doh_per_9_015: 'DOH บุรีรัมย์ (PER-9-015)',
-  doh_per_10_012: 'DOH ชัยภูมิ-ลพบุรี (PER-10-012)',
-  doh_per_13_013_1: 'DOH อุดรธานี (PER-13-013 มุ่งหน้า อุดรธานี)',
-  doh_per_13_013_2: 'DOH อุดรธานี (PER-13-013 มุ่งหน้า หนองคาย)',
-  doh_per_13_020_1: 'DOH นครราชสีมา (PER-13-020 มุ่งหน้า สระบุรี)',
-  doh_per_13_020_2: 'DOH นครราชสีมา (PER-13-020 มุ่งหน้า นครราชสีมา)',
-  doh_per_17_014_in: 'DOH อำนาจเจริญ (PER-17-014 มุ่งหน้า อ.เมือง)',
-  doh_per_17_014_out: 'DOH อำนาจเจริญ (PER-17-014 มุ่งหน้า อ.ลืออำนาจ)'
-};
-
-const state = {
-  manualLayoutOverride: false,
-  cameraNames: { ...DEFAULT_SPECIAL_CAMERA_NAMES },
-  activeIdx: 0,
-  query: '',
-  tiles: [],           // [{el, video, cam, status, feedEl, nameEl, chipEl}]
-  events: [],          // normalized: {id, camIdx|null, camera, label, type, mins, dur, conf, thumb, hasClip, startTime}
-  lastEventsReadTime: Number(localStorage.getItem('bpp_events_last_read') || 0),
-  eventFilter: 'all',
-  emgrCameraFilter: '', // Empty means every camera in the event archive.
-  emgrDateFilter: '', // Empty means every retained day in the event archive.
-  emgrArchiveNextBefore: null, // Cursor for the next older Frigate event page.
-  emgrArchiveHasMore: false, // Enables progressive loading without discarding retained history.
-  emgrArchiveLoadingMore: false, // Prevents duplicate cursor requests from repeated clicks/scrolls.
-  emgrThumbObserver: null, // Disconnects stale thumbnail observers when the archive re-renders.
-  emgrScrollObserver: null, // Disconnects stale infinite scroll observers when the archive re-renders.
-  selCh: 0,
-  dirty: {},
-  connDirty: false,
-  storageDirty: false, // เพดานพื้นที่ว่าง (%) ถูกแก้ในฟอร์มแต่ยังไม่บันทึก
-  frigateCams: null,   // Set ชื่อกล้องจริงใน Frigate (โหลดตอนเปิด settings)
-  objBase: {},         // { camName: [track...] } ค่าเดิมจาก Frigate
-  objDraft: {},        // { camName: [track...] } ค่าที่กำลังแก้ในฟอร์ม
-  objDirty: {},        // { camName: true } กล้องที่ object ถูกแก้แต่ยังไม่บันทึก
-  draft: null,       // สำเนา channels ระหว่างแก้ใน settings — apply เข้า cfg เมื่อกดบันทึกเท่านั้น
-  evSignature: null, // กัน re-render events rail ซ้ำเมื่อข้อมูลไม่เปลี่ยน (focus/click จะได้ไม่หลุด)
-  playerEv: null,
-  viewerCam: null,   // Camera instance ของหน้าดูเต็มจอ (ดึงสตรีมหลักแยก connection)
-  viewerOpen: false,
-  demoPlay: { t: 0, playing: false },
-  dlToken: 0,        // ใช้ยกเลิกงานดาวน์โหลดค้างเมื่อปิด player/เปลี่ยน event
-  dlTimer: null,
-  reconnecting: false,
-  emgrEvents: [],    // เหตุการณ์ในหน้าคลังวิดีโอ (พร้อม description)
-  emgrQuery: '',     // คำค้นในหน้าคลังวิดีโอ
-  emgrTypeFilter: 'all', // กรองตามชนิดวัตถุในคลังวิดีโอ
-  emgrLprFilter: 'all', // Same-page LPR review status; never fabricates a Frigate plate value.
-  emgrLprByEvent: new Map(), // event ID -> Set of candidate buckets loaded from admin-only metadata.
-  emgrDescOnly: false,   // แสดงเฉพาะที่มีคำอธิบาย
-  emgrEv: null,      // เหตุการณ์ที่เปิดดูรายละเอียดอยู่
-  lprCams: null,     // Set ชื่อกล้องที่เปิด LPR (null = ยังไม่โหลด/โหลดพัง → ปุ่มซ่อน)
-  lprZones: {},      // โซนจับป้ายต่อกล้อง {cam: [x,y,w,h] normalized} จาก /settings/lpr_zones
-  lprDirty: false,   // มีการสลับเปิด/ปิด LPR ที่ยังไม่เขียนไฟล์
 };
 
 /**
@@ -14027,7 +14027,7 @@ async function loadNvrCameras(retries = 2, delayMs = 800) {
   }
 }
 
-let camPickerInitialized = false;
+var camPickerInitialized = false;
 
 function initCamPicker() {
   if (camPickerInitialized) return;
@@ -14374,7 +14374,7 @@ async function deleteNvrCamera(name) {
   }
 }
 
-let editingCameraName = null;
+var editingCameraName = null;
 
 function editNvrCamera(cam) {
   editingCameraName = cam.name;
