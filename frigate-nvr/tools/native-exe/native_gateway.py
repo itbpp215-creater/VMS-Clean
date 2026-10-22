@@ -509,6 +509,13 @@ except Exception as _cfg_exc:
     logger.warning("Failed to mount config-api routers: %s", _cfg_exc)
 
 try:
+    from drone_qcs import router as _drone_qcs_router
+    app.include_router(_drone_qcs_router)
+    logger.info("Mounted SLOTH Drone & QCS Ground Control Station router (/api/drones/* & /api/config/drones/*)")
+except Exception as _drn_exc:
+    logger.warning("Failed to mount drone_qcs router: %s", _drn_exc)
+
+try:
     import main as _analytics_mod
 
     if hasattr(_analytics_mod, "require_gateway"):

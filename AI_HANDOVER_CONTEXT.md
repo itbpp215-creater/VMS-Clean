@@ -1,4 +1,26 @@
-﻿## Update 2026-10-22 (Afternoon 6) - Full Production Readiness Audit, Eliminate Setup/Migration Config-Wipe & Missing `ruamel.yaml` Bugs, and Rename `D:\sloth+vms` -> `D:\Sloth-BPP215` (Incident 2.191)
+﻿## Update 2026-10-22 (Afternoon 7) - Full Integration of SLOTH × BPP-VMS Drone & QCS Ground Control Station (GCS) Across `BPP-VMS` & `Sloth-BPP215` (Incident 2.192)
+- **Problem / User Request**:
+  - User asked: *"แล้วฟังก์ชั่นจากโปรแกรม sloth bpp215 ที่เราเอามามันครบหรือยัง"* -> *"เรื่องโดรนละครับ"* -> *"ต้องการครับ และผมอยากรู้วิธีใช้แบบละเอียดด้วย"* ("What about the drone features? Yes, I want it! And I also want to know how to use it in full detail").
+- **Root Cause & Architecture Requirement**:
+  - While the native RTMP/RTSP ingest engine (`mediamtx.exe` on `:1935` / `:28554`) and `bore.exe` TCP tunnel binary were already bundled in `D:\Sloth-BPP215\native\bin`, the full SLOTH Drone & QCS Ground Control Station (GCS) API router (`/api/drones*`, `/api/config/drones*`, `/api/config/qcs/*`, `/api/config/{vendor}/drones/*`) and the dedicated Drone & QCS UI modal (`drone-qcs.js` + `#btnDroneQcs` topbar icon) needed to be integrated into both `D:\BPP-VMS` (`https://vms.local`) and `D:\Sloth-BPP215` (`http://127.0.0.1:8443`) without modifying any Docker/Nginx infrastructure.
+- **Resolution**:
+  1. **Created `frigate-nvr/config-api/drone_qcs.py` & Mounted in Both `config-api/api.py` and `native_gateway.py`**:
+     - Implemented dual-prefixed routes (`/api/*` and `/api/config/*` so Nginx `/api/config/` proxies them with zero infrastructure edits):
+       - `GET/POST/PUT/DELETE /api/config/drones`: Full Drone CRUD with automatic companion camera registration (`cam_drone_<id>`) in `camera_names.json`, `camera_gps.json`, `nvr_groups.json` (`🛸 โดรนลาดตระเวน (UAV / QCS)`), and live stream registration in `go2rtc` (`:1984`).
+       - `POST /api/config/drones/{id}/telemetry` & `GET /api/config/drones/{id}/history`: Real-time GPS/Altitude/Battery/Speed/Heading telemetry ingestion (up to 1,500 flight trail points) that dynamically moves the `cam_drone_<id>` pin on the main Tactical Map.
+       - `POST /api/config/drones/{id}/simulate`: 1-click Flight Simulator orbiting 350m around BPP 215 HQ (`14.6431, 103.0855`) every 1.5s for training and instant HUD verification without flying a physical drone.
+       - `GET/POST /api/config/drones/tunnel`: Multi-path RTMP URL discovery across 4 channels (LAN `rtmp://192.168.1.200:1935/live`, 4G/5G DuckDNS `rtmp://bpp215.duckdns.org:1935/live`, Tailscale VPN `rtmp://100.117.170.13:1935/live`, and `bore.exe` TCP tunnel).
+       - `POST /api/config/qcs/dji/pairing` & `POST /api/config/{vendor}/drones/{id}/{cmd}`: 1-time 8-char DJI Pilot 2 Cloud API pairing code (`XXXX-XXXX`) and remote QCS payload commands (`lens`: normal/wide/zoom/thermal, `zoom`: 1x–32x, `gimbal`: -90°/-45°/0°, `quality`).
+     - Seeded default tactical drone `bpp215_uav1` (`โดรนลาดตระเวน ตชด.215 #1 (Mavic 3T)` -> `cam_drone_bpp215_uav1`).
+  2. **Created Frontend Controller `frigate-nvr/web/assets/drone-qcs.js` & Wired `#btnDroneQcs` in `frigate-nvr/web/index.html`**:
+     - Added the sky-blue quadcopter topbar button (`#btnDroneQcs`) next to `#btnTacticalMap`.
+     - Built the 3-tab SLOTH Drone & QCS Ground Control Station modal:
+       - **Tab 1 (`📋 1. จัดการโดรน & ลิงก์สตรีม RTMP`)**: 4-channel RTMP copy cards, 1-click `+ เพิ่มโดรนใหม่`, live fleet table, QR code & connection card, and 1-click `🛫 ทดสอบบินจำลอง`.
+       - **Tab 2 (`🛰️ 2. แผนที่ควบคุมการบิน & QCS HUD`)**: Interactive Leaflet satellite/street map with rotating quadcopter markers, real-time flight trail polylines, live `go2rtc` video player preview, telemetry gauges, and remote lens/zoom/thermal/gimbal controls.
+       - **Tab 3 (`🔗 3. จับคู่รีโมท DJI/MAVLink & คู่มือใช้งานละเอียด`)**: DJI Pilot 2 Cloud Pairing generator + QR code, MAVLink/UDP/HTTP telemetry endpoints, and a built-in step-by-step Thai field manual.
+- **Files Changed**: `frigate-nvr/config-api/drone_qcs.py`, `frigate-nvr/config-api/api.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/web/index.html`, `frigate-nvr/web/assets/drone-qcs.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-22 (Afternoon 6) - Full Production Readiness Audit, Eliminate Setup/Migration Config-Wipe & Missing `ruamel.yaml` Bugs, and Rename `D:\sloth+vms` -> `D:\Sloth-BPP215` (Incident 2.191)
 - **Problem / User Request**:
   - User asked: *"ตอนนี้ sloth+vms พร้อมแทนที่ bpp-vms หรือยัง เช็คทุกบัคทุกข้อบกพร่องทำให้รับบสเถียรที่สุด ถ้าพร้อมแล้วเปลี่ยนชื่อจาก sloth+vms เป็น Sloth-BPP215"* ("Is `sloth+vms` ready to replace `bpp-vms` right now? Check every bug and every flaw to make the system as stable as possible. Once ready, rename `sloth+vms` to `Sloth-BPP215`").
 - **Root Causes & Bugs Discovered During Deep Audit**:
