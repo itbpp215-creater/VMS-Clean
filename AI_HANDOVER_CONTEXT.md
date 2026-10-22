@@ -19,7 +19,7 @@
      - Upgraded `window.openCameraPickerForSlot(slotIdx, initialMode)` in `app.js` with two selectable tabs:
        - **`📋 เลือกจากรายการกล้อง (List View)`**: searchable grouped camera accordion list.
        - **`🗺️ เลือกจากแผนที่หมุดกล้องเพียวๆ (Pure Camera Map)`**: a dedicated Leaflet map (`#slotPickerPureMapCanvas`) displaying **ONLY camera pins** (zero heatmap clutter, zero arrest markers, zero trackers) with group/province filter (`#slotPickerGroupFilter`), search filter, Street/Satellite toggle, `🎯 ซูมดูทุกหมุด`, and `⚡ คลิกหมุดเพื่อเลือกเข้า CHxx ทันที` (1-click pin assignment).
-     - Added quick `📋 เลือกจากรายการ` and `🗺️ แผนที่หมุดกล้อง` buttons on empty `CH` tiles, made `.ch-chip` (`CH01`..`CH16`) clickable to open the picker, and added `🗺️ เลือกกล้องจากแผนที่หมุดกล้องเพียวๆ` inside Settings Tab 2 (`populateCamSelect()`).
+     - Consolidated camera selection into a single button (เลือกกล้อง on empty CH tiles, .ch-chip click, and single #btnOpenCamPicker button in Settings Tab 2) that opens the unified modal (openCameraPickerForSlot()) where the operator chooses between the 2 mode tabs (📋 เลือกจากรายการกล้อง or 🗺️ เลือกจากแผนที่หมุดกล้องเพียวๆ).
 - **Files Changed**: `frigate-nvr/config-api/api.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/web/assets/admin.js`, `frigate-nvr/web/assets/app.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
 
 ## Update 2026-10-22 (Evening 3) - Full System End-to-End Debug & Stability Hardening Across `BPP-VMS` (`vms.local`) & `Sloth-BPP215` (`:8443`) (Incident 2.195)

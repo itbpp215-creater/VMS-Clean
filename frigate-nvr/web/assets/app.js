@@ -2897,13 +2897,13 @@ function tileTemplate(i, ch) {
   el.innerHTML = `
     <div class="tile-feed${isDemo ? ' demo' : ''}"></div>
     <div class="tile-vignette"></div>
-    <div class="tile-overlay ov-offline" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">ช่องสัญญาณว่าง</div><div class="ov-sub">เลือกกล้องจากรายการ หรือจากแผนที่หมุดกล้อง</div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"><button type="button" class="btn-tile-pick-cam" data-pick-mode="list"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><line x1="8.5" y1="9" x2="8.5" y2="15"/><line x1="5.5" y1="12" x2="11.5" y2="12"/></svg><span>📋 เลือกจากรายการ</span></button><button type="button" class="btn-tile-pick-cam" data-pick-mode="map" style="background:rgba(14,165,233,0.22);border-color:rgba(56,189,248,0.55);color:#e0f2fe;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg><span>🗺️ แผนที่หมุดกล้อง</span></button></div></div></div>
+    <div class="tile-overlay ov-offline" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">ช่องสัญญาณว่าง</div><div class="ov-sub">คลิกเพื่อเลือกกล้องสำหรับหน้าจอของคุณ</div><button type="button" class="btn-tile-pick-cam"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><line x1="8.5" y1="9" x2="8.5" y2="15"/><line x1="5.5" y1="12" x2="11.5" y2="12"/></svg><span>เลือกกล้อง</span></button></div></div>
     <div class="tile-overlay ov-videoloss" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">VIDEO LOSS</div><div class="ov-sub">สัญญาณวิดีโอขาดหาย</div></div></div>
     <div class="tile-overlay ov-connecting" hidden><div class="ov-center"><div class="spinner"></div><div class="ov-sub">กำลังเชื่อมต่อ…</div></div></div>
     <div class="tile-overlay ov-reconnecting" hidden><div class="ov-center"><div class="spinner"></div><div class="ov-sub">กำลังเชื่อมต่อใหม่…</div></div></div>
     <div class="tile-overlay ov-disabled" hidden><img src="${escapeHtml(window.BRANDING.logo)}" alt="BPP 215"><div class="ov-center"><div class="ov-title">ปิดการใช้งาน</div><div class="ov-sub">กล้องนี้ถูกปิด — เปิดได้ที่หน้าตั้งค่า</div></div></div>
     <div class="hud tl"></div><div class="hud tr"></div><div class="hud bl"></div><div class="hud br"></div>
-    <div class="tile-top"><span class="ch-chip" title="คลิกเพื่อเลือกกล้องเข้าช่อง ${chLabel(i)} (รายการ / แผนที่หมุดกล้อง)" style="cursor:pointer;">${chLabel(i)}</span><span class="tile-name"></span><span class="tile-status-dot"></span></div>
+    <div class="tile-top"><span class="ch-chip" title="คลิกเพื่อเลือกกล้องเข้าช่อง ${chLabel(i)}" style="cursor:pointer;">${chLabel(i)}</span><span class="tile-name"></span><span class="tile-status-dot"></span></div>
     <div class="tile-bottom"><span class="tile-rec"><span class="rec-dot"></span><span class="rec-text">—</span></span><span class="tile-clock">--:--:--</span></div>`;
   el.querySelector('.tile-name').textContent = name;
 
@@ -2912,17 +2912,17 @@ function tileTemplate(i, ch) {
     chChipEl.addEventListener('click', e => {
       if (state.editLayout) return;
       e.stopPropagation();
-      openCameraPickerForSlot(i, 'list');
+      openCameraPickerForSlot(i);
     });
   }
-  el.querySelectorAll('.btn-tile-pick-cam').forEach(btn => {
-    btn.addEventListener('click', e => {
+  const pickBtnEl = el.querySelector('.btn-tile-pick-cam');
+  if (pickBtnEl) {
+    pickBtnEl.addEventListener('click', e => {
       if (state.editLayout) return;
       e.stopPropagation();
-      const mode = btn.getAttribute('data-pick-mode') || 'list';
-      openCameraPickerForSlot(i, mode);
+      openCameraPickerForSlot(i);
     });
-  });
+  }
 
   const feed = el.querySelector('.tile-feed');
   let video = null;
@@ -14536,49 +14536,15 @@ function initCamPicker() {
   if (camPickerInitialized) return;
   const btn = $('btnOpenCamPicker');
   const dropdown = $('camSelectDropdown');
-  const searchInput = $('inpCamSearch');
-  if (!btn || !dropdown) return;
+  if (!btn) return;
   
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isHidden = dropdown.style.display === 'none';
-    dropdown.style.display = isHidden ? 'flex' : 'none';
-    if (isHidden && searchInput) {
-      searchInput.focus();
+    if (dropdown) dropdown.style.display = 'none';
+    if (typeof window.openCameraPickerForSlot === 'function') {
+      window.openCameraPickerForSlot(state.selCh || 0);
     }
   });
-  
-  document.addEventListener('click', (e) => {
-    if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
-      dropdown.style.display = 'none';
-    }
-  });
-
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase().trim();
-      const groups = document.querySelectorAll('.cam-group-details');
-      groups.forEach(group => {
-        let hasVisibleChild = false;
-        const items = group.querySelectorAll('.cam-item');
-        items.forEach(item => {
-          const text = item.textContent.toLowerCase();
-          if (text.includes(q)) {
-            item.style.display = 'block';
-            hasVisibleChild = true;
-          } else {
-            item.style.display = 'none';
-          }
-        });
-        group.style.display = hasVisibleChild ? 'block' : 'none';
-        if (q && hasVisibleChild) {
-          group.setAttribute('open', '');
-        } else if (!q) {
-          group.removeAttribute('open');
-        }
-      });
-    });
-  }
 
   camPickerInitialized = true;
 }
@@ -14599,26 +14565,6 @@ function populateCamSelect() {
   const sel = $('inpCamSelect');
   const accordion = $('camSelectAccordion');
   if (!sel || !state.nvrCameras || !accordion) return;
-
-  // Ensure a "🗺️ เลือกจากแผนที่หมุดกล้อง" button exists right next to #btnOpenCamPicker in Settings Tab 2
-  const btnOpen = $('btnOpenCamPicker');
-  if (btnOpen && btnOpen.parentElement && !$('btnOpenCamMapForCh')) {
-    const mapBtn = document.createElement('button');
-    mapBtn.id = 'btnOpenCamMapForCh';
-    mapBtn.type = 'button';
-    mapBtn.className = 'btn-ghost';
-    mapBtn.style.cssText = 'margin-top:6px; width:100%; padding:8px 12px; font-size:12.5px; font-weight:600; color:#38bdf8; border:1px solid rgba(56,189,248,0.4); border-radius:8px; background:rgba(14,165,233,0.1); display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;';
-    mapBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg><span>🗺️ เลือกกล้องจากแผนที่หมุดกล้องเพียวๆ (สำหรับช่องนี้)</span>`;
-    mapBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if ($('camSelectDropdown')) $('camSelectDropdown').style.display = 'none';
-      if (typeof window.openCameraPickerForSlot === 'function') {
-        window.openCameraPickerForSlot(state.selCh || 0, 'map');
-      }
-    });
-    btnOpen.parentElement.appendChild(mapBtn);
-  }
-
   const curCh = (state.draft || (typeof cfg !== 'undefined' && cfg.channels) || [])[state.selCh];
   const oldVal = (curCh && curCh.src) || '';
   const groups = {};
@@ -14629,18 +14575,6 @@ function populateCamSelect() {
   });
   
   accordion.innerHTML = '';
-
-  const openMapItem = document.createElement('div');
-  openMapItem.className = 'cam-item';
-  openMapItem.innerHTML = '🗺️ <b>เลือกจากแผนที่หมุดกล้องเพียวๆ (คลิกหมุดบนแผนที่)</b>';
-  openMapItem.style.cssText = 'padding:9px 10px; cursor:pointer; border-bottom:1px solid var(--border-color); color:#38bdf8; background:rgba(14,165,233,0.1); font-size:12.5px;';
-  openMapItem.onclick = () => {
-    $('camSelectDropdown').style.display = 'none';
-    if (typeof window.openCameraPickerForSlot === 'function') {
-      window.openCameraPickerForSlot(state.selCh || 0, 'map');
-    }
-  };
-  accordion.appendChild(openMapItem);
   
   const emptyItem = document.createElement('div');
   emptyItem.className = 'cam-item';
