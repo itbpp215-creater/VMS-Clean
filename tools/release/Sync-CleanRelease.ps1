@@ -98,7 +98,9 @@ $itemsToPurge = @(
     "scrape_*.py",
     "scratch.py",
     "scratch_out.txt",
-    "frigate-nvr/docs/sessions"
+    "frigate-nvr/docs/sessions",
+    "frigate-nvr/analytics-engine/*gpsone*.json",
+    "frigate-nvr/analytics-engine/*.local.json"
 )
 
 foreach ($pattern in $itemsToPurge) {

@@ -8,9 +8,11 @@
 # Frigate release pinned, but source a separately pinned, verified amd64
 # go2rtc binary that starts successfully on this host.  The upstream image
 # exposes it at /usr/local/bin/go2rtc.
+ARG FRIGATE_BASE_IMAGE=ghcr.io/blakeblackshear/frigate:0.18.2-tensorrt@sha256:1cafb6ebbaff0aaf275cc3f31951bcf7e29f3989f18a10ba9565091367d8736c
+
 FROM alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae AS go2rtc
 
-FROM ghcr.io/blakeblackshear/frigate:0.17.2-tensorrt@sha256:8a364092b03561b9c08ac00730206e363a53d07ea0304f7d543b403b65432b5e
+FROM ${FRIGATE_BASE_IMAGE}
 
 # Replace only the broken bundled restream executable.  Frigate's supervisor,
 # configuration generator and all existing camera configuration stay unchanged.
@@ -24,6 +26,10 @@ RUN python3 /tmp/patch_storage_threshold.py && rm /tmp/patch_storage_threshold.p
 # Detection resilience: ป้องกัน TrackedObjectProcessor thread crash เมื่อเกิด transient OSError/I/O error บน 9p storage
 COPY patches/patch_detection_resilience.py /tmp/patch_detection_resilience.py
 RUN python3 /tmp/patch_detection_resilience.py && rm /tmp/patch_detection_resilience.py
+
+# Dynamic go2rtc credentials reload: ให้ create_config.py อ่าน /config/camera_credentials.env เพิ่มอัตโนมัติ
+COPY patches/patch_go2rtc_env_reload.py /tmp/patch_go2rtc_env_reload.py
+RUN python3 /tmp/patch_go2rtc_env_reload.py && rm /tmp/patch_go2rtc_env_reload.py
 
 # Custom in-app logo (served as a static asset, used by the patched UI)
 COPY branding/custom-logo.png /opt/frigate/web/images/custom-logo.png

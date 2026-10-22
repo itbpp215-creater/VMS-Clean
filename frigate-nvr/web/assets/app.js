@@ -1,4 +1,4 @@
-/* Sloth BPP 215 — NVR by Frigate dashboard
+﻿/* Sloth BPP 215 — NVR by Frigate dashboard
    vanilla JS ไม่มี build step — ต่อ Frigate/go2rtc ผ่าน WebRTC + Frigate events API */
 (() => {
 'use strict';
@@ -12,6 +12,31 @@ const originalFetch = window.fetch.bind(window);
  * A 401 invalidates the page session and redirects to login; the JWT never
  * enters JavaScript-accessible storage or an Authorization header.
  */
+let _sessionVerifyPromise = null;
+async function verifySessionOrRedirect() {
+  if (_sessionVerifyPromise) return _sessionVerifyPromise;
+  _sessionVerifyPromise = (async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await originalFetch('/auth/session', {
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        if (res.ok) return true;
+        if (res.status === 401 || res.status === 403) {
+          window.location.replace('/login.html');
+          return false;
+        }
+      } catch (e) {
+        // Network glitch or container restarting — do not kick 24/7 wallboard to login
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    return true;
+  })().finally(() => { _sessionVerifyPromise = null; });
+  return _sessionVerifyPromise;
+}
+
 window.fetch = async function authenticatedFetch() {
   let [resource, config] = arguments;
   if (!config) config = {};
@@ -19,7 +44,7 @@ window.fetch = async function authenticatedFetch() {
   try {
     const response = await originalFetch(resource, config);
     if (response.status === 401) {
-      window.location.replace('/login.html');
+      verifySessionOrRedirect();
     }
     return response;
   } catch (err) {
@@ -34,9 +59,16 @@ window.fetch = async function authenticatedFetch() {
  */
 async function loadAuthenticatedSession() {
   try {
+    let sig;
+    if (typeof AbortController !== 'undefined') {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 5000);
+      sig = ctrl.signal;
+    }
     const response = await originalFetch('/auth/session', {
       credentials: 'same-origin',
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: sig
     });
     if (!response.ok) {
       window.location.replace('/login.html');
@@ -57,6 +89,12 @@ async function loadAuthenticatedSession() {
     if (btnSettings) btnSettings.hidden = false;
     return session;
   } catch (error) {
+    // If transient network timeout occurs on a returning browser with cached config, keep page alive
+    if (error && error.name === 'AbortError') {
+      const btnSettings = document.getElementById('btnSettings');
+      if (btnSettings) btnSettings.hidden = false;
+      return { role: userRole || 'operator' };
+    }
     window.location.replace('/login.html');
     return null;
   }
@@ -95,9 +133,7 @@ const DEFAULTS = {
   emgrThumb: 'md',   // ขนาดภาพย่อในคลังวิดีโอ: sm | md | lg | xl | xxl
   pbLayout: 1,       // จำนวนจอในหน้าดูย้อนหลัง: 1 | 2 | 4
   railClasses: null, // class ที่โฟกัสในแถบเหตุการณ์ (array ชื่อ class) — null = ทุกชนิดที่ตรวจพบ
-  channels: [
-    { src: 'cam11', name: 'cam11', sub: '' },
-  ],
+  channels: [],
 };
 
 /* ============ รูปแบบตาราง (rows×cols) ============ */
@@ -169,6 +205,62 @@ function applyAutoLayout(force = false) {
   }
 }
 
+// กล้อง Frigate/go2rtc ที่มีสตรีมหลักเป็น HEVC (`#video=copy`) จะมี `<cam>_sub` และ/หรือ `<cam>_hd` (NVENC H.264) เสมอ
+// ห้ามเบราว์เซอร์ของผู้ใช้ที่ไม่ใช่แอดมินตกลงไปเรียก `<cam>` ดิบโดยตรง เพราะ WebRTC/MSE เล่น HEVC raw copy ไม่ได้ (Incident 2.182)
+const SPLIT_SUB_CAM_RE = /^(Banmuang|D_BPP215|Doonsad|KK\d|nonburi|nongwang)/i;
+const SPLIT_HD_CAM_RE  = /^(Banmuang|D_BPP215|Doonsad|KK\d|nonburi|nongwang|prasat)/i;
+
+function normalizeChannelStreams(ch) {
+  if (!ch || typeof ch !== 'object') return ch;
+  const camId = typeof ch.src === 'string' ? ch.src.trim() : '';
+  if (!camId || camId === 'cam11') {
+    ch.src = '';
+    ch.name = '';
+    ch.sub = '';
+    ch.hd = '';
+    return ch;
+  }
+  const nvrList = (typeof state !== 'undefined' && Array.isArray(state.nvrCameras)) ? state.nvrCameras : null;
+  const camDef = nvrList ? nvrList.find(c => c && c.name === camId) : null;
+  const masterList = (typeof state !== 'undefined' && Array.isArray(state.masterChannels)) ? state.masterChannels : null;
+  const masterCh = masterList ? masterList.find(m => m && m.src === camId && (m.sub || m.hd)) : null;
+
+  let hasSub = false;
+  if (camDef) {
+    hasSub = Boolean(camDef.has_sub || camDef.sub_url);
+  } else if (masterCh && masterCh.sub) {
+    hasSub = true;
+  } else if (ch.sub === camId + '_sub') {
+    hasSub = true;
+  } else if (SPLIT_SUB_CAM_RE.test(camId)) {
+    hasSub = true;
+  }
+
+  let hasHd = false;
+  if (camDef) {
+    hasHd = Boolean(camDef.has_hd);
+  } else if (masterCh && masterCh.hd) {
+    hasHd = true;
+  } else if (ch.hd === camId + '_hd') {
+    hasHd = true;
+  } else if (SPLIT_HD_CAM_RE.test(camId)) {
+    hasHd = true;
+  }
+
+  if (hasSub) {
+    if (!ch.sub || ch.sub === camId) ch.sub = camId + '_sub';
+  } else if (camDef && !camDef.has_sub && !camDef.sub_url && ch.sub === camId + '_sub' && !SPLIT_SUB_CAM_RE.test(camId)) {
+    ch.sub = '';
+  }
+
+  if (hasHd) {
+    if (!ch.hd || ch.hd === camId) ch.hd = camId + '_hd';
+  } else if (camDef && !camDef.has_hd && ch.hd === camId + '_hd' && !SPLIT_HD_CAM_RE.test(camId)) {
+    ch.hd = '';
+  }
+  return ch;
+}
+
 function loadCfg() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (e) { /* ค่าเสีย → ใช้ default */ }
@@ -180,10 +272,36 @@ function loadCfg() {
     saved.api = DEFAULTS.api;
   }
 
+  // Incident 2.172: Auto-heal stale API and WebRTC base URLs in localStorage
+  // If an account was previously used on LAN HTTP or different host, visiting over HTTPS or domain (e.g. vms.local)
+  // on cellular data must not fail with Mixed Content errors or unreachable LAN IPs.
+  if (SAME_ORIGIN) {
+    try {
+      if (saved.api) {
+        const u = new URL(saved.api, location.origin);
+        if (location.protocol === 'https:' && u.protocol === 'http:') saved.api = DEFAULTS.api;
+        else if (u.host !== location.host) saved.api = DEFAULTS.api;
+      }
+      if (saved.base) {
+        const u = new URL(saved.base, location.origin);
+        if (location.protocol === 'https:' && u.protocol === 'http:') saved.base = DEFAULTS.base;
+        else if (u.host !== location.host) saved.base = DEFAULTS.base;
+      }
+    } catch (_) {
+      saved.api = DEFAULTS.api;
+      saved.base = DEFAULTS.base;
+    }
+  }
+
   const cfg = { ...DEFAULTS, ...saved };
   cfg.layout = normLayout(cfg.layout); // รองรับค่าที่บันทึกไว้เดิม (เลข N) + กันค่าเสีย
-  cfg.channels = Array.from({ length: MAX_CH }, (_, i) =>
-    ({ src: '', name: '', sub: '', enabled: true, ...(saved.channels || DEFAULTS.channels)[i] }));
+  cfg.channels = Array.from({ length: MAX_CH }, (_, i) => {
+    const c = { src: '', name: '', sub: '', enabled: true, ...(saved.channels || DEFAULTS.channels)[i] };
+    if (c.src === 'cam11') { c.src = ''; c.name = ''; c.sub = ''; }
+    return normalizeChannelStreams(c);
+  });
+  cfg._cachedUserProfile = saved._cachedUserProfile || null;
+  cfg._cachedCameraNames = saved._cachedCameraNames || null;
   return cfg;
 }
 function saveCfg() {
@@ -191,10 +309,21 @@ function saveCfg() {
     base: cfg.base, api: cfg.api, demo: cfg.demo, layout: cfg.layout,
     eventsOpen: cfg.eventsOpen, channels: cfg.channels, emgrThumb: cfg.emgrThumb, pbLayout: cfg.pbLayout,
     railClasses: cfg.railClasses,
+    _cachedUserProfile: (typeof state !== 'undefined' && state.userProfile) ? state.userProfile : (cfg._cachedUserProfile || null),
+    _cachedCameraNames: (typeof state !== 'undefined' && state.cameraNames) ? state.cameraNames : (cfg._cachedCameraNames || null),
   })); } catch (e) { /* private mode ฯลฯ — ข้ามได้ */ }
 }
 
 const cfg = loadCfg();
+if (window.innerWidth <= 899) {
+  cfg.eventsOpen = false;
+  const _railEl = document.getElementById('eventsRail');
+  const _tabEl = document.getElementById('railTab');
+  const _btnEv = document.getElementById('btnEvents');
+  if (_railEl) _railEl.hidden = true;
+  if (_tabEl) _tabEl.hidden = false;
+  if (_btnEv) _btnEv.setAttribute('aria-pressed', 'false');
+}
 
 const isIOSBrowser = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let activeMediaJobs = new Map();
@@ -296,15 +425,17 @@ async function loadServerChannels() {
   try {
     // The authenticated read route is intentionally separate from the admin-only
     // mutation route so standard operators receive the same saved channel layout.
-    const namesRes = await fetch('/settings/camera_names?t=' + Date.now());
-    if (namesRes.ok) {
-        state.cameraNames = await namesRes.json();
+    const [namesRes, response] = await Promise.all([
+      fetch('/settings/camera_names?t=' + Date.now(), { signal: timeoutSignal(4000) }).catch(() => null),
+      fetch('/settings/channels?t=' + Date.now(), { cache: 'no-store', signal: timeoutSignal(4000) }).catch(() => null)
+    ]);
+    if (namesRes && namesRes.ok) {
+        try {
+          const fetchedNames = await namesRes.json();
+          state.cameraNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...(fetchedNames || {}) };
+        } catch (e) {}
     }
-    
-    const response = await fetch('/settings/channels?t=' + Date.now(), {
-      cache: 'no-store'
-    });
-    if (!response.ok) return false;
+    if (!response || !response.ok) return false;
     const savedChannels = await response.json();
     if (!Array.isArray(savedChannels)) return false;
     // Normalize the persisted array to the fixed CH01-CH16 slot contract while
@@ -314,7 +445,7 @@ async function loadServerChannels() {
       const persisted = channel && typeof channel === 'object' && !Array.isArray(channel)
         ? channel
         : {};
-      return { src: '', name: '', sub: '', enabled: true, ...persisted };
+      return normalizeChannelStreams({ src: '', name: '', sub: '', enabled: true, ...persisted });
     });
     
     // Backfill missing cameraNames from loaded channels
@@ -354,7 +485,7 @@ async function fetchServerMasterChannels() {
     const master = Array.from({ length: MAX_CH }, (_, index) => {
       const channel = saved[index];
       const persisted = channel && typeof channel === 'object' && !Array.isArray(channel) ? channel : {};
-      return { src: '', name: '', sub: '', enabled: true, ...persisted };
+      return normalizeChannelStreams({ src: '', name: '', sub: '', enabled: true, ...persisted });
     });
     state.masterChannels = master.map(c => ({ ...c }));
     return master;
@@ -368,11 +499,11 @@ async function fetchServerMasterChannels() {
  * Supports user-specific camera grid layouts (channels), camera visibility filters, and view modes.
  * If personal channels are saved, they override the system master grid without affecting other operators.
  */
-async function loadUserProfile() {
+async function loadUserProfile(prefetchedPromise = null) {
   if (cfg.demo || !SAME_ORIGIN) return null;
   try {
-    const res = await fetch('/api/nas-bot/user/profile');
-    if (res.ok) {
+    const res = await (prefetchedPromise || fetch('/api/nas-bot/user/profile', { signal: timeoutSignal(3500) }).catch(() => null));
+    if (res && res.ok) {
       const data = await res.json();
       if (data && data.profile) {
         state.userProfile = data.profile;
@@ -391,7 +522,7 @@ async function loadUserProfile() {
         if (data.profile.layout) {
           cfg.layout = normLayout(data.profile.layout);
         }
-        if (data.profile.events_open !== undefined) {
+        if (data.profile.events_open !== undefined && window.innerWidth > 899) {
           cfg.eventsOpen = !!data.profile.events_open;
         }
         // If the user has a customized Personal User Grid, apply it over the System Master Grid
@@ -401,8 +532,9 @@ async function loadUserProfile() {
             const persisted = channel && typeof channel === 'object' && !Array.isArray(channel)
               ? channel
               : {};
-            return { src: '', name: '', sub: '', enabled: true, ...persisted };
+            return normalizeChannelStreams({ src: '', name: '', sub: '', enabled: true, ...persisted });
           });
+          state.userProfile.channels = cfg.channels.map(c => ({ ...c }));
           if (!state.cameraNames) state.cameraNames = {};
           cfg.channels.forEach(c => {
             if (c.src && c.name && !state.cameraNames[c.src] && c.src !== c.name) {
@@ -410,6 +542,7 @@ async function loadUserProfile() {
             }
           });
         }
+        saveCfg();
         updateResetLayoutButton();
         return data.profile;
       }
@@ -480,7 +613,8 @@ async function applyServerGridReload(message) {
       state.draft = cfg.channels.map(c => ({ ...c }));
     }
     applyAutoLayout(true);
-    rebuildGrid();
+    if (typeof syncGridDiffSmoothly === 'function') syncGridDiffSmoothly();
+    else rebuildGrid();
     renderChList();
     renderChForm();
     triggerDemandReconciliation(false);
@@ -497,6 +631,7 @@ async function fetchAiDemandCounts() {
     if (!res.ok) return null;
     const data = await res.json();
     state.aiDemandCounts = data.counts || {};
+    state.aiDemandUsers = data.users || {};
     return state.aiDemandCounts;
   } catch (e) {
     return null;
@@ -511,6 +646,50 @@ function liveFrigateAiOn(src) {
   return !!(found && found.ai_enabled === true);
 }
 
+async function sendFrigateWsCommands(commands) {
+  if (!Array.isArray(commands) || !commands.length || cfg.demo || !SAME_ORIGIN) return false;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
+    try {
+      const rawPath = apiUrl('/ws');
+      const wsEndpoint = /^https?:/i.test(rawPath)
+        ? rawPath.replace(/^http/i, 'ws')
+        : ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + (rawPath.startsWith('/') ? rawPath : '/' + rawPath));
+      const ws = new WebSocket(wsEndpoint);
+      const timer = setTimeout(() => {
+        try { ws.close(); } catch (e) {}
+        finish(false);
+      }, 3000);
+      ws.onopen = () => {
+        try {
+          commands.forEach(cmd => {
+            if (cmd && cmd.topic) {
+              ws.send(JSON.stringify({ topic: cmd.topic, payload: String(cmd.payload ?? '') }));
+            }
+          });
+        } catch (e) {}
+        setTimeout(() => {
+          clearTimeout(timer);
+          try { ws.close(); } catch (e) {}
+          finish(true);
+        }, 250);
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        try { ws.close(); } catch (e) {}
+        finish(false);
+      };
+    } catch (e) {
+      finish(false);
+    }
+  });
+}
+
 async function setFrigateAi(src, on) {
   try {
     const res = await fetch(`/api/config/cameras/${encodeURIComponent(src)}/detect_toggle`, {
@@ -519,8 +698,29 @@ async function setFrigateAi(src, on) {
       body: JSON.stringify({ detect_enabled: on }),
     });
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      // Respect active AI schedule when forwarding runtime detect state over Frigate WebSocket.
+      const runtimeDet = (data && typeof data.runtime_detect_enabled === 'boolean')
+        ? data.runtime_detect_enabled
+        : on;
+      const wsCmds = on
+        ? [
+            { topic: `${src}/enabled/set`, payload: 'ON' },
+            { topic: `${src}/detect/set`, payload: runtimeDet ? 'ON' : 'OFF' },
+            { topic: `${src}/recordings/set`, payload: 'ON' },
+          ]
+        : [
+            { topic: `${src}/detect/set`, payload: 'OFF' },
+            { topic: `${src}/recordings/set`, payload: 'OFF' },
+            { topic: `${src}/enabled/set`, payload: 'OFF' },
+          ];
+      await sendFrigateWsCommands(wsCmds);
       if (!state.frigateDetect) state.frigateDetect = {};
       state.frigateDetect[src] = on;
+      if (Array.isArray(state.nvrCameras)) {
+        const nc = state.nvrCameras.find(c => (c.name || c.id) === src);
+        if (nc) nc.ai_enabled = on;
+      }
       return { ok: true };
     }
     const err = await res.json().catch(() => ({}));
@@ -531,24 +731,38 @@ async function setFrigateAi(src, on) {
 }
 
 // Frigate runs AI on a camera only while at least one account demands it (ADR-0024).
-async function applyAiDeltaToFrigate(result) {
+async function applyAiDeltaToFrigate(result, extraCheckCams = []) {
   let failed = 0;
+  const handled = new Set();
   for (const cam of (result.ai_release || [])) {
+    handled.add(cam);
     const r = await setFrigateAi(cam, false);
     if (!r.ok) failed++;
   }
   for (const cam of (result.ai_acquire || [])) {
+    handled.add(cam);
     const r = await setFrigateAi(cam, true);
     if (!r.ok) failed++;
   }
+  const counts = await fetchAiDemandCounts();
+  if (counts && Array.isArray(extraCheckCams)) {
+    for (const cam of extraCheckCams) {
+      if (!cam || handled.has(cam)) continue;
+      handled.add(cam);
+      const wantOn = (counts[cam] || 0) > 0;
+      if (!wantOn || wantOn !== liveFrigateAiOn(cam)) {
+        const r = await setFrigateAi(cam, wantOn);
+        if (!r.ok) failed++;
+      }
+    }
+  }
   triggerDemandReconciliation(false);
-  await fetchAiDemandCounts();
   return failed;
 }
 
 async function refreshUserProfilesCache() {
   try {
-    const res = await fetch('/api/nas-bot/admin/user-profiles');
+    const res = await fetch('/api/nas-bot/admin/user-profiles', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data && data.profiles) state.allUserProfilesCache = data.profiles;
@@ -556,8 +770,13 @@ async function refreshUserProfilesCache() {
   } catch (e) { /* keep previous cache */ }
 }
 
+function isKillSwitchAuthorized() {
+  const curUser = (window.bppSession && window.bppSession.username) || '';
+  return ['admin', 'superadmin'].includes(userRole) || ['arm215', 'suchakree', 'bpp215'].includes(curUser);
+}
+
 function updateKillSwitchUi() {
-  const strict = userRole === 'superadmin';
+  const strict = isKillSwitchAuthorized();
   const imp = !!state.impersonatingUser;
   const set = (id, on, disp) => { const el = $(id); if (el) el.style.display = on ? disp : 'none'; };
   set('lblBroadcastGrid', strict && !imp, 'inline-flex');
@@ -570,7 +789,7 @@ function updateKillSwitchUi() {
 function countAccountsWithGrid() {
   const me = (window.bppSession && window.bppSession.username) || '';
   return Object.entries(state.allUserProfilesCache || {})
-    .filter(([u, p]) => u !== me && p && Array.isArray(p.channels) && p.channels.length).length;
+    .filter(([u, p]) => u !== me && p && ((Array.isArray(p.channels) && p.channels.length) || (Array.isArray(p.active_channels) && p.active_channels.length))).length;
 }
 
 async function runGridKillSwitch(action, scope) {
@@ -584,6 +803,18 @@ async function runGridKillSwitch(action, scope) {
     : (action === 'stream_off' ? 'กล้องยังผูกอยู่กับช่องเดิม เปิดกลับได้ภายหลัง' : 'ช่องที่มีกล้องจะกลับมาสตรีมตามกล้องเดิม (AI ไม่ถูกเปิดให้อัตโนมัติ)');
   if (!await window.bppConfirm(`${label} ${who}\n\n${note}\nผู้ใช้ที่ออนไลน์จะเห็นผลภายใน 1 นาที\n\nยืนยันดำเนินการ?`)) return;
   try {
+    // Collect candidate cameras from target profile(s) before batch action so we can self-heal out-of-sync Frigate runtime state
+    const candidateCams = new Set();
+    const me = (window.bppSession && window.bppSession.username) || '';
+    Object.entries(state.allUserProfilesCache || {}).forEach(([u, p]) => {
+      if (scope === 'account' ? u !== target : u === me) return;
+      ((p && p.channels) || []).forEach(c => { if (c && c.src) candidateCams.add(c.src); });
+      ((p && p.active_channels) || []).forEach(c => { if (c && c.src) candidateCams.add(c.src); });
+    });
+    if (scope === 'account' && Array.isArray(state.draft)) {
+      state.draft.forEach(c => { if (c && c.src) candidateCams.add(c.src); });
+    }
+
     const res = await fetch('/api/nas-bot/admin/grid/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -591,14 +822,24 @@ async function runGridKillSwitch(action, scope) {
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    const failed = await applyAiDeltaToFrigate(data);
+    const failed = await applyAiDeltaToFrigate(data, Array.from(candidateCams));
     await refreshUserProfilesCache();
     if (state.impersonatingUser) {
       const prof = state.allUserProfilesCache && state.allUserProfilesCache[state.impersonatingUser];
-      if (prof && Array.isArray(prof.channels)) state.draft = prof.channels.map(c => ({ ...c }));
+      if (prof && Array.isArray(prof.channels)) {
+        state.draft = prof.channels.map(c => ({ ...c }));
+      } else if (Array.isArray(state.draft)) {
+        state.draft.forEach(c => {
+          if (!c || !c.src) return;
+          if (action === 'stream_off') c.enabled = false;
+          else if (action === 'stream_on') c.enabled = true;
+          else if (action === 'ai_off') c.detect = false;
+        });
+      }
     }
     renderChList();
     renderChForm();
+    renderMyAlertsMatrix();
     const skipped = (data.skipped_no_grid || []).length;
     if (window.bppToast) {
       window.bppToast(`${label} ${who} เรียบร้อย (${(data.updated_users || []).length} บัญชี` +
@@ -807,11 +1048,13 @@ function toast(msg) {
   clearTimeout(toastT);
   toastT = setTimeout(() => { $('toast').hidden = true; }, 2600);
 }
+window.bppToast = function(msg) { toast(msg); };
 
 /* ============ Camera: go2rtc WebRTC ผ่าน WebSocket signaling ============ */
-const CONNECT_TIMEOUT = 8000;   // ลดจาก 12000 เพื่อ fail fast เมื่อ go2rtc ยังไม่มี producer (Incident 1.56)
+// เพิ่มเป็น 15000ms เพื่อรองรับกล้อง H.264/HEVC ที่ GOP ยาว 2-4 วินาที หรือกล้อง DDNS/4G ที่ต้องรอ Keyframe แรกจากต้นทาง (Phase P0 Zero-Drop)
+const CONNECT_TIMEOUT = 15000;
 const RETRY_STEPS = [5000, 10000, 20000, 30000];
-const RECONNECT_GRACE_MS = 10000;  // แช่เฟรมสุดท้ายเงียบๆ 10 วินาทีก่อนโชว์ RECONNECT (ADR-0026)
+const RECONNECT_GRACE_MS = 8000;   // แช่เฟรมสุดท้ายเงียบๆ สูงสุด 8 วินาทีระหว่างต่อใหม่สั้นๆ หากเกินกว่านั้นต้องแสดงสถานะ RECONNECT ตามจริง (Incident 2.181)
 const RECONNECT_JITTER_MS = 3000;  // กระจาย reconnect delay สุ่ม 0-3s ป้องกัน thundering herd ที่ NVR
 
 /**
@@ -832,7 +1075,15 @@ const RECONNECT_JITTER_MS = 3000;  // กระจาย reconnect delay สุ�
  * @returns {string} ชื่อ stream สำหรับส่งให้ go2rtc (อาจว่างถ้า channel ยังไม่ผูกกล้อง)
  */
 function playableMainStream(ch) {
+  if (!ch) return '';
+  normalizeChannelStreams(ch);
   return ch.hd || ch.sub || ch.src;
+}
+
+function playableGridStream(ch) {
+  if (!ch) return '';
+  normalizeChannelStreams(ch);
+  return ch.sub || ch.hd || ch.src;
 }
 
 /**
@@ -899,6 +1150,51 @@ function getHlsUrl(src) {
   return null;
 }
 
+// กล้องกรมทางหลวง (DOH) ใช้ Wowza ที่มีเพียง 3 segments ในหน้าต่างสตรีม แต่ค้างค่า #EXT-X-TARGETDURATION สูงสุดตลอดกาล
+// จึงต้อง normalize TARGETDURATION และซิงก์เข้ากึ่งกลาง segment ที่ 2 เสมอ (Incident 2.119)
+function isDohHlsSource(srcOrUrl) {
+  if (!srcOrUrl || typeof srcOrUrl !== 'string') return false;
+  if (/^doh_/i.test(srcOrUrl) || /^\/proxy-doh-streaming[12]\//.test(srcOrUrl)) return true;
+  const u = getHlsUrl(srcOrUrl);
+  return !!u && /^\/proxy-doh-streaming[12]\//.test(u);
+}
+window.isDohHlsSource = isDohHlsSource;
+
+function createDohPlaylistLoader(getHlsInstance) {
+  const BaseLoader = (window.Hls && Hls.DefaultConfig && Hls.DefaultConfig.loader) ? Hls.DefaultConfig.loader : null;
+  if (!BaseLoader) return undefined;
+  return class DohPlaylistLoader extends BaseLoader {
+    load(context, config, callbacks) {
+      const origSuccess = callbacks.onSuccess;
+      callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
+        if (response && typeof response.data === 'string' && response.data.includes('#EXT-X-TARGETDURATION:')) {
+          const infMatches = [...response.data.matchAll(/#EXTINF:([\d.]+)/g)]
+            .map(m => parseFloat(m[1]))
+            .filter(n => Number.isFinite(n) && n > 0);
+          const dLast = infMatches.length ? infMatches[infMatches.length - 1] : 6;
+          const normTd = Math.max(3, Math.min(6, Math.floor(dLast)));
+          response.data = response.data.replace(/#EXT-X-TARGETDURATION:\d+/g, `#EXT-X-TARGETDURATION:${normTd}`);
+
+          const hlsInst = typeof getHlsInstance === 'function' ? getHlsInstance() : null;
+          if (hlsInst && hlsInst.config && infMatches.length >= 2) {
+            const dPrev = infMatches[infMatches.length - 2];
+            const totalDur = infMatches.reduce((a, b) => a + b, 0);
+            const targetSync = Math.max(normTd + 1, Math.min(35, Math.round((dLast + 0.5 * dPrev) * 10) / 10));
+            if (!hlsInst._dohSyncInit) {
+              hlsInst._dohSyncInit = true;
+              hlsInst.config.liveSyncDuration = targetSync;
+              hlsInst.config.liveMaxLatencyDuration = Math.max(60, Math.round(totalDur + 25));
+            }
+          }
+        }
+        origSuccess(response, stats, ctx, networkDetails);
+      };
+      super.load(context, config, callbacks);
+    }
+  };
+}
+window.createDohPlaylistLoader = createDohPlaylistLoader;
+
 function isFieldMobileStream(src, chName = '') {
   if (!src && !chName) return false;
   const s = String(src || '').toLowerCase();
@@ -907,8 +1203,51 @@ function isFieldMobileStream(src, chName = '') {
   return pattern.test(s) || pattern.test(n);
 }
 
+const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+const isIOSDevice = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isLocalLanHost = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(window.location.hostname || '');
+const streamTransportState = {
+  preferMSE: !isLocalLanHost || isMobileDevice,
+  webrtcFailures: 0,
+  markWebrtcFailure() {
+    this.webrtcFailures++;
+    if (this.webrtcFailures >= 1) {
+      this.preferMSE = true;
+    }
+  }
+};
+
+function captureVideoPoster(videoEl, maxW = 480) {
+  if (!videoEl) return '';
+  if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+    try {
+      const c = document.createElement('canvas');
+      const scale = Math.min(1, maxW / videoEl.videoWidth);
+      c.width = Math.max(1, Math.round(videoEl.videoWidth * scale));
+      c.height = Math.max(1, Math.round(videoEl.videoHeight * scale));
+      const ctx = c.getContext('2d');
+      let dataUrl = '';
+      if (ctx) {
+        ctx.drawImage(videoEl, 0, 0, c.width, c.height);
+        dataUrl = c.toDataURL('image/jpeg', 0.72);
+      }
+      c.width = 0;
+      c.height = 0;
+      return dataUrl;
+    } catch (e) {}
+  }
+  return videoEl.poster || '';
+}
+
 class Camera {
   constructor(src, videoEl, onStatus, opts) {
+    if (typeof src === 'string' && src && !/_(sub|hd|main)$/i.test(src) && !getHlsUrl(src)) {
+      if (SPLIT_SUB_CAM_RE.test(src)) {
+        src = src + '_sub';
+      } else if (SPLIT_HD_CAM_RE.test(src)) {
+        src = src + '_hd';
+      }
+    }
     this.src = src;
     this.opts = opts || {};
     this.video = videoEl;
@@ -922,23 +1261,51 @@ class Camera {
     this.hlsLite = opts && opts.hlsLite;
     this.ws = null; this.pc = null;
     this.hls = null;
+    this.hlsStartT = null;
     this.retryN = 0; this.retryT = null; this.timeoutT = null;
     this.watchdogT = null;
     this.pingT = null;
     this.webrtcFallbackT = null;
+    this.viewerHoldT = null;
+    this.viewerPaused = false;
     this.lastFrameTime = 0;
+    // ติดตามเวลาที่ได้รับแพ็กเก็ตวิดีโอล่าสุดจาก WebSocket แยกจากเวลาเรนเดอร์ของ <video> (Phase P0 Zero-Drop)
+    this.lastPacketTime = 0;
+    // นับจำนวนครั้งที่ทำ Soft Recovery กระโดดไปขอบสตรีมสดก่อนตัดสินใจตัดการเชื่อมต่อจริง
+    this.softRecoveryCount = 0;
     this.lastCurrentTime = -1;
     this._lastDecodedFrames = 0;
     this._lastFpsCheckTime = 0;
     this.wasLive = false;
     this.isLive = false;
     this.dead = false;
-    this.preferMSE = false;
-    this.currentMode = 'webrtc';
+    this.preferMSE = Boolean((opts && opts.preferMSE) || streamTransportState.preferMSE);
+    this.currentMode = this.preferMSE ? 'mse' : 'webrtc';
     this.startMSE = null;
     this.onTimeUpdate = null;
     this.onPlaying = null;
-    this.connect();
+    const startDelayMs = (opts && Number(opts.startDelayMs) > 0) ? Number(opts.startDelayMs) : 0;
+    if (startDelayMs > 0) {
+      this.retryT = setTimeout(() => this.connect(), startDelayMs);
+    } else {
+      this.connect();
+    }
+  }
+
+  clearVideoForMjpeg() {
+    if (!this.video) return;
+    try { this.video.pause(); } catch (e) {}
+    this.video.srcObject = null;
+    if (this.video.src) {
+      this.video.removeAttribute('src');
+      try { this.video.load(); } catch (e) {}
+    }
+    if (this.msUrl) {
+      try { URL.revokeObjectURL(this.msUrl); } catch (e) {}
+      this.msUrl = null;
+    }
+    this.ms = null;
+    this.sb = null;
   }
 
   markLive() {
@@ -954,7 +1321,9 @@ class Camera {
     this.retryN = 0;
     this._reconnAttempt = 0;
     this.lastFrameTime = Date.now();
-    if (this.video && this.video.poster) {
+    this.lastPacketTime = Date.now();
+    this.softRecoveryCount = 0;
+    if (this.video && this.video.poster && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
       this.video.removeAttribute('poster');
     }
     this.onStatus('live');
@@ -963,7 +1332,13 @@ class Camera {
   connect() {
     if (this.dead) return;
     this.cleanupPeer();
-    // ADR-0026 Grace Period: ถ้าสตรีมเคยเล่นได้และยังอยู่ในช่วง 10 วินาทีแรก ไม่ต้องแสดงสถานะ connecting (แช่ภาพเงียบๆ)
+    this.paused = false;
+    this._mseSoftRecovered = false;
+    this._mseSoftRecoverTime = 0;
+    this._appendErrCount = 0;
+    this._watchdogDecodedFrames = 0;
+    this._lastTimeUpdateFrames = 0;
+    // ADR-0026 Grace Period: ถ้าสตรีมเคยเล่นได้และยังอยู่ในช่วง 8 วินาทีแรก ไม่ต้องแสดงสถานะ connecting (แช่ภาพเงียบๆ)
     const inGrace = this.wasLive && this._graceStart && ((Date.now() - this._graceStart) < RECONNECT_GRACE_MS);
     if (!inGrace) {
       if (this.wasLive) {
@@ -995,25 +1370,77 @@ class Camera {
     const hasWebRTC = typeof RTCPeerConnection !== 'undefined';
     let ms = null;
     let sb = null;
-    let mseBuf = new Uint8Array(2 * 1024 * 1024);
+    let mseBuf = new Uint8Array(4 * 1024 * 1024);
     let mseBufLen = 0;
+    let triedWebRTC = false;
+    let triedMSE = false;
     this.mseLive = false;
-    let currentMode = 'webrtc'; // 'webrtc' | 'mse'
+    let currentMode = 'webrtc'; // 'webrtc' | 'mse' | 'mjpeg' | 'snapshot'
     this.currentMode = currentMode;
 
+    const fallbackAfterTransportExhausted = () => {
+      if (this.dead) return;
+      if (isIOSDevice) {
+        this.startSnapshotStream();
+      } else {
+        this.fail();
+      }
+    };
+
+    const safeAppendMse = chunk => {
+      if (!sb || sb.updating) return false;
+      if ((this.ms && this.ms.readyState !== 'open') || (this.video && this.video.error)) {
+        this.fail();
+        return false;
+      }
+      try {
+        sb.appendBuffer(chunk);
+        this._appendErrCount = 0;
+        return true;
+      } catch (err) {
+        mseBufLen = 0;
+        if (
+          (err && err.name === 'InvalidStateError') ||
+          (this.ms && this.ms.readyState !== 'open') ||
+          (this.video && this.video.error)
+        ) {
+          console.warn(`[MSE ${this.src}] SourceBuffer/MediaSource invalid state (${err && err.name}), reconnecting`);
+          this.fail();
+          return false;
+        }
+        this._appendErrCount = (this._appendErrCount || 0) + 1;
+        if (this._appendErrCount >= 6) {
+          console.warn(`[MSE ${this.src}] Repeated appendBuffer errors (${this._appendErrCount}), reconnecting`);
+          this.fail();
+          return false;
+        }
+        try {
+          if (sb.buffered && sb.buffered.length > 0 && !sb.updating) {
+            const s0 = sb.buffered.start(0);
+            const e0 = sb.buffered.end(sb.buffered.length - 1);
+            if (e0 - s0 > 1.5) {
+              sb.remove(s0, Math.max(s0 + 0.5, e0 - 2.0));
+            }
+          }
+        } catch (remErr) {}
+        return false;
+      }
+    };
+
     const startMSE = () => {
-      if (this.dead || currentMode === 'mse' || !hasMSE || !this.video) return;
+      if (this.dead || currentMode === 'mse' || currentMode === 'snapshot' || !this.video) return;
+      triedMSE = true;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.warn(`[Stream ${this.src}] WebSocket closed during MSE switch, forcing reconnect with MSE preference`);
         this.preferMSE = true;
+        streamTransportState.markWebrtcFailure();
         this.fail();
         return;
       }
-      currentMode = 'mse';
-      this.currentMode = 'mse';
-      this.preferMSE = true;
       clearTimeout(this.webrtcFallbackT);
       this.webrtcFallbackT = null;
+      clearTimeout(this.timeoutT);
+      this.timeoutT = setTimeout(() => this.fail(), CONNECT_TIMEOUT);
 
       // Cleanly teardown WebRTC peer connection so zero UDP packets continue downloading
       if (this.pc) {
@@ -1022,27 +1449,66 @@ class Camera {
         this.pc = null;
       }
 
+      if (!hasMSE) {
+        if (hasWebRTC && !triedWebRTC) {
+          startWebRTC();
+        } else {
+          fallbackAfterTransportExhausted();
+        }
+        return;
+      }
+
+      currentMode = 'mse';
+      this.currentMode = 'mse';
+      this.preferMSE = true;
+      streamTransportState.markWebrtcFailure();
+
       console.debug(`[Stream ${this.src}] Activating clean MSE fallback over WebSocket`);
       const MediaSourceClass = window.ManagedMediaSource || window.MediaSource;
       ms = new MediaSourceClass();
       this.ms = ms;
+      let mseOpened = false;
 
       ms.addEventListener('sourceopen', () => {
+        mseOpened = true;
         if (this.dead || this.ms !== ms) return;
         if (ws && ws.readyState === WebSocket.OPEN) {
           const supportedCodecs = [
-            'avc1.640029', 'avc1.64002A', 'avc1.640033', 'avc1.4d401f', 'avc1.42e01e', 'mp4a.40.2'
-          ].filter(c => MediaSourceClass.isTypeSupported(`video/mp4; codecs="${c}"`)).join();
+            'avc1.64001E', 'avc1.64001F', 'avc1.640020', 'avc1.640028',
+            'avc1.640029', 'avc1.64002A', 'avc1.640033',
+            'avc1.4d401e', 'avc1.4d401f', 'avc1.4d4028', 'avc1.42e01e',
+            'hvc1.1.6.L93.B0', 'hev1.1.6.L93.B0', 'mp4a.40.2'
+          ].filter(c => {
+            try { return MediaSourceClass.isTypeSupported(`video/mp4; codecs="${c}"`); } catch (e) { return false; }
+          }).join();
           ws.send(JSON.stringify({ type: 'mse', value: supportedCodecs }));
         }
       }, { once: true });
 
+      // iOS Low Power Mode / >4 ManagedMediaSource limit can block MediaSource from firing 'sourceopen'.
+      setTimeout(() => {
+        if (this.dead || this.ms !== ms || mseOpened || currentMode !== 'mse') return;
+        console.warn(`[Stream ${this.src}] MediaSource sourceopen blocked -> falling back`);
+        if (hasWebRTC && !triedWebRTC && ws && ws.readyState === WebSocket.OPEN) {
+          startWebRTC();
+        } else {
+          fallbackAfterTransportExhausted();
+        }
+      }, 2800);
+
+      this.video.preload = 'auto';
       if (this.video.srcObject) {
         this.video.srcObject = null;
       }
       if ('ManagedMediaSource' in window) {
         this.video.disableRemotePlayback = true;
-        this.video.srcObject = ms;
+        try {
+          this.video.srcObject = ms;
+        } catch (e) {
+          const msUrl = URL.createObjectURL(ms);
+          this.msUrl = msUrl;
+          this.video.src = msUrl;
+        }
       } else {
         const msUrl = URL.createObjectURL(ms);
         this.msUrl = msUrl;
@@ -1061,8 +1527,10 @@ class Camera {
     this.startMSE = startMSE;
 
     const startWebRTC = async () => {
+      triedWebRTC = true;
       if (!hasWebRTC) {
-        startMSE();
+        if (hasMSE && !triedMSE) startMSE();
+        else fallbackAfterTransportExhausted();
         return;
       }
 
@@ -1103,7 +1571,8 @@ class Camera {
             if (!this.dead && this.pc === pc && currentMode === 'webrtc') {
               setTimeout(() => {
                 if (!this.dead && this.pc === pc && track.muted && !this.paused && currentMode === 'webrtc') {
-                  if (hasMSE && !this.isLive) startMSE();
+                  if (hasMSE && !triedMSE && !this.isLive) startMSE();
+                  else if (!this.isLive) fallbackAfterTransportExhausted();
                   else this.fail();
                 }
               }, 4000);
@@ -1129,14 +1598,16 @@ class Camera {
           this._reconnAttempt = 0;
           this.lastFrameTime = Date.now();
           this.startWatchdog();
-          if (this.video && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
+          if (this.video && this.video.videoWidth > 0) {
             clearTimeout(this.webrtcFallbackT);
             this.webrtcFallbackT = null;
             this.markLive();
           }
         } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
-          if (hasMSE && currentMode === 'webrtc' && !this.isLive) {
+          if (hasMSE && !triedMSE && currentMode === 'webrtc' && !this.isLive) {
             startMSE();
+          } else if (!this.isLive) {
+            fallbackAfterTransportExhausted();
           } else {
             this.fail();
           }
@@ -1150,24 +1621,24 @@ class Camera {
           ws.send(JSON.stringify({ type: 'webrtc/offer', value: offer.sdp }));
         }
       } catch (e) {
-        if (hasMSE) startMSE();
-        else this.fail();
+        if (hasMSE && !triedMSE) startMSE();
+        else fallbackAfterTransportExhausted();
       }
 
-      // WebRTC frame watchdog: if frames don't actually render within fallbackDelay, fallback to MSE!
-      const fallbackDelay = isFieldMobileStream(this.src, this.opts && this.opts.chName) ? 8000 : 5000;
+      // WebRTC frame watchdog: if video frames don't actually decode within fallbackDelay, fallback to MSE!
+      const fallbackDelay = isFieldMobileStream(this.src, this.opts && this.opts.chName) ? 6500 : 3800;
       clearTimeout(this.webrtcFallbackT);
       this.webrtcFallbackT = setTimeout(() => {
         if (this.dead) return;
         if (currentMode === 'webrtc') {
-          const hasVideoRendering = this.video && (this.video.currentTime > 0 || this.video.videoWidth > 0);
+          const hasVideoRendering = this.video && this.video.videoWidth > 0;
           const isConnected = this.pc && this.pc.connectionState === 'connected';
           if (!isConnected || !hasVideoRendering) {
-            console.warn(`[Stream ${this.src}] WebRTC not rendering video within ${fallbackDelay}ms -> falling back to MSE`);
-            if (hasMSE) {
+            console.warn(`[Stream ${this.src}] WebRTC not rendering video within ${fallbackDelay}ms -> falling back`);
+            if (hasMSE && !triedMSE) {
               startMSE();
-            } else if (!isConnected) {
-              this.fail();
+            } else if (!hasVideoRendering) {
+              fallbackAfterTransportExhausted();
             }
           }
         }
@@ -1180,28 +1651,61 @@ class Camera {
       this.onTimeUpdate = () => {
         if (this.video && this.video.currentTime !== this.lastCurrentTime) {
           this.lastCurrentTime = this.video.currentTime;
-          this.lastFrameTime = Date.now();
-          if (this.webrtcFallbackT) {
-            clearTimeout(this.webrtcFallbackT);
-            this.webrtcFallbackT = null;
-          }
-          if (!this.isLive && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
-            this.markLive();
+          if (this.video.videoWidth > 0) {
+            // ตรวจสอบว่าเฟรมวิดีโอถูกถอดรหัสเพิ่มขึ้นจริง ไม่ใช่เวลาขยับเฉพาะแทร็กเสียงขณะที่ภาพค้าง (Incident 2.181)
+            let frameAdvanced = true;
+            if (typeof this.video.getVideoPlaybackQuality === 'function') {
+              const q = this.video.getVideoPlaybackQuality();
+              if (q && typeof q.totalVideoFrames === 'number') {
+                if (q.totalVideoFrames > (this._lastTimeUpdateFrames || 0)) {
+                  this._lastTimeUpdateFrames = q.totalVideoFrames;
+                  this._watchdogDecodedFrames = q.totalVideoFrames;
+                } else if ((this._lastTimeUpdateFrames || 0) > 0) {
+                  frameAdvanced = false;
+                }
+              }
+            }
+            if (frameAdvanced) {
+              this.lastFrameTime = Date.now();
+              if (this.video.poster && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
+                this.video.removeAttribute('poster');
+              }
+              if (this.webrtcFallbackT) {
+                clearTimeout(this.webrtcFallbackT);
+                this.webrtcFallbackT = null;
+              }
+              if (!this.isLive) {
+                this.markLive();
+              }
+            }
           }
         }
       };
       this.video.addEventListener('timeupdate', this.onTimeUpdate);
       this.onPlaying = () => {
-        if (this.webrtcFallbackT) {
-          clearTimeout(this.webrtcFallbackT);
-          this.webrtcFallbackT = null;
-        }
-        if (!this.isLive && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
-          this.markLive();
+        if (this.video && this.video.videoWidth > 0) {
+          this.lastFrameTime = Date.now();
+          if (this.video.poster && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot') {
+            this.video.removeAttribute('poster');
+          }
+          if (this.webrtcFallbackT) {
+            clearTimeout(this.webrtcFallbackT);
+            this.webrtcFallbackT = null;
+          }
+          if (!this.isLive) {
+            this.markLive();
+          }
         }
       };
       this.video.addEventListener('playing', this.onPlaying);
       this.video.addEventListener('loadeddata', this.onPlaying);
+      this.onError = () => {
+        if (!this.dead && this.currentMode === 'mse' && this.video && this.video.error) {
+          console.warn(`[MSE ${this.src}] Video element decode error (${this.video.error.code}), reconnecting`);
+          this.fail();
+        }
+      };
+      this.video.addEventListener('error', this.onError);
     }
 
     ws.onopen = async () => {
@@ -1210,8 +1714,8 @@ class Camera {
         if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' }));
       }, 30000);
 
-      // If previously fell back to MSE, connect immediately with MSE; otherwise start WebRTC
-      if (this.preferMSE && hasMSE) {
+      // If previously fell back to MSE or on WAN/Mobile, connect immediately with MSE; otherwise start WebRTC
+      if ((this.preferMSE || streamTransportState.preferMSE) && hasMSE) {
         startMSE();
       } else {
         startWebRTC();
@@ -1221,30 +1725,63 @@ class Camera {
     ws.onmessage = async ev => {
       if (this.dead) return;
 
-      // Binary payload: fragmented MP4 video chunks from go2rtc MSE
+      // Binary payload: fragmented MP4 video chunks from go2rtc MSE or JPEG frames from MJPEG fallback
       if (typeof ev.data !== 'string') {
+        this.lastPacketTime = Date.now();
+        if (currentMode === 'mjpeg') {
+          if (this.video) {
+            try {
+              const blob = new Blob([ev.data], { type: 'image/jpeg' });
+              const objUrl = URL.createObjectURL(blob);
+              if (this._mjpegUrl) {
+                try { URL.revokeObjectURL(this._mjpegUrl); } catch (e) {}
+              }
+              this._mjpegUrl = objUrl;
+              this.video.poster = objUrl;
+            } catch (e) {}
+          }
+          this.lastFrameTime = Date.now();
+          if (!this.mseLive) {
+            this.mseLive = true;
+            clearTimeout(this.timeoutT);
+            this.retryN = 0;
+            this._reconnAttempt = 0;
+            this.startWatchdog();
+            this.markLive();
+          }
+          return;
+        }
         if (currentMode !== 'mse') return;
+        // ห้ามอัปเดต this.lastFrameTime ที่นี่โดยเด็ดขาด เพราะแพ็กเก็ตไบนารีอาจเป็นเฉพาะเสียงหรือเฟรมที่ดีโค้ดเดอร์ค้างแล้ว
+        // ต้องให้ timeupdate / totalVideoFrames ของ <video> เป็นตัวอัปเดต this.lastFrameTime เท่านั้น (Incident 2.181)
         if (sb) {
           if (sb.updating || mseBufLen > 0) {
             const b = new Uint8Array(ev.data);
             if (mseBufLen + b.byteLength <= mseBuf.length) {
               mseBuf.set(b, mseBufLen);
               mseBufLen += b.byteLength;
+            } else {
+              // Buffer overflow protection during 24/7 spikes: keep latest chunk
+              mseBufLen = 0;
+              if (b.byteLength <= mseBuf.length) {
+                mseBuf.set(b, 0);
+                mseBufLen = b.byteLength;
+              }
             }
           } else {
-            try { sb.appendBuffer(ev.data); } catch (e) {}
+            safeAppendMse(ev.data);
           }
         }
         if (!this.mseLive) {
           this.mseLive = true;
+          this.lastFrameTime = Date.now();
           clearTimeout(this.timeoutT);
           this.retryN = 0;
           this._reconnAttempt = 0;
-          this.lastFrameTime = Date.now();
           this.startWatchdog();
-          if (this.video && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
-            this.markLive();
-          }
+        }
+        if (!this.isLive && this.video && this.video.videoWidth > 0) {
+          this.markLive();
         }
         return;
       }
@@ -1253,10 +1790,12 @@ class Camera {
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
 
       if (msg.type === 'error') {
-        if (currentMode === 'webrtc' && hasMSE) {
+        if (currentMode === 'webrtc' && hasMSE && !triedMSE) {
           startMSE();
+        } else if (currentMode === 'mse' && hasWebRTC && !triedWebRTC) {
+          startWebRTC();
         } else {
-          this.fail();
+          fallbackAfterTransportExhausted();
         }
         return;
       }
@@ -1269,38 +1808,72 @@ class Camera {
           sb.mode = 'segments';
           sb.addEventListener('updateend', () => {
             if (!sb.updating && mseBufLen > 0) {
-              try {
-                const chunk = mseBuf.slice(0, mseBufLen);
-                mseBufLen = 0;
-                sb.appendBuffer(chunk);
-              } catch (e) {}
+              const chunk = mseBuf.slice(0, mseBufLen);
+              mseBufLen = 0;
+              safeAppendMse(chunk);
             }
             if (!sb.updating && sb.buffered && sb.buffered.length) {
-              const end = sb.buffered.end(sb.buffered.length - 1);
+              const lastIdx = sb.buffered.length - 1;
+              const end = sb.buffered.end(lastIdx);
               const start0 = sb.buffered.start(0);
-              const trimStart = end - 8;
-              if (trimStart > start0) {
-                try { sb.remove(start0, trimStart); } catch (e) {}
-                try { ms.setLiveSeekableRange(trimStart, end); } catch (e) {}
+              const startLast = sb.buffered.start(lastIdx);
+
+              // Trim MSE buffer only when > 30s accumulated, keeping at least 15s (1-2 full GOPs)
+              // Prevents W3C Coded Frame Removal from evicting the active keyframe under currentTime
+              if ((end - start0) > 30) {
+                const trimEnd = end - 15;
+                if (trimEnd > start0) {
+                  try { sb.remove(start0, trimEnd); } catch (e) {}
+                  try { ms.setLiveSeekableRange(trimEnd, end); } catch (e) {}
+                }
               }
+
               if (this.video) {
-                const gap = end - this.video.currentTime;
-                // Avoid hard seeking into H.264 streams with long GOP which causes Safari/iOS decoder stalls
-                if (gap > 8.0) {
-                  this.video.currentTime = end - 1.5;
-                } else if (gap > 2.0) {
-                  this.video.playbackRate = 1.15; // Smooth catch-up without stalling the decoder
-                } else if (gap > 1.2) {
-                  this.video.playbackRate = 1.08;
-                } else if (gap < 0.4) {
-                  this.video.playbackRate = 0.92; // Prevent buffer underflow
-                } else {
-                  this.video.playbackRate = 1.0;
+                // Jump over disjoint MSE buffer holes (e.g. 50ms micro-gap on WAN RTSP) or unbuffered start0
+                if (sb.buffered.length > 1 && this.video.currentTime < startLast) {
+                  let hasHeadroomInOldRange = false;
+                  for (let i = 0; i < lastIdx; i++) {
+                    if (this.video.currentTime >= sb.buffered.start(i) && (sb.buffered.end(i) - this.video.currentTime) > 0.3) {
+                      hasHeadroomInOldRange = true;
+                      break;
+                    }
+                  }
+                  if (!hasHeadroomInOldRange) {
+                    try { this.video.currentTime = Math.max(startLast + 0.05, end - 0.5); } catch (e) {}
+                  }
+                } else if (this.video.currentTime < start0) {
+                  try { this.video.currentTime = Math.max(start0 + 0.05, end - 0.5); } catch (e) {}
+                }
+
+                if (!this.viewerPaused && !this.paused) {
+                  const gap = end - this.video.currentTime;
+                  if (gap > 4.0) {
+                    try { this.video.currentTime = Math.max(startLast + 0.05, end - 0.6); } catch (e) {}
+                    this.video.playbackRate = 1.0;
+                  } else if (gap > 1.8) {
+                    this.video.playbackRate = 1.12; // Smooth catch-up without stalling the decoder
+                  } else if (gap > 0.9) {
+                    this.video.playbackRate = 1.05;
+                  } else if (gap < 0.25) {
+                    this.video.playbackRate = 0.95; // Prevent buffer underflow
+                  } else {
+                    this.video.playbackRate = 1.0;
+                  }
+                  if (this.video.paused) {
+                    this.video.play().catch(() => {});
+                  }
+                }
+                if (!this.isLive && this.video.videoWidth > 0) {
+                  this.markLive();
                 }
               }
             }
           });
-        } catch (e) { console.warn('[MSE] addSourceBuffer error:', e); }
+        } catch (e) {
+          console.warn('[MSE] addSourceBuffer error:', e);
+          if (hasWebRTC && !triedWebRTC) startWebRTC();
+          else fallbackAfterTransportExhausted();
+        }
         return;
       }
 
@@ -1316,15 +1889,15 @@ class Camera {
     };
 
     ws.onerror = () => {
-      if (currentMode === 'webrtc' && hasMSE && !this.isLive) {
+      if (currentMode === 'webrtc' && hasMSE && !triedMSE && !this.isLive) {
         startMSE();
       } else {
         this.fail();
       }
     };
     ws.onclose = () => {
-      if (this.dead) return;
-      if (currentMode === 'mse' && this.mseLive) {
+      if (this.dead || this.currentMode === 'snapshot') return;
+      if ((currentMode === 'mse' || currentMode === 'mjpeg') && this.mseLive) {
         this.fail();
         return;
       }
@@ -1337,24 +1910,178 @@ class Camera {
     };
   }
 
+  /**
+   * สตรีมภาพสดผ่าน HTTP Snapshot (`/api/<cam>/latest.jpg`) สำหรับอุปกรณ์ iOS โหมดประหยัดพลังงาน
+   * หรือเมื่อขีดจำกัดฮาร์ดแวร์ดีโค้ดเดอร์ (ManagedMediaSource > 4 ช่อง) เต็ม
+   * พร้อมตรวจสอบไบต์ของภาพเพื่อป้องกันภาพค้างจากแคช Frigate เมื่อกล้องออฟไลน์ (Incident 2.181)
+   */
+  startSnapshotStream() {
+    if (this.dead || !this.video) return;
+    const baseCam = String(this.src || '').replace(/_(sub|hd|main)$/i, '');
+    if (!baseCam) {
+      this.fail();
+      return;
+    }
+    this.currentMode = 'snapshot';
+    clearTimeout(this.timeoutT);
+    clearTimeout(this.webrtcFallbackT);
+    this.webrtcFallbackT = null;
+    if (this.pc) {
+      this.pc.ontrack = this.pc.onicecandidate = this.pc.onconnectionstatechange = null;
+      try { this.pc.close(); } catch (e) {}
+      this.pc = null;
+    }
+    if (this.ws) {
+      this.ws.onopen = this.ws.onmessage = this.ws.onerror = this.ws.onclose = null;
+      try { this.ws.close(); } catch (e) {}
+      this.ws = null;
+    }
+    if (this.pingT) {
+      clearInterval(this.pingT);
+      this.pingT = null;
+    }
+    this.clearVideoForMjpeg();
+
+    let errCount = 0;
+    let staleCount = 0;
+    let pollCount = 0;
+    let lastSig = '';
+    let loading = false;
+    const fetchFrame = async () => {
+      if (this.dead || this.paused || this.viewerPaused || this.currentMode !== 'snapshot') return;
+      if (loading) return;
+      loading = true;
+      pollCount++;
+      // หลังจากโพลครบ ~30 วินาที ให้ลองกลับไปเชื่อมต่อสตรีมวิดีโอจริง (MSE/WebRTC) อัตโนมัติ
+      if (pollCount > 28) {
+        clearInterval(this.snapshotPollT);
+        this.snapshotPollT = null;
+        this.connect();
+        return;
+      }
+      const snapUrl = apiUrl('/api/' + encodeURIComponent(baseCam) + '/latest.jpg?t=' + Date.now());
+      try {
+        const res = await originalFetch(snapUrl, { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const buf = await res.arrayBuffer();
+        if (this.dead || this.currentMode !== 'snapshot' || !this.video) {
+          loading = false;
+          return;
+        }
+        if (!buf || buf.byteLength < 256) throw new Error('Empty snapshot');
+        const u8 = new Uint8Array(buf);
+        const mid = Math.floor(u8.length / 2);
+        const sig = `${u8.length}:${u8[mid]}:${u8[mid + 1] || 0}:${u8[u8.length - 4] || 0}`;
+        if (sig === lastSig) {
+          staleCount++;
+          if (staleCount >= 3) {
+            // ภาพนิ่งซ้ำเดิม 3 รอบติดกัน = แคชค้างใน Frigate (กล้องไม่ได้ส่งเฟรมใหม่) ห้ามแสดงว่าออนไลน์
+            clearInterval(this.snapshotPollT);
+            this.snapshotPollT = null;
+            loading = false;
+            this.fail();
+            return;
+          }
+        } else {
+          lastSig = sig;
+          staleCount = 0;
+        }
+        const blob = new Blob([buf], { type: 'image/jpeg' });
+        const objUrl = URL.createObjectURL(blob);
+        if (this._mjpegUrl) {
+          try { URL.revokeObjectURL(this._mjpegUrl); } catch (e) {}
+        }
+        this._mjpegUrl = objUrl;
+        this.video.poster = objUrl;
+        errCount = 0;
+        this.lastFrameTime = Date.now();
+        this.mseLive = true;
+        if (!this.isLive) {
+          this.markLive();
+        }
+      } catch (e) {
+        if (this.dead || this.currentMode !== 'snapshot') {
+          loading = false;
+          return;
+        }
+        errCount++;
+        if (errCount >= 3) {
+          clearInterval(this.snapshotPollT);
+          this.snapshotPollT = null;
+          loading = false;
+          this.fail();
+          return;
+        }
+      }
+      loading = false;
+    };
+
+    clearInterval(this.snapshotPollT);
+    fetchFrame();
+    this.snapshotPollT = setInterval(fetchFrame, 1100);
+  }
+
+  /**
+   * กระโดดไปยังขอบเวลาสดล่าสุดของบัฟเฟอร์ MSE (Soft Recovery) โดยไม่ต้องตัดการเชื่อมต่อ WebSocket ใหม่
+   *
+   * ใช้เมื่อผู้ใช้สลับแท็บกลับมา (resume) หรือเมื่อ <video> ชะงักชั่วคราวแต่ข้อมูลยังไหลเข้า WebSocket ปกติ
+   */
+  jumpToLiveEdge() {
+    if (this.dead || !this.video) return;
+    try {
+      if (this.sb && !this.sb.updating && this.sb.buffered && this.sb.buffered.length > 0) {
+        const lastIdx = this.sb.buffered.length - 1;
+        const end = this.sb.buffered.end(lastIdx);
+        const startLast = this.sb.buffered.start(lastIdx);
+        if (end - this.video.currentTime > 0.8 || this.video.currentTime < startLast) {
+          this.video.currentTime = Math.max(startLast + 0.05, end - 0.4);
+        }
+      }
+      this.video.playbackRate = 1.0;
+      if (this.video.paused) {
+        this.video.play().catch(() => {});
+      }
+    } catch (e) {}
+  }
+
   startWatchdog() {
     clearInterval(this.watchdogT);
     this.watchdogT = setInterval(() => {
-      if (this.dead) {
+      if (this.dead || this.viewerPaused || this.paused) {
         clearInterval(this.watchdogT);
         return;
       }
-      if (!this.mseLive && (!this.pc || this.pc.connectionState !== 'connected')) {
+      if (!this.mseLive && !this.hls && (!this.pc || this.pc.connectionState !== 'connected')) {
         clearInterval(this.watchdogT);
         return;
       }
-      if (this.video && this.video.paused) {
+      // หาก <video> หรือ MediaSource เกิดข้อผิดพลาดในการถอดรหัส ให้รีคอนเน็กต์ทันที ไม่ปล่อยให้ภาพค้าง (Incident 2.181)
+      if (
+        (this.video && this.video.error) ||
+        (this.currentMode === 'mse' && this.ms && this.ms.readyState !== 'open' && this.mseLive)
+      ) {
+        clearInterval(this.watchdogT);
+        this.fail();
+        return;
+      }
+      if (this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot' && this.video && this.video.paused) {
         this.video.play().catch(() => {});
       }
-      if (!this.isLive && this.video && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
+      if (!this.isLive && this.video && (this.currentMode === 'mjpeg' || this.currentMode === 'snapshot' || this.video.videoWidth > 0)) {
         this.markLive();
       }
       const now = Date.now();
+
+      // ตรวจสอบจำนวนเฟรมวิดีโอที่ถูกถอดรหัสจริงจากฮาร์ดแวร์/ซอฟต์แวร์ทุก 1 วินาที (รองรับทั้ง WebRTC, MSE, HLS)
+      if (this.video && this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot' && typeof this.video.getVideoPlaybackQuality === 'function') {
+        const q = this.video.getVideoPlaybackQuality();
+        if (q && typeof q.totalVideoFrames === 'number' && this.video.videoWidth > 0) {
+          if (q.totalVideoFrames > (this._watchdogDecodedFrames || 0)) {
+            this._watchdogDecodedFrames = q.totalVideoFrames;
+            this.lastFrameTime = now;
+          }
+        }
+      }
 
       // Auto Adaptive Jitter Smoothing: auto-detects FPS and network jitter to smooth frames
       if (this.pc && this.video) {
@@ -1385,15 +2112,11 @@ class Camera {
           receivers.forEach(r => {
             if (r.track && 'playoutDelayHint' in r) {
               if (isField) {
-                // Field / Cellular camera: maintain 1.2s - 1.5s buffer to absorb cellular burst delays (500-1000ms)
-                // and prevent decoder freeze on long GOP keyframe intervals
                 r.playoutDelayHint = (currentFps < 22 || dropped > 0) ? 1.5 : 1.2;
               } else {
                 if (currentFps < 22 || dropped > 0) {
-                  // Low incoming FPS (<22 FPS) or packet jitter: apply smooth 250ms playout buffer
                   r.playoutDelayHint = 0.25;
                 } else {
-                  // High & stable FPS (25+ FPS): minimal latency (100ms)
                   r.playoutDelayHint = 0.1;
                 }
               }
@@ -1402,132 +2125,230 @@ class Camera {
         }
       }
 
-      // หากไม่มีเฟรมใหม่ขยับเกิน 8 วินาที (Incident 1.56) ให้สลับไป MSE fallback ทันทีถ้าอยู่ในโหมด WebRTC
-      if (this.lastFrameTime > 0 && now - this.lastFrameTime > 8000) {
-        clearInterval(this.watchdogT);
-        if (this.currentMode === 'webrtc' && typeof this.startMSE === 'function') {
-          console.warn(`[Stream ${this.src}] WebRTC video stalled for >8s, switching to MSE fallback`);
-          this.startMSE();
-        } else {
-          this.fail();
+      // หากไม่มีเฟรมวิดีโอใหม่ถูกถอดรหัสเกินเวลาที่กำหนด ให้กู้คืนสตรีมแบบ 2 ขั้นตอน (Two-Stage Recovery — Incident 2.181)
+      const softLimitMs = this.hls ? 10000 : 4000;
+      const hardLimitMs = this.hls ? 16000 : 7500;
+      const silentMs = this.lastFrameTime > 0 ? (now - this.lastFrameTime) : 0;
+      if (this.lastFrameTime > 0 && silentMs > softLimitMs) {
+        if (this.hls && !this._hlsWatchdogRecovered) {
+          this._hlsWatchdogRecovered = true;
+          try {
+            console.warn(`[HLS ${this.src}] Video frame stalled >10s, attempting recoverMediaError()`);
+            this.hls.recoverMediaError();
+            return;
+          } catch (e) {}
         }
+        if (!this.hls && !this._mseSoftRecovered && this.video) {
+          this._mseSoftRecovered = true;
+          this._mseSoftRecoverTime = now;
+          console.warn(`[Stream ${this.src}] Video frame stalled >4s, jumping to live edge`);
+          this.jumpToLiveEdge();
+          return;
+        }
+        if (silentMs > hardLimitMs) {
+          clearInterval(this.watchdogT);
+          if (this.currentMode === 'webrtc' && typeof this.startMSE === 'function') {
+            console.warn(`[Stream ${this.src}] WebRTC video stalled >7.5s, switching to MSE fallback`);
+            this.startMSE();
+          } else {
+            console.warn(`[Stream ${this.src}] Video frame frozen >${Math.round(silentMs / 1000)}s after soft recovery, forcing reconnect`);
+            this.fail();
+          }
+        }
+      } else if (silentMs < 2500) {
+        this.softRecoveryCount = 0;
+        this._mseSoftRecovered = false;
+        this._mseSoftRecoverTime = 0;
       }
     }, 1000);
   }
 
   connectHls(url) {
     if (this.dead) return;
+    this.currentMode = 'hls';
+    this._hlsWatchdogRecovered = false;
     this.timeoutT = setTimeout(() => this.fail(), 45000);
 
     const start = () => {
+      this.hlsStartT = null;
       if (this.dead) return;
-
-    if (this.video) {
-      try { this.video.crossOrigin = 'anonymous'; } catch (e) {}
-    }
-
-    if (window.Hls && Hls.isSupported()) {
-      const hlsCfg = this.hlsLite ? {
-        maxBufferLength: 40,
-        maxMaxBufferLength: 60,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 7,
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 0,
-        fragLoadingMaxRetry: 4,
-        fragLoadingRetryDelay: 3000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 3000,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 3000,
-        capLevelToPlayerSize: true
-      } : {
-        maxBufferLength: 60,
-        maxMaxBufferLength: 120,
-        liveSyncDurationCount: 5,
-        liveMaxLatencyDurationCount: 10,
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 60,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 2000,
-        levelLoadingMaxRetry: 6,
-        levelLoadingRetryDelay: 2000,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 2000,
-        capLevelToPlayerSize: true
-      };
-      const hls = new Hls(hlsCfg);
-      this.hls = hls;
-      hls.loadSource(url);
-      hls.attachMedia(this.video);
-
-      const markLive = () => {
-        if (this.dead || this.hls !== hls) return;
-        this.video.muted = true;
-        this.video.play().catch(() => {});
-        if (this.video && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
-          this.markLive();
-        }
-      };
-
-      hls.on(Hls.Events.FRAG_LOADED, markLive);
-      if (this.video) {
-        this.video.addEventListener('playing', markLive);
-        this.video.addEventListener('loadeddata', markLive);
+      if (this.hls) {
+        try { this.hls.destroy(); } catch (e) {}
+        this.hls = null;
       }
 
-      let mediaRecoveries = 0;
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (this.dead || this.hls !== hls) return;
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn('[HLS] Fatal network error for', this.src, '— restarting load');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              mediaRecoveries++;
-              if (mediaRecoveries <= 4) {
-                console.warn('[HLS] Fatal media error for', this.src, '— recovering attempt', mediaRecoveries);
-                hls.recoverMediaError();
-              } else {
-                console.error('[HLS] Media recovery failed for', this.src);
-                this.fail();
+      if (this.video) {
+        try { this.video.crossOrigin = 'anonymous'; } catch (e) {}
+        this.lastFrameTime = Date.now();
+        this.lastCurrentTime = -1;
+        this.onTimeUpdate = () => {
+          if (this.video && this.video.currentTime !== this.lastCurrentTime) {
+            this.lastCurrentTime = this.video.currentTime;
+            if (this.video.videoWidth > 0) {
+              this.lastFrameTime = Date.now();
+              this._hlsWatchdogRecovered = false;
+              if (!this.isLive) {
+                this.markLive();
               }
-              break;
-            default:
-              console.error('[HLS] Fatal unrecoverable error for', this.src, data);
-              this.fail();
-              break;
+            }
           }
+        };
+        this.video.addEventListener('timeupdate', this.onTimeUpdate);
+      }
+
+      if (window.Hls && Hls.isSupported()) {
+        const hlsCfg = this.hlsLite ? {
+          maxBufferLength: 40,
+          maxMaxBufferLength: 60,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 7,
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 20,
+          fragLoadingMaxRetry: 4,
+          fragLoadingRetryDelay: 3000,
+          levelLoadingMaxRetry: 4,
+          levelLoadingRetryDelay: 3000,
+          manifestLoadingMaxRetry: 4,
+          manifestLoadingRetryDelay: 3000,
+          capLevelToPlayerSize: true
+        } : {
+          maxBufferLength: 60,
+          maxMaxBufferLength: 120,
+          liveSyncDurationCount: 5,
+          liveMaxLatencyDurationCount: 10,
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 60,
+          fragLoadingMaxRetry: 6,
+          fragLoadingRetryDelay: 2000,
+          levelLoadingMaxRetry: 6,
+          levelLoadingRetryDelay: 2000,
+          manifestLoadingMaxRetry: 4,
+          manifestLoadingRetryDelay: 2000,
+          capLevelToPlayerSize: true
+        };
+        let hlsRef = null;
+        if (isDohHlsSource(this.src) || isDohHlsSource(url)) {
+          Object.assign(hlsCfg, {
+            maxBufferLength: 60,
+            maxMaxBufferLength: 120,
+            backBufferLength: 30,
+            liveBackBufferLength: 30,
+            liveSyncDuration: 14,
+            liveMaxLatencyDuration: 60,
+            maxLiveSyncPlaybackRate: 1.1,
+            maxBufferHole: 2.5,
+            highBufferWatchdogPeriod: 0.5,
+            detectStallWithCurrentTimeMs: 600,
+            nudgeOffset: 0.25,
+            nudgeMaxRetry: 10,
+            liveMaxUnchangedPlaylistRefresh: 8,
+            fragLoadingTimeOut: 15000,
+            fragLoadingMaxRetry: 3,
+            fragLoadingRetryDelay: 1000,
+            levelLoadingTimeOut: 8000,
+            levelLoadingMaxRetry: 2,
+            levelLoadingRetryDelay: 1000,
+            manifestLoadingTimeOut: 10000,
+            manifestLoadingMaxRetry: 3,
+            manifestLoadingRetryDelay: 1000,
+            pLoader: createDohPlaylistLoader(() => hlsRef)
+          });
+          delete hlsCfg.liveSyncDurationCount;
+          delete hlsCfg.liveMaxLatencyDurationCount;
+          this.isDohSource = true;
         }
-      });
-    } else if (this.video && this.video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari native HLS
-      this.video.src = url;
-      this.video.muted = true;
-      const onCanPlay = () => {
-        if (this.dead) return;
-        this.video.play().catch(() => {});
-        if (this.video && (this.video.videoWidth > 0 || this.video.currentTime > 0)) {
-          this.markLive();
+        const hls = new Hls(hlsCfg);
+        hlsRef = hls;
+        this.hls = hls;
+        hls.loadSource(url);
+        hls.attachMedia(this.video);
+
+        const markLive = () => {
+          if (this.dead || this.hls !== hls) return;
+          this.lastFrameTime = Date.now();
+          this.startWatchdog();
+          this.video.muted = true;
+          this.video.play().catch(() => {});
+          if (this.video && this.video.videoWidth > 0) {
+            this.markLive();
+          }
+        };
+
+        hls.on(Hls.Events.FRAG_LOADED, markLive);
+        if (this.video) {
+          this.onPlaying = markLive;
+          this.video.addEventListener('playing', markLive);
+          this.video.addEventListener('loadeddata', markLive);
         }
-      };
-      this.video.addEventListener('loadeddata', onCanPlay);
-      this.video.addEventListener('playing', onCanPlay);
-      this.video.addEventListener('error', () => {
-        if (!this.dead) this.fail();
-      }, { once: true });
-    } else {
-      console.error('[HLS] Not supported in this browser');
-      this.fail();
-    }
+
+        let mediaRecoveries = 0;
+        let netRecoveries = 0;
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (this.dead || this.hls !== hls) return;
+          if (data.details === Hls.ErrorDetails.PLAYLIST_UNCHANGED_ERROR) {
+            console.warn('[HLS] Playlist unchanged limit reached for', this.src, '— refreshing master session');
+            this.fail();
+            return;
+          }
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                netRecoveries++;
+                if (!this.isDohSource && netRecoveries <= 1) {
+                  console.warn('[HLS] Fatal network error for', this.src, '— restarting load');
+                  hls.startLoad();
+                } else {
+                  console.warn('[HLS] Fatal network error for', this.src, '— reconnecting master playlist');
+                  this.fail();
+                }
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                mediaRecoveries++;
+                if (mediaRecoveries <= 4) {
+                  console.warn('[HLS] Fatal media error for', this.src, '— recovering attempt', mediaRecoveries);
+                  hls.recoverMediaError();
+                } else {
+                  console.error('[HLS] Media recovery failed for', this.src);
+                  this.fail();
+                }
+                break;
+              default:
+                console.error('[HLS] Fatal unrecoverable error for', this.src, data);
+                this.fail();
+                break;
+            }
+          }
+        });
+      } else if (this.video && this.video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS
+        this.video.src = url;
+        this.video.muted = true;
+        const onCanPlay = () => {
+          if (this.dead) return;
+          this.lastFrameTime = Date.now();
+          this.startWatchdog();
+          this.video.play().catch(() => {});
+          if (this.video && this.video.videoWidth > 0) {
+            this.markLive();
+          }
+        };
+        this.onPlaying = onCanPlay;
+        this.video.addEventListener('loadeddata', onCanPlay);
+        this.video.addEventListener('playing', onCanPlay);
+        this.video.addEventListener('error', () => {
+          if (!this.dead) this.fail();
+        }, { once: true });
+      } else {
+        console.error('[HLS] Not supported in this browser');
+        this.fail();
+      }
     };
 
+    clearTimeout(this.hlsStartT);
     if (this.hlsLite) {
-      setTimeout(start, Math.random() * 3000); // Stagger 0-3s
+      this.hlsStartT = setTimeout(start, Math.random() * 1500); // Stagger 0-1.5s
     } else {
       start();
     }
@@ -1547,25 +2368,20 @@ class Camera {
       this._reconnAttempt = (this._reconnAttempt || 0) + 1;
 
       // ADR-0026 Grace Period: แช่เฟรมสุดท้ายเงียบๆ 10 วินาทีก่อนโชว์ RECONNECT
-      // ครั้งแรกที่หลุด เริ่มจับเวลา grace period ถ้ายังไม่เริ่ม
       if (!this._graceStart) {
         this._graceStart = Date.now();
       }
       const elapsed = Date.now() - this._graceStart;
       if (elapsed >= RECONNECT_GRACE_MS) {
-        // เกิน 10 วินาทีแล้ว — โชว์ RECONNECT ให้ผู้ใช้เห็น
         this.onStatus('reconnecting');
       }
-      // ถ้ายังไม่เกิน 10 วินาที — ไม่เปลี่ยน status (แช่เฟรมสุดท้ายเงียบๆ)
 
       // ADR-0026 Anti-Thundering Herd: เพิ่ม jitter สุ่ม 0-3s ลงใน delay
-      // ป้องกันทุกช่องกระหน่ำ reconnect ไปที่ NVR พร้อมกัน
       if (this._reconnAttempt >= 2) {
         this.preferMSE = true;
       }
       const jitter = Math.floor(Math.random() * RECONNECT_JITTER_MS);
       delay = (this._reconnAttempt === 1 ? 2000 : 3000) + jitter;
-      // wasLive ยังคงเป็น true (ไม่ reset) เพื่อให้ loop retry ไปเรื่อยๆจนกว่าจะกลับมา
     } else {
       this.onStatus('videoloss');
       delay = RETRY_STEPS[Math.min(this.retryN, RETRY_STEPS.length - 1)];
@@ -1578,8 +2394,14 @@ class Camera {
   cleanupPeer() {
     this.isLive = false;
     clearTimeout(this.timeoutT);
+    clearTimeout(this.hlsStartT);
+    this.hlsStartT = null;
     clearTimeout(this.webrtcFallbackT);
     this.webrtcFallbackT = null;
+    if (this.snapshotPollT) {
+      clearInterval(this.snapshotPollT);
+      this.snapshotPollT = null;
+    }
     this._lastDecodedFrames = 0;
     this._lastFpsCheckTime = 0;
     if (this.pingT) clearInterval(this.pingT);
@@ -1594,6 +2416,10 @@ class Camera {
         this.video.removeEventListener('playing', this.onPlaying);
         this.video.removeEventListener('loadeddata', this.onPlaying);
         this.onPlaying = null;
+      }
+      if (this.onError) {
+        this.video.removeEventListener('error', this.onError);
+        this.onError = null;
       }
     }
     if (this.hls) {
@@ -1615,16 +2441,8 @@ class Camera {
     if (this.video) {
       // Snapshot frame to poster before clearing stream, preventing black canvas flicker during reconnect
       if (this.wasLive && this.video.videoWidth > 0) {
-        try {
-          const c = document.createElement('canvas');
-          c.width = this.video.videoWidth;
-          c.height = this.video.videoHeight;
-          const ctx = c.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(this.video, 0, 0, c.width, c.height);
-            this.video.poster = c.toDataURL('image/jpeg', 0.7);
-          }
-        } catch (e) {}
+        const snap = captureVideoPoster(this.video, 480);
+        if (snap) this.video.poster = snap;
       }
       this.video.playbackRate = 1.0;
       this.video.srcObject = null;
@@ -1638,7 +2456,19 @@ class Camera {
   destroy() {
     this.dead = true;
     clearTimeout(this.retryT);
+    clearTimeout(this.hlsStartT);
+    this.hlsStartT = null;
+    clearTimeout(this.viewerHoldT);
+    this.viewerHoldT = null;
     clearInterval(this.watchdogT);
+    if (this.snapshotPollT) {
+      clearInterval(this.snapshotPollT);
+      this.snapshotPollT = null;
+    }
+    if (this._mjpegUrl) {
+      try { URL.revokeObjectURL(this._mjpegUrl); } catch (e) {}
+      this._mjpegUrl = null;
+    }
     if (this.video && this.video.poster) {
       this.video.removeAttribute('poster');
     }
@@ -1657,27 +2487,79 @@ class Camera {
   resume() {
     if (this.dead) return;
     this.paused = false;
-    // ตรวจสอบว่า PeerConnection, MSE WebSocket หรือ HLS ยังดีอยู่ไหม
+    this.viewerPaused = false;
+    // ตรวจสอบว่า PeerConnection, MSE/MJPEG WebSocket, Snapshot Stream หรือ HLS ยังดีอยู่ไหม
     const pcOk = this.pc && this.pc.connectionState === 'connected';
-    const mseOk = this.currentMode === 'mse' && this.mseLive && this.ws && this.ws.readyState === WebSocket.OPEN;
+    const mseOk = (this.currentMode === 'mse' || this.currentMode === 'mjpeg') && this.mseLive && this.ws && this.ws.readyState === WebSocket.OPEN;
+    const snapOk = this.currentMode === 'snapshot' && !!this.snapshotPollT;
     const hlsOk = !!this.hls;
-    if (pcOk || mseOk || hlsOk) {
-      // ✅ ยังเชื่อมอยู่! → แค่เปิด watchdog กลับ ไม่ต้อง reconnect
+    if (pcOk || mseOk || snapOk || hlsOk) {
+      // ✅ ยังเชื่อมอยู่! → แค่เปิด watchdog กลับและกระโดดไปขอบเวลาสด (สำหรับ MSE) โดยไม่ต้อง reconnect (Phase P0)
       this.lastFrameTime = Date.now();
+      if (mseOk) {
+        this.jumpToLiveEdge();
+      }
       this.startWatchdog();
-      if (this.video && this.video.paused) {
+      if (this.currentMode !== 'mjpeg' && this.currentMode !== 'snapshot' && this.video && this.video.paused) {
         this.video.play().catch(() => {});
       }
     } else {
-      // ❌ หลุดจริงๆ (network change, sleep นาน) → reconnect
+      // ❌ หลุดจริงๆ (network change, sleep นาน) → reconnect ภายใต้ grace period
+      if (this.wasLive && !this._graceStart) {
+        this._graceStart = Date.now();
+      }
       this.fail();
     }
+  }
+
+  // Warm-Pause for Fullscreen Camera Viewer: หยุดถอดรหัสภาพชั่วคราวขณะดูเต็มจอ แต่คงการเชื่อมต่อไว้ 90 วินาที
+  // ทำให้กดปิดหน้าต่างเต็มจอแล้วกลับมาเล่นต่อได้ทันทีใน 0.1 วินาที โดยไม่ขึ้น "กำลังเชื่อมต่อใหม่..." ทั้ง 10 กล้อง
+  pauseForViewer() {
+    if (this.dead || this.viewerPaused) return;
+    this.viewerPaused = true;
+    this.pause();
+    if (this.video) {
+      if (this.wasLive && this.video.videoWidth > 0) {
+        const snap = captureVideoPoster(this.video, 480);
+        if (snap) this.video.poster = snap;
+      }
+      try { this.video.pause(); } catch (e) {}
+    }
+    clearTimeout(this.viewerHoldT);
+    this.viewerHoldT = setTimeout(() => {
+      if (!this.dead && this.viewerPaused) {
+        this.suspend();
+      }
+    }, 90000);
+  }
+
+  resumeFromViewer() {
+    if (this.dead) return;
+    clearTimeout(this.viewerHoldT);
+    this.viewerHoldT = null;
+    this.viewerPaused = false;
+    if (this.suspended) {
+      this.resumeFromSuspend();
+      return;
+    }
+    // กระโดดไปขอบสตรีมสด (Live Edge) ทันทีหลังกลับมาจากการหยุดพัก
+    if (this.video && this.sb && !this.sb.updating && this.sb.buffered && this.sb.buffered.length > 0) {
+      try {
+        const end = this.sb.buffered.end(this.sb.buffered.length - 1);
+        if (end - this.video.currentTime > 1.5) {
+          this.video.currentTime = Math.max(0, end - 0.5);
+        }
+      } catch (e) {}
+    }
+    this.resume();
   }
 
   // Incident 2.16: Modal background suspension (ประหยัดแบนด์วิดท์ WAN 100% & ป้องกัน GPU Compositor flicker)
   suspend() {
     if (this.dead || this.suspended) return;
     this.suspended = true;
+    clearTimeout(this.viewerHoldT);
+    this.viewerHoldT = null;
     this.pause();
     this.cleanupPeer();
     if (this.video) {
@@ -1689,6 +2571,11 @@ class Camera {
     if (this.dead || !this.suspended) return;
     this.suspended = false;
     this.paused = false;
+    this.viewerPaused = false;
+    // ตั้งค่า _graceStart เพื่อให้คงสถานะสีเขียว (ออนไลน์) และแสดงภาพนิ่งเดิมระหว่างต่อสตรีมใหม่เบื้องหลัง
+    if (this.wasLive) {
+      this._graceStart = Date.now();
+    }
     this.connect();
   }
 }
@@ -1751,9 +2638,63 @@ window.unmaskFrigateSecret = function(masked, original) {
 };
 
 /* ============ state ============ */
+const DEFAULT_SPECIAL_CAMERA_NAMES = {
+  A01: 'A01 - สามแยกนาโพธิ์ - ดงมัน - ร้อย ตชด.234',
+  A02: 'A02 - สามแยกท่าไคร้ - ร้อย ตชด.234',
+  A03: 'A03 - ปากทางเข้า กศน.นาสีนวล - ร้อย ตชด.234',
+  A04: 'A04 - หน้าเทศบาล ต.ชะโนด - ร้อย ตชด.234',
+  A05: 'A05 - สามแยกหาดมะโนภิรมย์ - ร้อย ตชด.234',
+  A06: 'A06 - แยกหว้านใหญ่ - ร้อย ตชด.234',
+  A07: 'A07 - หน้า รร.บ้านนาคำ - ร้อย ตชด.235',
+  A08: 'A08 - หน้า ฐานทรายมูล - ร้อย ตชด.235',
+  A09: 'A09 - สะพานปากห้วยน้ำก่ำ - ร้อย ตชด.235',
+  A10: 'A10 - หน้า ร้อย ตชด.235 - ร้อย ตชด.235',
+  A11: 'A11 - สามแยก ดอนนางหง (รีสอร์ทครูมังกร) - ร้อย ตชด.235',
+  A12: 'A12 - หลังวัดบ้านห้อม - ร้อย ตชด.236',
+  A13: 'A13 - รร.บ้านท่าค้อ - ร้อย ตชด.236',
+  A14: 'A14 - ดอนปู่ตาบ้านซะโงม - ร้อย ตชด.236',
+  A15: 'A15 - แยกบ้านหนาด - ร้อย ตชด.236',
+  A16: 'A16 - หน้าวัดสุพรรณบ้านกลางน้อย - ร้อย ตชด.236',
+  A17: 'A17 - ทางเข้าถนนเลียบแม่น้ำโขง บ.เชียงยืน - ร้อย ตชด.237',
+  A18: 'A18 - ซอยข้าง รพ.ท่าอุเทน - ร้อย ตชด.237',
+  A19: 'A19 - ซอยตรงข้ามนครหลวงวัสดุก่อสร้าง 99 - ร้อย ตชด.237',
+  A20: 'A20 - ทางเข้าบ้านหนองเทา (ป้อมอาเซียน) - ร้อย ตชด.237',
+  A21: 'A21 - แยกนาพระชัยตรงข้ามเซเว่นฯ - ร้อย ตชด.237',
+  A22: 'A22 - ปากทางเข้าบ้านปากห้วยม่วง - ร้อย ตชด.237',
+  doh_per_4_002: 'DOH นครราชสีมา (PER-4-002 มุ่งหน้า จ.สระบุรี)',
+  doh_per_4_003_1: 'DOH นครราชสีมา (PER-4-003 มุ่งหน้า จ.สระบุรี)',
+  doh_per_4_003_2: 'DOH นครราชสีมา (PER-4-003 มุ่งหน้า ตัวเมืองนครราชสีมา)',
+  doh_per_6_023: 'DOH ขอนแก่น (PER-6-023)',
+  doh_per_6_025: 'DOH ขอนแก่น (PER-6-025)',
+  doh_per_6_026: 'DOH มุกดาหาร (PER-6-026)',
+  doh_per_6_029: 'DOH มหาสารคาม (PER-6-029)',
+  doh_per_6_030: 'DOH ร้อยเอ็ด (PER-6-030)',
+  doh_per_7_007: 'DOH อุบลราชธานี (PER-7-007)',
+  doh_per_7_015: 'DOH นครพนม (PER-7-015)',
+  doh_per_7_017: 'DOH อุบลราชธานี (PER-7-017)',
+  doh_per_7_020: 'DOH นครราชสีมา (PER-7-020)',
+  doh_per_7_021: 'DOH สุรินทร์ (PER-7-021)',
+  doh_per_7_022: 'DOH นครราชสีมา (PER-7-022)',
+  doh_per_8_004: 'DOH สกลนคร (PER-8-004)',
+  doh_per_8_005: 'DOH ศรีสะเกษ (PER-8-005)',
+  doh_per_8_007: 'DOH บึงกาฬ (PER-8-007)',
+  doh_per_8_011: 'DOH บุรีรัมย์-สระแก้ว (PER-8-011)',
+  doh_per_9_008: 'DOH สกลนคร (PER-9-008)',
+  doh_per_9_009: 'DOH อุดรธานี (PER-9-009)',
+  doh_per_9_013: 'DOH ร้อยเอ็ด (PER-9-013)',
+  doh_per_9_015: 'DOH บุรีรัมย์ (PER-9-015)',
+  doh_per_10_012: 'DOH ชัยภูมิ-ลพบุรี (PER-10-012)',
+  doh_per_13_013_1: 'DOH อุดรธานี (PER-13-013 มุ่งหน้า อุดรธานี)',
+  doh_per_13_013_2: 'DOH อุดรธานี (PER-13-013 มุ่งหน้า หนองคาย)',
+  doh_per_13_020_1: 'DOH นครราชสีมา (PER-13-020 มุ่งหน้า สระบุรี)',
+  doh_per_13_020_2: 'DOH นครราชสีมา (PER-13-020 มุ่งหน้า นครราชสีมา)',
+  doh_per_17_014_in: 'DOH อำนาจเจริญ (PER-17-014 มุ่งหน้า อ.เมือง)',
+  doh_per_17_014_out: 'DOH อำนาจเจริญ (PER-17-014 มุ่งหน้า อ.ลืออำนาจ)'
+};
+
 const state = {
   manualLayoutOverride: false,
-  cameraNames: {},
+  cameraNames: { ...DEFAULT_SPECIAL_CAMERA_NAMES },
   activeIdx: 0,
   query: '',
   tiles: [],           // [{el, video, cam, status, feedEl, nameEl, chipEl}]
@@ -1810,16 +2751,19 @@ const state = {
 function displayCameraName(source, legacyName = '') {
   const normalizedSource = typeof source === 'string' ? source.trim() : '';
   const configuredName = normalizedSource && state.cameraNames
-    ? state.cameraNames[normalizedSource]
-    : '';
+    ? (state.cameraNames[normalizedSource] || DEFAULT_SPECIAL_CAMERA_NAMES[normalizedSource])
+    : (normalizedSource ? DEFAULT_SPECIAL_CAMERA_NAMES[normalizedSource] : '');
   if (typeof configuredName === 'string' && configuredName.trim()) {
     return configuredName.trim();
   }
-  if (typeof legacyName === 'string' && legacyName.trim()) {
+  if (typeof legacyName === 'string' && legacyName.trim() && legacyName.trim() !== normalizedSource) {
     return legacyName.trim();
   }
   if (normalizedSource && window.cachedCameraGPS && window.cachedCameraGPS[normalizedSource] && window.cachedCameraGPS[normalizedSource].name) {
     return window.cachedCameraGPS[normalizedSource].name;
+  }
+  if (typeof legacyName === 'string' && legacyName.trim()) {
+    return legacyName.trim();
   }
   return normalizedSource;
 }
@@ -1853,14 +2797,14 @@ function tileTemplate(i, ch) {
     feed.style.background = DEMO_SCENES[i % DEMO_SCENES.length];
   } else if (ch.src) {
     video = document.createElement('video');
-    video.playsInline = true; video.muted = true; video.autoplay = true;
+    video.playsInline = true; video.muted = true; video.autoplay = true; video.preload = 'auto';
     video.draggable = false; // กัน <video> ไฮแจ็ก drag ตอนจัดเรียง layout
     feed.appendChild(video);
   }
 
   // CLAUDE.md Section 10: Clicking an empty tile opens the Camera Picker for that specific slot
   el.addEventListener('click', () => {
-    if (state.editLayout) return;
+    if (state.editLayout || state.viewerOpen) return;
     setActive(i);
     if (!ch.src) {
       openCameraPickerForSlot(i);
@@ -1869,7 +2813,7 @@ function tileTemplate(i, ch) {
     }
   });
   el.addEventListener('keydown', e => {
-    if (e.target !== el || state.editLayout) return;
+    if (e.target !== el || state.editLayout || state.viewerOpen) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       setActive(i);
@@ -2039,7 +2983,9 @@ function attachTileActions(t, ch, i) {
       ms.textContent = t.streamMode.toUpperCase();
       ms.classList.toggle('main', t.streamMode === 'main');
       ms.title = 'สลับสตรีมหลัก/รอง (ตอนนี้: ' + (t.streamMode === 'main' ? 'สตรีมหลัก' : 'สตรีมรอง') + ')';
+      const snap = t.video ? (captureVideoPoster(t.video, 480) || t.video.poster || '') : '';
       if (t.cam) t.cam.destroy();
+      if (t.video && snap) t.video.poster = snap;
       // สตรีมหลักสำหรับ "ดู" เลือกผ่าน playableMainStream() ซึ่งไล่ ch.hd → ch.sub → ch.src
       // เพื่อไม่ให้ตกไปที่สตรีมดิบ HEVC ที่เบราว์เซอร์เล่นไม่ได้ (ดูคำอธิบายที่ฟังก์ชันนั้น)
       t.cam = new Camera(t.streamMode === 'main' ? playableMainStream(ch) : ch.sub, t.video, s => setTileStatus(t, s), { hlsLite: true, chName: ch.name });
@@ -2049,6 +2995,15 @@ function attachTileActions(t, ch, i) {
 }
 
 function setTileStatus(t, status) {
+  if (status === 'connecting' && t.video && (t.video.poster || t.video.videoWidth > 0)) {
+    status = 'live';
+  }
+  if (status === 'reconnecting' && t.video && (t.video.poster || t.video.videoWidth > 0)) {
+    const attempts = (t.cam && typeof t.cam._reconnAttempt === 'number') ? t.cam._reconnAttempt : 0;
+    if (attempts <= 5) {
+      status = 'live';
+    }
+  }
   t.status = status;
   t.el.dataset.status = status;
   t.el.querySelector('.ov-offline').hidden = status !== 'offline';
@@ -2067,52 +3022,193 @@ function setActive(i) {
   state.tiles.forEach((t, j) => t.el.classList.toggle('active', j === i));
 }
 
-function rebuildGrid() {
-  // ล้างของเดิม
-  closeViewer(); // config เปลี่ยน → หน้าดูเต็มจอที่ค้างอยู่อ้าง src เก่า ปิดทิ้งก่อน
-  state.tiles.forEach(t => {
-    if (t.recorder && t.recorder.state === 'recording') { try { t.recorder.stop(); } catch (e) {} } // เซฟที่อัดค้างก่อนทิ้ง tile
-    if (t.cam) t.cam.destroy();
-  });
-  const grid = $('grid');
-  grid.innerHTML = '';
-  state.tiles = [];
-
+/**
+ * สร้างหรืออัปเดตตารางช่องสัญญาณกล้องแบบ Differential Reconciliation (Phase P0 Zero-Drop)
+ *
+ * หากจำนวนช่องตารางมีอยู่แล้วและไม่ได้บังคับล้างทั้งหมด (`forceFull = false`) ระบบจะเรียก `syncGridDiffSmoothly()`
+ * เพื่อคงอินสแตนซ์ `Camera` และ `<video>` ของช่องที่ไม่ได้เปลี่ยนแหล่งสัญญาณหรือสถานะการมองเห็นไว้ตามเดิม
+ * เพื่อไม่ให้กล้องอื่นหลุดหรือต้องเชื่อมต่อใหม่เมื่อผู้ใช้เปลี่ยนกล้องเพียงบางช่อง ล้างช่องว่าง บันทึกการตั้งค่า หรือสลับตำแหน่งช่อง
+ *
+ * @param {boolean} [forceFull=false] บังคับทำลายและสร้างทุกช่องใหม่ทั้งหมด
+ */
+function rebuildGrid(forceFull = false) {
+  if (!forceFull && !cfg.demo && Array.isArray(state.tiles) && state.tiles.length > 0 && $('grid') && $('grid').children.length > 0) {
+    syncGridDiffSmoothly();
+    return;
+  }
   const lay = layoutOf(cfg.layout);
   const count = lay.rows * lay.cols;
   applyGridCols();
 
   const hiddenSet = new Set((state.userProfile && state.userProfile.hidden_channels) || []);
   const visibleSet = new Set((state.userProfile && state.userProfile.visible_channels) || []);
+  const grid = $('grid');
+
+  closeViewer();
+  state.tiles.forEach(t => {
+    if (t.recorder && t.recorder.state === 'recording') { try { t.recorder.stop(); } catch (e) {} }
+    if (t.cam) t.cam.destroy();
+  });
+  grid.innerHTML = '';
+  state.tiles = [];
+
+  let savedPosters = null;
+  try {
+    const raw = sessionStorage.getItem('bpp_warm_posters');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.ts && (Date.now() - parsed.ts < 60000)) {
+        savedPosters = parsed.map || null;
+      }
+      sessionStorage.removeItem('bpp_warm_posters');
+    }
+  } catch (e) {}
 
   for (let i = 0; i < count; i++) {
-    const ch = cfg.channels[i] || { src: '', name: '', sub: '' };
+    const ch = normalizeChannelStreams(cfg.channels[i] || { src: '', name: '', sub: '' });
+    const gridStream = playableGridStream(ch);
     const chNum = `CH${String(i + 1).padStart(2, '0')}`;
     const isHiddenByMe = !!(ch.src && hiddenSet.has(ch.src));
     const isExplicitlyVisible = visibleSet.size === 0 || visibleSet.has(ch.src) || visibleSet.has(String(i)) || visibleSet.has(chNum);
     const isPersonallyVisible = !isHiddenByMe && isExplicitlyVisible;
+    const shouldDisable = !!(ch.src && (!isPersonallyVisible || ch.enabled === false));
 
     const t = tileTemplate(i, ch);
     t.cam = null; t.status = 'offline';
     t.configured = cfg.demo || !!ch.src; // ช่องว่างที่ยังไม่เพิ่มกล้องไม่ถูกนับใน status bar
+    t._boundSrc = ch.src || '';
+    t._boundSub = ch.sub || '';
+    t._slotKey = `${ch.src || ''}|${gridStream}|${ch.enabled !== false}|${isPersonallyVisible}`;
     grid.appendChild(t.el);
     state.tiles.push(t);
 
     if (cfg.demo) {
       setTileStatus(t, DEMO_CAMS[i % DEMO_CAMS.length][1]);
-    } else if (ch.src && (!isPersonallyVisible || ch.enabled === false)) {
+    } else if (shouldDisable) {
       // ซ่อน/ปิดใช้งานเฉพาะมุมมองของผู้ใช้นี้ — ไม่เชื่อมต่อสตรีม (ไม่กระทบผู้อื่นและเซิร์ฟเวอร์)
       t.disabled = true;
       setTileStatus(t, 'disabled');
     } else if (ch.src && t.video) {
-      // ตารางใช้สตรีมรอง (ความละเอียดต่ำ) ถ้าตั้งไว้ — สตรีมหลักเก็บไว้ตอนดูเต็มจอ
-      t.cam = new Camera(ch.sub || ch.src, t.video, s => setTileStatus(t, s), { hlsLite: true, chName: ch.name });
+      if (savedPosters && savedPosters[ch.src]) {
+        t.video.poster = savedPosters[ch.src];
+      }
+      // ตารางใช้สตรีมที่เบราว์เซอร์เล่นได้จริง (playableGridStream: ch.sub -> ch.hd -> ch.src)
+      // Stagger การเปิดสตรีมทีละ 65ms เพื่อไม่ให้แย่งแบนด์วิดท์/WebSocket พร้อมกัน 10 ช่อง
+      t.cam = new Camera(gridStream, t.video, s => setTileStatus(t, s), {
+        hlsLite: true,
+        chName: ch.name,
+        startDelayMs: i * 65
+      });
       attachTileActions(t, ch, i); // ปุ่มถ่ายภาพ/อัด/สลับสตรีม (เฉพาะช่องที่มีกล้องจริง)
     } else {
       setTileStatus(t, 'offline');
     }
   }
   if (state.editLayout) state.tiles.forEach(t => { t.el.draggable = true; }); // จัดเรียงอยู่ → เปิด drag ให้ tile ใหม่
+  setActive(Math.min(state.activeIdx, count - 1));
+  applySearch();
+  updateStats();
+  tickClock();
+}
+
+// Surgical Grid Diffing: อัปเดตชื่อกล้อง/ช่องสัญญาณเฉพาะช่องที่เปลี่ยนจริง โดยไม่ตัดสตรีมช่องอื่นที่กำลังเล่นอยู่
+function syncGridDiffSmoothly() {
+  const lay = layoutOf(cfg.layout);
+  const count = lay.rows * lay.cols;
+  const grid = $('grid');
+  if (!grid || !Array.isArray(state.tiles) || state.tiles.length === 0) {
+    rebuildGrid(true);
+    return;
+  }
+  applyGridCols();
+  const hiddenSet = new Set((state.userProfile && state.userProfile.hidden_channels) || []);
+  const visibleSet = new Set((state.userProfile && state.userProfile.visible_channels) || []);
+
+  if (state.viewerOpen) {
+    const activeCh = cfg.channels[state.activeIdx] || { src: '', name: '', sub: '' };
+    const activeTile = state.tiles[state.activeIdx];
+    if (state.activeIdx >= count || !activeTile || activeTile._boundSrc !== (activeCh.src || '')) {
+      closeViewer();
+    }
+  }
+
+  // ถ้าลดขนาด Layout (เช่น 3x3 -> 2x2) ให้ลบเฉพาะช่องที่เกินออกโดยไม่แตะช่องที่ยังอยู่
+  while (state.tiles.length > count) {
+    const removed = state.tiles.pop();
+    if (removed) {
+      if (removed.recorder && removed.recorder.state === 'recording') {
+        try { removed.recorder.stop(); } catch (e) {}
+      }
+      if (removed.cam) removed.cam.destroy();
+      if (removed.el && removed.el.parentNode) removed.el.parentNode.removeChild(removed.el);
+    }
+  }
+
+  for (let i = 0; i < count; i++) {
+    const ch = normalizeChannelStreams(cfg.channels[i] || { src: '', name: '', sub: '' });
+    const gridStream = playableGridStream(ch);
+    const chNum = `CH${String(i + 1).padStart(2, '0')}`;
+    const isHiddenByMe = !!(ch.src && hiddenSet.has(ch.src));
+    const isExplicitlyVisible = visibleSet.size === 0 || visibleSet.has(ch.src) || visibleSet.has(String(i)) || visibleSet.has(chNum);
+    const isPersonallyVisible = !isHiddenByMe && isExplicitlyVisible;
+    const nextSlotKey = `${ch.src || ''}|${gridStream}|${ch.enabled !== false}|${isPersonallyVisible}`;
+    const oldTile = state.tiles[i];
+
+    // ถ้าช่องเดิมไม่ได้เปลี่ยนสตรีมหรือสถานะการมองเห็น ให้อัปเดตเฉพาะชื่อกล้องแบบ In-Place
+    if (oldTile && oldTile._slotKey === nextSlotKey) {
+      const nameEl = oldTile.el.querySelector('.tile-name');
+      const dispName = ch.src ? displayCameraName(ch.src, ch.name) : 'ยังไม่ได้ตั้งค่า';
+      if (nameEl && nameEl.textContent !== dispName) {
+        nameEl.textContent = dispName;
+      }
+      const chipEl = oldTile.el.querySelector('.ch-chip');
+      if (chipEl) chipEl.textContent = chLabel(i);
+      oldTile.configured = cfg.demo || !!ch.src;
+      oldTile._boundSrc = ch.src || '';
+      oldTile._boundSub = ch.sub || '';
+      if (oldTile.cam && oldTile.cam.opts) {
+        oldTile.cam.opts.chName = ch.name;
+      }
+      continue;
+    }
+
+    // ช่องนี้มีการเปลี่ยนแหล่งสตรีมจริง -> เปลี่ยนเฉพาะช่องนี้ช่องเดียว
+    if (oldTile) {
+      if (oldTile.recorder && oldTile.recorder.state === 'recording') {
+        try { oldTile.recorder.stop(); } catch (e) {}
+      }
+      if (oldTile.cam) oldTile.cam.destroy();
+    }
+    const newTile = tileTemplate(i, ch);
+    newTile.cam = null;
+    newTile.status = 'offline';
+    newTile.configured = cfg.demo || !!ch.src;
+    newTile._boundSrc = ch.src || '';
+    newTile._boundSub = ch.sub || '';
+    newTile._slotKey = nextSlotKey;
+    if (oldTile && oldTile.el && oldTile.el.parentNode) {
+      oldTile.el.parentNode.replaceChild(newTile.el, oldTile.el);
+    } else {
+      grid.appendChild(newTile.el);
+    }
+    state.tiles[i] = newTile;
+
+    if (cfg.demo) {
+      setTileStatus(newTile, DEMO_CAMS[i % DEMO_CAMS.length][1]);
+    } else if (ch.src && (!isPersonallyVisible || ch.enabled === false)) {
+      newTile.disabled = true;
+      setTileStatus(newTile, 'disabled');
+    } else if (ch.src && newTile.video) {
+      newTile.cam = new Camera(gridStream, newTile.video, s => setTileStatus(newTile, s), {
+        hlsLite: true,
+        chName: ch.name
+      });
+      attachTileActions(newTile, ch, i);
+    } else {
+      setTileStatus(newTile, 'offline');
+    }
+    if (state.editLayout) newTile.el.draggable = true;
+  }
   setActive(Math.min(state.activeIdx, count - 1));
   applySearch();
   updateStats();
@@ -2263,10 +3359,45 @@ async function fetchFrigatePreCapture() {
   }
 }
 
+function extractFaceInfo(ev) {
+  if (!ev) return { subLabel: null, subLabelScore: null };
+  const raw = ev.sub_label !== undefined ? ev.sub_label : ev.subLabel;
+  if (!raw) return { subLabel: null, subLabelScore: null };
+  let name = '';
+  let score = (ev.data && typeof ev.data.sub_label_score === 'number') ? ev.data.sub_label_score : (ev.subLabelScore || null);
+  if (Array.isArray(raw)) {
+    name = String(raw[0] || '').trim();
+    if (typeof raw[1] === 'number') score = raw[1];
+  } else {
+    name = String(raw).trim();
+  }
+  if (!name) return { subLabel: null, subLabelScore: null };
+  if (
+    name.includes('Detection') ||
+    name.includes('ตรวจพบ') ||
+    name.includes('PEOPLE') ||
+    name.includes('VEHICLE') ||
+    isPlateString(name)
+  ) {
+    return { subLabel: null, subLabelScore: null };
+  }
+  const kind = ev.label || ev.type || '';
+  if (kind && kind !== 'person') {
+    return { subLabel: null, subLabelScore: null };
+  }
+  return { subLabel: name, subLabelScore: score };
+}
+
 let lastLprFetchTs = 0;
 async function fetchEvents() {
   if (cfg.demo) { state.events = normalizeDemoEvents(); renderEvents(); return; }
   try {
+    if (!state.events || state.events.length === 0) {
+      const evListEl = $('evList');
+      if (evListEl && !evListEl.children.length) {
+        renderEventsEmptyState('loading');
+      }
+    }
     const now = Date.now() / 1000;
     if (now - lastLprFetchTs > 20) {
       lastLprFetchTs = now;
@@ -2287,6 +3418,8 @@ async function fetchEvents() {
           if (ev.startTime) ev.mins = Math.max(0, (now - ev.startTime) / 60);
         });
         renderEvents();
+      } else {
+        renderEventsEmptyState('offline');
       }
       return;
     }
@@ -2320,15 +3453,17 @@ async function fetchEvents() {
           const score = (ev.data && ev.data.top_score) || ev.top_score || 0;
           const camIdx = cfg.channels.findIndex(c => c.src === ev.camera);
           const vigiCand = vigiByEventId.get(ev.id);
+          const subLabelStr = Array.isArray(ev.sub_label) ? String(ev.sub_label[0] || '') : String(ev.sub_label || '');
           const isVigiApiEvent = (ev.data && ev.data.type === 'api') || 
-                                 (ev.sub_label && (ev.sub_label.includes('Detection') || ev.sub_label.includes('ตรวจพบ') || ev.sub_label.includes('PEOPLE') || ev.sub_label.includes('VEHICLE'))) ||
+                                 (subLabelStr && (subLabelStr.includes('Detection') || subLabelStr.includes('ตรวจพบ') || subLabelStr.includes('PEOPLE') || subLabelStr.includes('VEHICLE'))) ||
                                  String(ev.id).startsWith('vigi_') || String(ev.id).startsWith('ext_');
           const cropPath = vigiCand?.crop_path || (isVigiApiEvent ? (ev.id + '.jpg') : '');
           const thumb = cropPath
             ? '/lpr-crops/' + encodeURIComponent(cropPath)
             : apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/thumbnail.jpg');
           const plateStr = (vigiCand ? [vigiCand.plate_text, vigiCand.province].filter(Boolean).join(' ') : '') || plateOf(ev);
-          const descStr = vigiCand?.description || (ev.data && ev.data.description) || ev.sub_label || '';
+          const descStr = vigiCand?.description || (ev.data && ev.data.description) || subLabelStr || '';
+          const faceInfo = extractFaceInfo(ev);
 
           nextEvents.push({
             id: ev.id,
@@ -2344,6 +3479,8 @@ async function fetchEvents() {
             hasClip: !!ev.has_clip,
             startTime: ev.start_time,
             plate: plateStr,
+            subLabel: faceInfo.subLabel,
+            subLabelScore: faceInfo.subLabelScore,
             source: vigiCand ? (vigiCand.source || 'vigi_edge_ai') : (isVigiApiEvent ? 'vigi_edge_ai' : 'frigate')
           });
           addedIds.add(ev.id);
@@ -2425,11 +3562,76 @@ function markEventsAsRead() {
   updateEventBadge(0);
 }
 
+function renderEventsEmptyState(reason = 'none') {
+  const list = $('evList');
+  if (!list) return;
+  const rc = (cfg.railClasses && cfg.railClasses.length) ? cfg.railClasses : null;
+  const filterDesc = rc ? rc.map(t => typeMeta(t).label).join(', ') : '';
+
+  if (reason === 'loading') {
+    list.innerHTML = `
+      <div class="events-loading">
+        <div class="spinner"></div>
+        <div class="events-empty-title">กำลังโหลดเหตุการณ์ล่าสุด…</div>
+        <div class="events-empty-sub">กำลังเชื่อมต่อฐานข้อมูล AI NVR</div>
+      </div>
+    `;
+    return;
+  }
+
+  if (reason === 'offline') {
+    $('evTotal').textContent = 'เชื่อมต่อใหม่…';
+    list.innerHTML = `
+      <div class="events-empty-state">
+        <div style="font-size:26px; line-height:1; margin-bottom:4px;">⏳</div>
+        <div class="events-empty-title">กำลังเชื่อมต่อระบบเหตุการณ์…</div>
+        <div class="events-empty-sub">รอสัญญาณจาก NVR หรือกำลังเริ่มต้นระบบใหม่</div>
+        <button type="button" class="btn-clear-filter" id="btnRetryEvents">🔄 ลองเชื่อมต่อใหม่</button>
+      </div>
+    `;
+    const btn = $('btnRetryEvents');
+    if (btn) btn.addEventListener('click', () => {
+      renderEventsEmptyState('loading');
+      fetchEvents();
+    });
+    return;
+  }
+
+  // reason === 'none' (0 events matching filter)
+  $('evTotal').textContent = '0 รายการ';
+  list.innerHTML = `
+    <div class="events-empty-state">
+      <div style="font-size:26px; line-height:1; margin-bottom:4px;">🔔</div>
+      <div class="events-empty-title">ไม่มีเหตุการณ์ล่าสุด</div>
+      <div class="events-empty-sub">${rc ? `กำลังกรองเฉพาะ: ${escapeHtml(filterDesc)}` : 'ยังไม่พบการตรวจจับวัตถุใหม่ในช่วงนี้'}</div>
+      ${rc ? '<button type="button" class="btn-clear-filter" id="btnResetRailFilter">ล้างตัวกรอง (แสดงทั้งหมด)</button>' : ''}
+    </div>
+  `;
+  const resetBtn = $('btnResetRailFilter');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      cfg.railClasses = null;
+      saveCfg();
+      renderEvents();
+      const pop = $('railClassPop');
+      if (pop && !pop.hidden) renderRailClassPop();
+    });
+  }
+}
+
 function renderEvents() {
   // โฟกัสเฉพาะ class ที่ผู้ใช้เลือก (cfg.railClasses) — null = ทุก class ที่ตรวจพบ
   // ทั้งลิสต์ + badge แจ้งเตือน + chips นับเฉพาะที่โฟกัส ("แจ้งเตือนเฉพาะที่เลือก")
   const rc = (cfg.railClasses && cfg.railClasses.length) ? cfg.railClasses : null;
   const evs = rc ? state.events.filter(e => rc.indexOf(e.type) >= 0) : state.events;
+
+  const btnRc = $('btnRailClasses');
+  if (btnRc) {
+    btnRc.classList.toggle('is-filtered', Boolean(rc && rc.length));
+    btnRc.title = rc && rc.length
+      ? `กำลังกรองเฉพาะ: ${rc.map(t => typeMeta(t).label).join(', ')} (คลิกเพื่อแก้ไข)`
+      : 'เลือก Class ที่จะแจ้งเตือน/แสดงในแถบเหตุการณ์';
+  }
 
   // badge = นับเฉพาะเหตุการณ์ใหม่หลังจากเวลากดดูล่าสุด และอยู่ภายใน 15 นาที
   const isRailOpen = !$('eventsRail').hidden;
@@ -2444,10 +3646,28 @@ function renderEvents() {
     updateEventBadge(Math.min(unread, 50));
   }
 
-  // re-render เฉพาะเมื่อเนื้อหาเปลี่ยนจริง — ไม่งั้น focus/คลิกของผู้ใช้หลุดทุกรอบ poll 15 วิ
+  // re-render เฉพาะเมื่อเนื้อหาเปลี่ยนจริง (รวมถึงป้ายทะเบียน LPR ที่เพิ่งประมวลผลเสร็จ)
+  // ไม่นำ Math.floor(e.mins) มาใส่ใน sig เพื่อป้องกันการทำลายและสร้าง DOM ใหม่ทุกๆ 1 นาที (24/7 Zero-Churn)
   const sig = state.eventFilter + '|' + (rc ? rc.join('+') : 'auto') + '|' + cfg.channels.map(c => c.name || c.src).join(';') + '|'
-    + evs.map(e => e.id + ':' + Math.floor(e.mins) + ':' + (e.dur || 0)).join(',');
-  if (sig === state.evSignature) return;
+    + evs.map(e => {
+      const lpr = lprTagForEvent(e);
+      const lprSig = lpr ? `${lpr.tag}:${lpr.type}` : '';
+      return `${e.id}:${Math.round(e.dur || 0)}:${e.conf || 0}:${e.hasClip ? 1 : 0}:${e.plate || ''}:${lprSig}`;
+    }).join(',');
+  if (sig === state.evSignature) {
+    // อัปเดตเฉพาะตัวเลขเวลา "เมื่อ X นาทีที่แล้ว" แบบ In-Place โดยไม่สร้างการ์ดหรือโหลดรูปใหม่
+    const evById = new Map(evs.map(e => [String(e.id), e]));
+    document.querySelectorAll('#evList .ev-card[data-ev-id]').forEach(card => {
+      const ev = evById.get(card.dataset.evId);
+      if (!ev) return;
+      const agoEl = card.querySelector('.ev-ago');
+      const nextAgo = fmtAgo(ev.mins);
+      if (agoEl && agoEl.textContent !== nextAgo) {
+        agoEl.textContent = nextAgo;
+      }
+    });
+    return;
+  }
   state.evSignature = sig;
   $('evTotal').textContent = evs.length + ' รายการ';
 
@@ -2489,10 +3709,15 @@ function renderEvents() {
     }
     return e.type === state.eventFilter;
   });
+  if (shown.length === 0) {
+    renderEventsEmptyState('none');
+    return;
+  }
   shown.forEach(ev => {
     const meta = typeMeta(ev.label);
     const card = document.createElement('button');
     card.className = 'ev-card';
+    card.dataset.evId = String(ev.id);
     card.setAttribute('aria-label', `${meta.label} ที่ ${ev.camera} ${fmtAgo(ev.mins)}`);
     card.innerHTML = `
       <div class="ev-thumb">
@@ -2528,6 +3753,15 @@ function renderEvents() {
         plate.style.background = 'rgba(168, 85, 247, 0.85)';
       }
       thumbEl.appendChild(plate);
+    } else if (ev.subLabel) {
+      const faceBadge = document.createElement('span');
+      faceBadge.className = 'ev-plate ev-face-badge';
+      const scorePct = ev.subLabelScore ? ` (${Math.round(ev.subLabelScore * 100)}%)` : '';
+      faceBadge.title = `ใบหน้า: ${ev.subLabel}${scorePct}`;
+      faceBadge.textContent = `👤 ${ev.subLabel}`;
+      faceBadge.style.background = 'rgba(147, 51, 234, 0.88)';
+      faceBadge.style.borderColor = '#a855f7';
+      thumbEl.appendChild(faceBadge);
     }
     if (ev.thumb) thumbEl.style.backgroundImage = `url("${escapeHtml(ev.thumb).replace(/"/g, '%22')}")`;
     else if (ev.demoBg) thumbEl.style.background = ev.demoBg;
@@ -2551,8 +3785,10 @@ function adaptRailEv(ev) {
     id: ev.id, camera: ev.camera, camIdx: ev.camIdx, label: ev.label, type: ev.type,
     startTime: ev.startTime, mins: ev.mins, dur: ev.dur, conf: ev.conf,
     has_snapshot: true, // ลอง snapshot ก่อน — emgrThumb มี fallback thumbnail ให้อยู่แล้ว
-    has_clip: !!ev.hasClip, description: '',
+    has_clip: !!ev.hasClip, description: ev.description || '',
     plate: ev.plate || '',
+    subLabel: ev.subLabel || null,
+    subLabelScore: ev.subLabelScore || null,
     source: ev.source || '',
     crop_path: ev.crop_path || '',
   };
@@ -2570,17 +3806,21 @@ async function openRailEvent(ev) {
       const e = await res.json();
       const score = (e.data && (e.data.top_score || e.data.score)) || e.top_score || 0;
       const camIdx = cfg.channels.findIndex(c => c.src === e.camera);
+      const subLabelStr = Array.isArray(e.sub_label) ? String(e.sub_label[0] || '') : String(e.sub_label || '');
       const isVigiApi = (e.data && e.data.type === 'api') || 
-                        (e.sub_label && (e.sub_label.includes('Detection') || e.sub_label.includes('ตรวจพบ') || e.sub_label.includes('PEOPLE') || e.sub_label.includes('VEHICLE'))) ||
+                        (subLabelStr && (subLabelStr.includes('Detection') || subLabelStr.includes('ตรวจพบ') || subLabelStr.includes('PEOPLE') || subLabelStr.includes('VEHICLE'))) ||
                         String(e.id).startsWith('vigi_') || String(e.id).startsWith('ext_');
+      const faceInfo = extractFaceInfo(e);
       full = {
         id: e.id, camera: e.camera, camIdx: camIdx >= 0 ? camIdx : null,
         label: e.label, type: typeOf(e.label), startTime: e.start_time,
         mins: Math.max(0, (Date.now() / 1000 - e.start_time) / 60),
         dur: e.end_time ? Math.max(1, e.end_time - e.start_time) : 0,
         conf: Math.round(score * 100), has_snapshot: !!e.has_snapshot, has_clip: !!e.has_clip,
-        description: (e.data && e.data.description) || e.sub_label || ev.description || '',
+        description: (e.data && e.data.description) || subLabelStr || ev.description || '',
         plate: plateOf(e) || ev.plate || '',
+        subLabel: faceInfo.subLabel || ev.subLabel || null,
+        subLabelScore: faceInfo.subLabelScore || ev.subLabelScore || null,
         source: ev.source || (isVigiApi ? 'vigi_edge_ai' : 'frigate'),
         crop_path: ev.crop_path || (isVigiApi ? (e.id + '.jpg') : ''),
         frameTime: e.frame_time || null,
@@ -2628,29 +3868,153 @@ function setEventsOpen(open) {
   cfg.eventsOpen = open;
   $('eventsRail').hidden = !open;
   $('railTab').hidden = open; // แถบเรียกกลับโผล่เฉพาะตอนซ่อน
+  const bd = $('eventsBackdrop');
+  if (bd) bd.hidden = !open;
   $('btnEvents').setAttribute('aria-pressed', String(open));
   saveCfg();
   markEventsAsRead();
 }
 
-/* ============ fullscreen camera viewer (สตรีมหลัก) ============ */
+/* ============ fullscreen camera viewer (Direct Zero-Load Live Passthrough + สลับ MAIN/SUB ไร้รอยต่อ) ============ */
+function activeViewerVideo() {
+  const camViewer = $('camViewer');
+  if (camViewer && camViewer.classList.contains('is-passthrough') && state.viewerIdx !== null && state.tiles[state.viewerIdx] && state.tiles[state.viewerIdx].video) {
+    return state.tiles[state.viewerIdx].video;
+  }
+  return $('cvVideo');
+}
+
+function updateViewerStreamBadge(ch) {
+  const btn = $('btnCvStreamMode');
+  if (!btn) return;
+  const hasSub = !!(ch && ch.sub && ch.sub !== playableMainStream(ch));
+  const isSub = state.viewerStreamMode === 'sub' && hasSub;
+  btn.textContent = isSub ? 'SUB' : 'MAIN';
+  btn.classList.toggle('is-sub', isSub);
+  btn.disabled = !hasSub;
+  btn.style.cursor = hasSub ? 'pointer' : 'default';
+  btn.title = hasSub
+    ? (isSub ? 'กำลังแสดงสตรีมรอง (ต่อเนื่องทันที/ลื่นไหล) — คลิกเพื่อสลับเป็นสตรีมหลัก (HD)' : 'กำลังแสดงสตรีมหลัก (คมชัดสูง HD) — คลิกเพื่อสลับเป็นสตรีมรอง (ลื่นไหล)')
+    : 'กล้องนี้มีเฉพาะสตรีมหลัก';
+}
+
 function viewerStatus(status) {
   const colors = { live: '#34e2a8', connecting: '#fbbf24', reconnecting: '#fbbf24', videoloss: '#fb5b78', offline: '#fb5b78' };
   const texts = { live: 'ออนไลน์', connecting: 'กำลังเชื่อมต่อ', reconnecting: 'กำลังเชื่อมต่อใหม่', videoloss: 'วิดีโอขาดหาย', offline: 'ออฟไลน์' };
+  const camViewer = $('camViewer');
+  const isPassthrough = !!(camViewer && camViewer.classList.contains('is-passthrough'));
+  const activeTile = (state.viewerIdx !== null && state.tiles && state.tiles[state.viewerIdx]) ? state.tiles[state.viewerIdx] : null;
+  const tileHasVisual = !!(activeTile && activeTile.video && (activeTile.video.videoWidth > 0 || activeTile.video.poster || (activeTile.cam && activeTile.cam.isLive)));
+  const cvVid = $('cvVideo');
+  const cvHasVisual = !!(cvVid && (cvVid.videoWidth > 0 || cvVid.poster));
+
+  // ห้ามแสดงป้าย "กำลังเชื่อมต่อ..." บังหน้าจอเด็ดขาด यदिมีภาพสดจากช่องตาราง (Passthrough) หรือมีเฟรมภาพแสดงอยู่แล้ว
+  if ((status === 'connecting' || status === 'reconnecting') && (isPassthrough || tileHasVisual || cvHasVisual)) {
+    status = 'live';
+  }
+
   const dot = $('cvStatus').querySelector('.dot');
   dot.style.cssText = `background:${colors[status] || '#fb5b78'}; box-shadow:0 0 8px ${colors[status] || '#fb5b78'};`;
   $('cvStatusText').textContent = texts[status] || status;
   $('cvStatusText').style.color = colors[status] || '#fb5b78';
   const center = $('cvCenter');
-  if (status === 'live') { center.hidden = true; return; }
+  if (status === 'live') {
+    if (state.viewerAutoSubT) {
+      clearTimeout(state.viewerAutoSubT);
+      state.viewerAutoSubT = null;
+    }
+    center.hidden = true;
+    return;
+  }
   center.hidden = false;
   center.classList.toggle('loss', status === 'videoloss');
-  // Incident 1.56: เพิ่มข้อความเฉพาะสถานะ reconnecting
+  const streamLabel = state.viewerStreamMode === 'sub' ? 'สตรีมรอง' : 'สตรีมหลัก';
   $('cvCenterText').textContent = status === 'reconnecting'
     ? 'กำลังเชื่อมต่อใหม่ — โปรดรอสักครู่...'
     : status === 'videoloss'
     ? 'สัญญาณวิดีโอขาดหาย — กำลังลองใหม่อัตโนมัติ'
-    : 'กำลังเชื่อมต่อสตรีมหลัก…';
+    : `กำลังเชื่อมต่อ${streamLabel}…`;
+}
+
+function startViewerCameraStream(ch, video, mode, tile) {
+  const camViewer = $('camViewer');
+  if (state.viewerAutoSubT) {
+    clearTimeout(state.viewerAutoSubT);
+    state.viewerAutoSubT = null;
+  }
+  if (state.viewerCam) {
+    state.viewerCam.destroy();
+    state.viewerCam = null;
+  }
+  const mainSrc = playableMainStream(ch);
+  const hasSub = !!(ch.sub && ch.sub !== mainSrc);
+  const useSub = (mode === 'sub' && hasSub);
+  state.viewerStreamMode = useSub ? 'sub' : 'main';
+  updateViewerStreamBadge(ch);
+
+  // หากสลับกลับมาเป็น SUB และช่องตารางเดิมเป็น SUB อยู่แล้ว ให้สลับกลับไปใช้วิดีโอสดของช่องตารางทันที (0.00ms)
+  if (useSub && tile && tile.cam && tile.video && (tile.streamMode || 'sub') === 'sub') {
+    if (typeof tile.cam.resumeFromViewer === 'function') {
+      tile.cam.resumeFromViewer();
+    } else if (typeof tile.cam.resume === 'function') {
+      tile.cam.resume();
+    }
+    tile.el.classList.add('viewer-active-tile');
+    if (camViewer) camViewer.classList.add('is-passthrough');
+    if (state.unmutedSrc === ch.src) {
+      tile.video.muted = false;
+      tile.video.volume = 1.0;
+      if (tile.cam) tile.cam.unmutedByUser = true;
+      if (video) video.muted = true;
+    }
+    viewerStatus('live');
+    return;
+  }
+
+  // หากสลับเป็น MAIN (HD) ขณะมีวิดีโอสดของช่องตาราง ให้คงภาพสดเดิมไว้บนหน้าจอ (Passthrough) ระหว่างรอสตรีม HD ถอดรหัสเฟรมแรกเสร็จในพื้นหลัง
+  const canKeepPassthroughWhileLoading = !!(tile && tile.cam && tile.video);
+  if (canKeepPassthroughWhileLoading) {
+    tile.el.classList.add('viewer-active-tile');
+    if (camViewer) camViewer.classList.add('is-passthrough');
+    viewerStatus('live');
+  } else {
+    if (camViewer) camViewer.classList.remove('is-passthrough');
+    viewerStatus('connecting');
+  }
+
+  const targetSrc = useSub ? ch.sub : mainSrc;
+  state.viewerCam = new Camera(targetSrc, video, st => {
+    if (st === 'live') {
+      // เมื่อสตรีมใหม่บน #cvVideo ถอดรหัสเฟรมแรกเสร็จแล้ว จึงสลับหน้าจอจาก Passthrough มายัง #cvVideo แบบไร้รอยต่อ 100%
+      if (camViewer && camViewer.classList.contains('is-passthrough')) {
+        camViewer.classList.remove('is-passthrough');
+        if (tile && tile.cam && typeof tile.cam.pauseForViewer === 'function') {
+          tile.cam.pauseForViewer();
+        }
+        if (state.unmutedSrc === ch.src) {
+          video.muted = false;
+          video.volume = 1.0;
+          if (tile && tile.video) tile.video.muted = true;
+        }
+      }
+      viewerStatus('live');
+      return;
+    }
+    if (!canKeepPassthroughWhileLoading) {
+      viewerStatus(st);
+    }
+  }, {
+    chName: ch.name,
+    preferMSE: streamTransportState.preferMSE
+  });
+
+  if (state.unmutedSrc === ch.src) {
+    state.viewerCam.unmutedByUser = true;
+    if (!canKeepPassthroughWhileLoading) {
+      video.muted = false;
+      video.volume = 1.0;
+    }
+  }
 }
 
 function openViewer(i) {
@@ -2662,45 +4026,88 @@ function openViewer(i) {
   const demoInfo = DEMO_CAMS[i % DEMO_CAMS.length];
   $('cvName').textContent = cfg.demo ? demoInfo[0] : displayCameraName(ch.src, ch.name);
 
+  const camViewer = $('camViewer');
   const video = $('cvVideo');
   const demoBg = $('cvDemoBg');
+  const tile = state.tiles[i];
+  const initialPoster = (tile && tile.video) ? (captureVideoPoster(tile.video, 640) || tile.video.poster || '') : '';
+
+  state.viewerIdx = i;
+  state.viewingSrc = ch.src;
+
+  const btnMode = $('btnCvStreamMode');
+  if (btnMode) {
+    btnMode.onclick = (e) => {
+      e.stopPropagation();
+      if (cfg.demo || !ch.sub || ch.sub === playableMainStream(ch)) return;
+      const nextMode = state.viewerStreamMode === 'sub' ? 'main' : 'sub';
+      startViewerCameraStream(ch, video, nextMode, tile);
+      if (typeof toast === 'function') {
+        toast(nextMode === 'main' ? 'สลับเป็นสตรีมหลัก (คมชัดสูง HD)' : 'สลับเป็นสตรีมรอง (เชื่อมต่อไว ลื่นไหล)');
+      }
+    };
+  }
+
   if (cfg.demo) {
+    if (camViewer) camViewer.classList.remove('is-passthrough');
     video.hidden = true;
     demoBg.hidden = false;
     demoBg.style.background = DEMO_SCENES[i % DEMO_SCENES.length];
     viewerStatus(demoInfo[1]);
-  } else {
+  } else if (tile && tile.cam && tile.video) {
+    // Direct Zero-Load Live Passthrough:
+    // ยกวิดีโอสดจากช่องตารางเดิมขึ้นแสดงเต็มจอทันที (0.00ms) โดยไม่ตัดสตรีมและไม่ขึ้น "กำลังเชื่อมต่อ..."
     video.hidden = false;
     demoBg.hidden = true;
-    viewerStatus('connecting');
-    // เปิด connection ใหม่ด้วยสตรีมหลักเสมอ — ตารางอาจใช้สตรีมรองอยู่
-    // playableMainStream() การันตีว่าไม่ตกไปที่สตรีมดิบ HEVC ที่เล่นไม่ได้
-    state.viewerCam = new Camera(playableMainStream(ch), video, viewerStatus, { chName: ch.name });
+    if (tile.cam.viewerPaused || tile.cam.paused || tile.cam.suspended) {
+      if (typeof tile.cam.resumeFromViewer === 'function') {
+        tile.cam.resumeFromViewer();
+      } else if (typeof tile.cam.resume === 'function') {
+        tile.cam.resume();
+      }
+    }
+    tile.el.classList.add('viewer-active-tile');
+    if (camViewer) camViewer.classList.add('is-passthrough');
+    const hasSub = !!(ch.sub && ch.sub !== playableMainStream(ch));
+    state.viewerStreamMode = (tile.streamMode === 'main' || !hasSub) ? 'main' : 'sub';
+    updateViewerStreamBadge(ch);
+    viewerStatus('live');
+  } else {
+    if (camViewer) camViewer.classList.remove('is-passthrough');
+    video.hidden = false;
+    demoBg.hidden = true;
+    const hasSub = !!(ch.sub && ch.sub !== playableMainStream(ch));
+    const initialMode = hasSub ? 'sub' : 'main';
+    if (initialPoster) video.poster = initialPoster;
+    startViewerCameraStream(ch, video, initialMode, tile);
   }
-  state.viewerIdx = i;
-  state.viewingSrc = ch.src;
-  const isCurrentlyUnmuted = (state.unmutedSrc === ch.src) || (state.tiles[i] && state.tiles[i].audioUnmuted);
+
+  const activeVid = activeViewerVideo();
+  const isCurrentlyUnmuted = (state.unmutedSrc === ch.src) || (tile && tile.audioUnmuted);
   const cvAudio = $('btnCvAudio');
   if (isCurrentlyUnmuted) {
     state.unmutedSrc = ch.src;
-    video.muted = false;
-    video.volume = 1.0;
-    if (state.viewerCam) state.viewerCam.unmutedByUser = true;
-    if (video.srcObject && video.srcObject.getAudioTracks) {
-      video.srcObject.getAudioTracks().forEach(tr => { tr.enabled = true; });
+    if (activeVid) {
+      activeVid.muted = false;
+      activeVid.volume = 1.0;
+      if (activeVid.srcObject && activeVid.srcObject.getAudioTracks) {
+        activeVid.srcObject.getAudioTracks().forEach(tr => { tr.enabled = true; });
+      }
+      activeVid.play().catch(() => {});
     }
-    video.play().catch(() => {});
+    if (state.viewerCam) state.viewerCam.unmutedByUser = true;
+    if (tile && tile.cam) tile.cam.unmutedByUser = true;
     if (cvAudio) {
       cvAudio.classList.add('audio-on');
       cvAudio.innerHTML = CV_SVG_AUDIO_ON;
       cvAudio.title = 'ปิดเสียง (กำลังเปิดเสียงสด)';
     }
-    const t = state.tiles[i];
-    if (t && t.video) {
-      t.video.muted = true;
+    if (tile && tile.video && tile.video !== activeVid) {
+      tile.video.muted = true;
     }
   } else {
-    video.muted = true;
+    if (video) video.muted = true;
+    if (tile && tile.video) tile.video.muted = true;
     if (cvAudio) {
       cvAudio.classList.remove('audio-on');
       cvAudio.innerHTML = CV_SVG_AUDIO_MUTE;
@@ -2713,14 +4120,19 @@ function openViewer(i) {
     cvRec.classList.toggle('rec-on', isRec);
     cvRec.title = isRec ? 'กำลังบันทึกลง NVR (คลิกเพื่อหยุด)' : 'บันทึกวิดีโอลงระบบ NVR';
   }
-  // Suspend all background tiles to free ~80% WAN/cellular bandwidth & eliminate radio congestion
-  state.tiles.forEach(t => {
-    if (t.cam && typeof t.cam.suspend === 'function') {
-      t.cam.suspend();
+  // Warm-Pause เฉพาะช่องตารางอื่นที่อยู่เบื้องหลัง (ไม่แตะต้องช่องที่กำลังดูเต็มจอ!)
+  state.tiles.forEach((t, idx) => {
+    if (idx === i) return;
+    if (t.cam) {
+      if (typeof t.cam.pauseForViewer === 'function') {
+        t.cam.pauseForViewer();
+      } else if (typeof t.cam.suspend === 'function') {
+        t.cam.suspend();
+      }
     }
   });
   state.viewerOpen = true;
-  $('camViewer').hidden = false;
+  if (camViewer) camViewer.hidden = false;
 }
 
 function closeViewer() {
@@ -2728,6 +4140,26 @@ function closeViewer() {
   const viewingSrc = state.viewingSrc;
   const viewingIdx = state.viewerIdx;
   const wasUnmuted = (state.unmutedSrc === viewingSrc);
+  const camViewer = $('camViewer');
+  const wasPassthrough = !!(camViewer && camViewer.classList.contains('is-passthrough'));
+
+  if (state.viewerAutoSubT) {
+    clearTimeout(state.viewerAutoSubT);
+    state.viewerAutoSubT = null;
+  }
+  const cvVid = $('cvVideo');
+  // หากมีการสลับไปใช้ #cvVideo (โหมด MAIN) ให้ส่งต่อเฟรมภาพล่าสุดกลับไปยังช่องตารางก่อนปิด
+  if (!wasPassthrough && cvVid && viewingIdx !== null && state.tiles[viewingIdx] && state.tiles[viewingIdx].video) {
+    const latestSnap = captureVideoPoster(cvVid, 480);
+    if (latestSnap) {
+      state.tiles[viewingIdx].video.poster = latestSnap;
+    }
+  }
+
+  state.tiles.forEach(t => {
+    if (t.el) t.el.classList.remove('viewer-active-tile');
+  });
+  if (camViewer) camViewer.classList.remove('is-passthrough');
 
   if (state.cvRec && state.cvRec.state === 'recording') { try { state.cvRec.stop(); } catch (e) {} } // เซฟที่อัดค้าง
   if (state.viewerCam) { state.viewerCam.destroy(); state.viewerCam = null; }
@@ -2737,23 +4169,30 @@ function closeViewer() {
     cvAudio.innerHTML = CV_SVG_AUDIO_MUTE;
     cvAudio.title = 'เปิดเสียง (คลิกเพื่อฟังเสียงสด)';
   }
-  const cvVid = $('cvVideo');
   if (cvVid) {
     cvVid.muted = true;
+    cvVid.removeAttribute('poster');
     cvVid.srcObject = null;
     if (cvVid.src) { cvVid.removeAttribute('src'); try { cvVid.load(); } catch (e) {} }
   }
   state.viewerOpen = false;
-  $('camViewer').hidden = true;
+  if (camViewer) camViewer.hidden = true;
 
-  // Staggered resume of background tiles
+  // Resume ช่องตารางทั้งหมดจาก Warm-Pause ทันทีแบบ Synchronous (0.00ms) โดยไม่เกิดการโหลดใหม่
   state.tiles.forEach((t, idx) => {
-    if (t.cam && typeof t.cam.resumeFromSuspend === 'function') {
+    if (!t.cam) return;
+    if (t.cam.viewerPaused && !t.cam.suspended) {
+      if (typeof t.cam.resumeFromViewer === 'function') {
+        t.cam.resumeFromViewer();
+      }
+    } else if (t.cam.suspended) {
       setTimeout(() => {
-        if (!state.viewerOpen && t.cam && typeof t.cam.resumeFromSuspend === 'function') {
-          t.cam.resumeFromSuspend();
+        if (!state.viewerOpen && t.cam && t.cam.suspended) {
+          if (typeof t.cam.resumeFromSuspend === 'function') {
+            t.cam.resumeFromSuspend();
+          }
         }
-      }, idx * 100);
+      }, idx * 25);
     }
   });
 
@@ -2966,8 +4405,8 @@ function emgrThumb(ev) {
     if (ev.crop_path) return '/lpr-crops/' + encodeURIComponent(ev.crop_path);
     return '/lpr-crops/' + encodeURIComponent(ev.id + '.jpg');
   }
-  // เหตุการณ์ของ Frigate ให้ใช้ภาพเต็มเฟรม (snapshot) แทนภาพ crop ป้าย
-  return apiUrl('/api/events/' + encodeURIComponent(ev.id) + (ev.has_snapshot ? '/snapshot.jpg' : '/thumbnail.jpg'));
+  // เหตุการณ์ของ Frigate ให้ใช้ภาพเต็มเฟรมพร้อมตีกรอบของ Frigate (snapshot.jpg?bbox=1) แทนภาพ crop ป้าย
+  return apiUrl('/api/events/' + encodeURIComponent(ev.id) + (ev.has_snapshot ? '/snapshot.jpg?bbox=1' : '/thumbnail.jpg'));
 }
 
 // Populate the archive scope controls from the configured camera inventory.
@@ -3145,10 +4584,12 @@ function appendEmgrArchivePage(events) {
     if (known.has(ev.id)) return;
     const score = (ev.data && (ev.data.top_score || ev.data.score)) || ev.top_score || 0;
     const camIdx = cfg.channels.findIndex(c => c.src === ev.camera);
-    const desc = (ev.data && ev.data.description) || ev.sub_label || '';
+    const subLabelStr = Array.isArray(ev.sub_label) ? String(ev.sub_label[0] || '') : String(ev.sub_label || '');
+    const desc = (ev.data && ev.data.description) || subLabelStr || '';
     const isVigiApiEvent = (ev.data && ev.data.type === 'api') || 
-                           (ev.sub_label && (ev.sub_label.includes('Detection') || ev.sub_label.includes('ตรวจพบ') || ev.sub_label.includes('PEOPLE') || ev.sub_label.includes('VEHICLE'))) ||
+                           (subLabelStr && (subLabelStr.includes('Detection') || subLabelStr.includes('ตรวจพบ') || subLabelStr.includes('PEOPLE') || subLabelStr.includes('VEHICLE'))) ||
                            String(ev.id).startsWith('vigi_') || String(ev.id).startsWith('ext_');
+    const faceInfo = extractFaceInfo(ev);
     const newEv = {
       id: ev.id, camera: ev.camera, camIdx: camIdx >= 0 ? camIdx : null,
       label: ev.label, type: typeOf(ev.label),
@@ -3157,7 +4598,10 @@ function appendEmgrArchivePage(events) {
       conf: Math.round(score * 100),
       has_snapshot: !!ev.has_snapshot, has_clip: !!ev.has_clip,
       description: desc,
-      plate: plateOf(ev), frameTime: ev.frame_time || null,
+      plate: plateOf(ev),
+      subLabel: faceInfo.subLabel,
+      subLabelScore: faceInfo.subLabelScore,
+      frameTime: ev.frame_time || null,
       source: isVigiApiEvent ? 'vigi_edge_ai' : 'frigate',
       crop_path: isVigiApiEvent ? (ev.id + '.jpg') : '',
     };
@@ -3196,7 +4640,7 @@ async function fetchEmgrEvents() {
     state.emgrArchiveNextBefore = result.nextBefore;
     state.emgrArchiveHasMore = result.hasMore;
     renderEventMgr(); // Immediate 50ms display for user
-    await fetchEmgrLprIndex();
+    await fetchEmgrLprIndex(true);
   } catch (e) {
     if (gen !== state.emgrGen) return;
     console.warn('[fetchEmgrEvents] Failed to fetch archive events:', e);
@@ -3413,12 +4857,14 @@ function lprTagForEvent(ev) {
 }
 
 // Build an event-to-status index from the candidate API and hydrate plate events.
-async function fetchEmgrLprIndex() {
+async function fetchEmgrLprIndex(forceFull = false) {
   if (!state.emgrLprByEvent) state.emgrLprByEvent = new Map();
   if (!state.emgrMmcrByEvent) state.emgrMmcrByEvent = new Map();
   if (cfg.demo || !SAME_ORIGIN) return;
   try {
-    let url = '/api/watchlist/lpr/candidates?limit=2000';
+    const isEmgrOpen = forceFull || Boolean($('eventMgrOverlay') && !$('eventMgrOverlay').hidden);
+    const limit = isEmgrOpen ? 2000 : 120;
+    let url = `/api/watchlist/lpr/candidates?limit=${limit}`;
     if (state.emgrSourceFilter && state.emgrSourceFilter !== 'all') {
       url += `&source=${encodeURIComponent(state.emgrSourceFilter)}`;
     }
@@ -3440,7 +4886,7 @@ async function fetchEmgrLprIndex() {
                          candidate.operational_visible === false ||
                          Boolean(candidate.non_plate_reason) ||
                          isNoiseCandidate;
-      const isReviewed = Boolean(candidate.human_confirmed || ['approved', 'reviewed'].includes(candidate.review_state));
+      const isReviewed = Boolean(Number(candidate.human_confirmed) === 1 || candidate.review_state === 'confirmed');
       const plateStr = [candidate.plate_text, candidate.province].filter(Boolean).join(' ');
       const info = {
         bucket,
@@ -3559,10 +5005,20 @@ async function fetchEmgrLprIndex() {
 
     // Apply MMCR hydration to all events in memory
     state.emgrEvents.forEach(hydrateEventMmcr);
+    if (Array.isArray(state.events)) {
+      state.events.forEach(ev => {
+        const info = newMap.get(ev.id);
+        if (info && !info.isNonPlate) {
+          const p = [info.plateText, info.province].filter(Boolean).join(' ');
+          if (p) ev.plate = p;
+        }
+      });
+    }
 
     if (addedCount > 0) {
       state.emgrEvents.sort((a, b) => b.startTime - a.startTime);
     }
+    renderEvents();
   } catch (error) {
     console.warn('Unable to load LPR archive filters:', error);
   }
@@ -3590,10 +5046,15 @@ function emgrMatch(ev, q) {
   } else if (ev.vehicle_type === 'รถมอเตอร์ไซค์' || ev.label === 'motorcycle') {
     typeAliases = ' รถมอเตอร์ไซค์ มอเตอร์ไซค์ มอไซค์ มอไซ รถจักรยานยนต์ จักรยานยนต์ motorcycle motorbike bike ';
   }
+  const modelAndDesc = ((ev.vehicle_model || '') + ' ' + (ev.vehicle_brand || '') + ' ' + (ev.plate || '') + ' ' + (ev.description || '')).toLowerCase();
+  if (modelAndDesc.includes('ไททัน') || modelAndDesc.includes('ไทตั้น') || modelAndDesc.includes('triton')) {
+    typeAliases += ' ไททัน ไทตั้น มิตซู มิตซูบิชิ triton mitsubishi กระบะ 4 ประตู ';
+  }
 
-  // รวมป้ายทะเบียน, คุณลักษณะ MMCR (สี, ประเภท, ยี่ห้อ, รุ่น) และคำอธิบายเข้า haystack
+  // รวมป้ายทะเบียน, ใบหน้า (subLabel), คุณลักษณะ MMCR (สี, ประเภท, ยี่ห้อ, รุ่น) และคำอธิบายเข้า haystack
   const hay = (
     (ev.description || '') + ' ' +
+    (ev.subLabel || '') + ' ' +
     typeMeta(ev.label).label + ' ' +
     ev.label + ' ' +
     ev.camera + ' ' +
@@ -3661,6 +5122,34 @@ function renderEmgrFilters(searched) {
     state.emgrDescOnly = !state.emgrDescOnly;
     renderEventMgr();
   }, descSvg);
+  const tagSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>';
+  const tritonEvents = state.emgrEvents.filter(e => emgrMatch(e, 'ไททัน'));
+  const isTritonTagActive = (state.emgrQuery || '').trim() === 'ไททัน';
+  if (tritonEvents.length > 0 || isTritonTagActive) {
+    chip('ไททัน', tritonEvents.length, isTritonTagActive, '#10b981', () => {
+      const nextQ = isTritonTagActive ? '' : 'ไททัน';
+      state.emgrQuery = nextQ;
+      const search = $('emgrSearch');
+      const clearBtn = $('btnEmgrSearchClear');
+      if (search) search.value = nextQ;
+      if (clearBtn) clearBtn.hidden = !nextQ;
+      renderEventMgr();
+    }, tagSvg);
+  }
+  const kranuanQ = 'นักบินกระนวล 2.4 ล้านเม็ด';
+  const kranuanEvents = state.emgrEvents.filter(e => emgrMatch(e, kranuanQ));
+  const isKranuanTagActive = (state.emgrQuery || '').trim() === kranuanQ;
+  if (kranuanEvents.length > 0 || isKranuanTagActive) {
+    chip(kranuanQ, kranuanEvents.length, isKranuanTagActive, '#f59e0b', () => {
+      const nextQ = isKranuanTagActive ? '' : kranuanQ;
+      state.emgrQuery = nextQ;
+      const search = $('emgrSearch');
+      const clearBtn = $('btnEmgrSearchClear');
+      if (search) search.value = nextQ;
+      if (clearBtn) clearBtn.hidden = !nextQ;
+      renderEventMgr();
+    }, tagSvg);
+  }
 }
 
 // Start each Snapshot request only shortly before its card enters the scrolling
@@ -3759,6 +5248,94 @@ function renderEventMgr() {
     return;
   }
 
+  // Render Tactical Chronological Vehicle Movement Timeline (ผ่านกล้องไหนก่อน ➔ ไปกล้องไหนต่อ) when a search/tag query is active
+  if (q && evs.length >= 2 && evs.length <= 40) {
+    const chrono = evs.slice().sort((a, b) => a.startTime - b.startTime);
+    const trips = [];
+    let curTrip = [];
+    chrono.forEach(ev => {
+      if (curTrip.length > 0 && (ev.startTime - curTrip[curTrip.length - 1].startTime) > 3600) {
+        trips.push(curTrip);
+        curTrip = [];
+      }
+      curTrip.push(ev);
+    });
+    if (curTrip.length > 0) trips.push(curTrip);
+
+    const fmtDeltaSec = sec => {
+      const s = Math.max(0, Math.round(sec));
+      if (s < 60) return `+${s} วินาที`;
+      const m = Math.floor(s / 60);
+      const remS = s % 60;
+      if (m < 60) return remS > 0 ? `+${m} นาที ${remS} วินาที` : `+${m} นาที`;
+      const h = Math.floor(m / 60);
+      const remM = m % 60;
+      return `+${h} ชม. ${remM} นาที`;
+    };
+
+    const routeBox = document.createElement('div');
+    routeBox.className = 'emgr-route-timeline';
+    routeBox.style.cssText = 'margin: 0 0 14px 0; padding: 12px 14px; border-radius: 10px; background: linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,41,59,0.88)); border: 1px solid rgba(245,158,11,0.38); box-shadow: 0 4px 16px rgba(0,0,0,0.28);';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;';
+    header.innerHTML = `<div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:13.5px; color:#fbbf24;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"></circle><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path><circle cx="18" cy="5" r="3"></circle></svg>
+      <span>ไทม์ไลน์เส้นทางการเคลื่อนที่ (เรียงจากผ่านกล้องไหนก่อน ➔ ไปกล้องไหนต่อ): "${escapeHtml(q)}"</span>
+    </div>
+    <span style="font-size:11.5px; color:#94a3b8;">คลิกที่แต่ละจุดเพื่อเปิดดูคลิป/ภาพเหตุการณ์ทันที · รวม ${chrono.length} จุดตรวจพบ (${trips.length} ช่วงเวลา)</span>`;
+    routeBox.appendChild(header);
+
+    trips.forEach((trip, tIdx) => {
+      const tripWrap = document.createElement('div');
+      tripWrap.style.cssText = 'margin-top:' + (tIdx > 0 ? '10px' : '0') + '; padding-top:' + (tIdx > 0 ? '10px' : '0') + '; border-top:' + (tIdx > 0 ? '1px dashed rgba(148,163,184,0.22)' : 'none') + ';';
+
+      const firstD = new Date(trip[0].startTime * 1000);
+      const hour = firstD.getHours();
+      const periodTh = hour < 12 ? 'ช่วงเช้า' : (hour < 17 ? 'ช่วงบ่าย' : 'ช่วงค่ำ/กลางคืน');
+      const tripTitle = document.createElement('div');
+      tripTitle.style.cssText = 'font-size:11.5px; font-weight:600; color:#38bdf8; margin-bottom:6px; display:flex; align-items:center; gap:6px;';
+      tripTitle.textContent = `📍 ช่วงการเดินทางที่ ${tIdx + 1} (${emgrDateLabel(firstD)} — ${periodTh} · ผ่าน ${trip.length} จุด)`;
+      tripWrap.appendChild(tripTitle);
+
+      const stepsRow = document.createElement('div');
+      stepsRow.style.cssText = 'display:flex; align-items:center; flex-wrap:wrap; gap:6px;';
+
+      trip.forEach((stepEv, sIdx) => {
+        if (sIdx > 0) {
+          const deltaSec = stepEv.startTime - trip[sIdx - 1].startTime;
+          const arrow = document.createElement('div');
+          arrow.style.cssText = 'display:flex; flex-direction:column; align-items:center; padding:0 4px; color:#f59e0b; font-size:10.5px; font-weight:700;';
+          arrow.innerHTML = `<span>⏱️ ${escapeHtml(fmtDeltaSec(deltaSec))}</span><span style="font-size:14px; line-height:1;">➔</span>`;
+          stepsRow.appendChild(arrow);
+        }
+
+        const stepCam = (stepEv.camIdx !== null && cfg.channels[stepEv.camIdx])
+          ? displayCameraName(cfg.channels[stepEv.camIdx].src, cfg.channels[stepEv.camIdx].name)
+          : (displayCameraName(stepEv.camera, stepEv.camera) || stepEv.camera);
+        const stepTime = fmtTime(new Date(stepEv.startTime * 1000)) + ' น.';
+
+        const stepBtn = document.createElement('button');
+        stepBtn.type = 'button';
+        stepBtn.style.cssText = 'display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:8px; background:rgba(15,23,42,0.85); border:1px solid rgba(56,189,248,0.35); color:#f8fafc; cursor:pointer; text-align:left; transition:all 0.15s;';
+        stepBtn.onmouseenter = () => { stepBtn.style.borderColor = '#fbbf24'; stepBtn.style.background = 'rgba(30,41,59,0.95)'; };
+        stepBtn.onmouseleave = () => { stepBtn.style.borderColor = 'rgba(56,189,248,0.35)'; stepBtn.style.background = 'rgba(15,23,42,0.85)'; };
+        stepBtn.innerHTML = `<span style="display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 6px; border-radius:999px; background:#f59e0b; color:#0f172a; font-weight:800; font-size:11px;">จุดที่ ${sIdx + 1}</span>
+          <div style="display:flex; flex-direction:column; line-height:1.25;">
+            <span style="font-weight:700; font-size:12px; color:#fde68a;">🕒 ${escapeHtml(stepTime)}</span>
+            <span style="font-weight:600; font-size:12px; color:#e2e8f0;">📹 ${escapeHtml(stepCam)}</span>
+          </div>`;
+        stepBtn.addEventListener('click', () => openEmgrDetail(stepEv));
+        stepsRow.appendChild(stepBtn);
+      });
+
+      tripWrap.appendChild(stepsRow);
+      routeBox.appendChild(tripWrap);
+    });
+
+    body.appendChild(routeBox);
+  }
+
   // Group events chronologically by day for Timeline Stream separators
   const dateGroups = [];
   let currentGroup = null;
@@ -3824,6 +5401,15 @@ function renderEventMgr() {
           : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:3px;"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>';
         plate.innerHTML = badgeIcon + escapeHtml(lprTag.tag.replace(/^🪪 |^❌ /, ''));
         thumb.appendChild(plate);
+      } else if (ev.subLabel) {
+        const faceBadge = document.createElement('span');
+        faceBadge.className = 'emgr-card-plate emgr-card-face';
+        const scorePct = ev.subLabelScore ? ` (${Math.round(ev.subLabelScore * 100)}%)` : '';
+        faceBadge.title = `ใบหน้า: ${ev.subLabel}${scorePct}`;
+        faceBadge.style.background = 'rgba(147, 51, 234, 0.88)';
+        faceBadge.style.borderColor = '#a855f7';
+        faceBadge.textContent = `👤 ${ev.subLabel}`;
+        thumb.appendChild(faceBadge);
       }
       if (ev.source) {
         let srcLabel = ev.source;
@@ -3987,7 +5573,7 @@ function openEmgrDetail(ev) {
   if (ev.source === 'vigi_edge_ai' || ev.source === 'edge_camera' || String(ev.id).startsWith('vigi_') || String(ev.id).startsWith('ext_')) {
     url = ev.crop_path ? '/lpr-crops/' + encodeURIComponent(ev.crop_path) : emgrThumb(ev);
   } else {
-    url = apiUrl('/api/events/' + encodeURIComponent(ev.id) + (ev.has_snapshot ? '/snapshot.jpg' : '/thumbnail.jpg'));
+    url = apiUrl('/api/events/' + encodeURIComponent(ev.id) + (ev.has_snapshot ? '/snapshot.jpg?bbox=1' : '/thumbnail.jpg'));
   }
   wrap.style.background = '';
   if (url) { img.src = url; img.style.display = ''; }
@@ -4134,7 +5720,7 @@ async function loadEventLprCandidates(ev) {
       button.className = 'lpr-candidate-chip' + (index === 0 ? ' active' : '');
       const status = candidate.review_state === 'conflict'
         ? 'คำตอบขัดแย้ง — รอผู้ดูแลระดับสูง'
-        : (candidate.review_state === 'pending' ? 'รอตรวจสอบ' : LPR_STATUS_TEXT[candidate.status]);
+        : (candidate.human_confirmed ? 'ยืนยันแล้ว' : (candidate.review_state === 'pending' ? 'รอตรวจสอบ' : (LPR_STATUS_TEXT[candidate.status] || candidate.status)));
       const read = [candidate.plate_text, candidate.province].filter(Boolean).join(' ');
       const match = (candidate.watchlist_matches || []).find(item => item.state !== 'cancelled');
       const matchText = match
@@ -4218,7 +5804,7 @@ function renderSelectedLprCandidate(candidate, ev) {
   const reviewButton = $('btnEdPlateTrain'), rejectButton = $('btnEdPlateDelete');
   const status = candidate.review_state === 'conflict'
     ? 'คำตอบขัดแย้ง — รอผู้ดูแลระบบระดับสูง'
-    : (candidate.review_state === 'pending' ? 'รอตรวจสอบ' : LPR_STATUS_TEXT[candidate.status]);
+    : (candidate.human_confirmed ? 'ยืนยันแล้ว' : (candidate.review_state === 'pending' ? 'รอตรวจสอบ' : (LPR_STATUS_TEXT[candidate.status] || candidate.status)));
   const match = (candidate.watchlist_matches || []).find(item => item.state !== 'cancelled');
   const matchText = match
     ? (match.alert_type === 'confirmed_match'
@@ -4241,7 +5827,7 @@ function renderSelectedLprCandidate(candidate, ev) {
   // the red action for every editable candidate fixes the previous candidate
   // branch that exposed review but silently hid reject/delete-and-teach.
   const mayReview = ['admin', 'superadmin'].includes(userRole)
-    && candidate.review_state !== 'adjudicated'
+    && (!candidate.human_confirmed || userRole === 'superadmin' || candidate.review_state !== 'adjudicated')
     && (candidate.review_state !== 'conflict' || userRole === 'superadmin');
   if (reviewButton) {
     reviewButton.hidden = !mayReview;
@@ -5659,26 +7245,82 @@ function pbCamList() {
 }
 function pbCamLabel(name) {
   const idx = cfg.channels.findIndex(c => c.src === name);
-  const displayName = idx >= 0
-    ? displayCameraName(name, cfg.channels[idx].name)
-    : name;
+  const rawName = idx >= 0
+    ? cfg.channels[idx].name
+    : (state.cameraNames?.[name] || DEFAULT_SPECIAL_CAMERA_NAMES[name] || name);
+  const displayName = displayCameraName(name, rawName);
   return displayName && displayName !== name ? displayName + ' (' + name + ')' : (displayName || name);
 }
 
-function openPlayback() {
-  const sel = $('pbCam'); sel.innerHTML = '';
-  const cams = pbCamList();
-  cams.forEach(name => {
-    const o = document.createElement('option'); o.value = name;
+function pbPopulateCamSelect(sel, includeBlank = false) {
+  if (!sel) return [];
+  sel.innerHTML = '';
+  if (includeBlank) {
+    const o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = '— เลือกกล้อง —';
+    sel.appendChild(o0);
+  }
+  const activeCams = pbCamList();
+  const groupActive = document.createElement('optgroup');
+  groupActive.label = 'กล้องบนหน้าจอหลัก (เปิดใช้งาน)';
+  activeCams.forEach(name => {
+    const o = document.createElement('option');
+    o.value = name;
     o.textContent = pbCamLabel(name);
-    sel.appendChild(o);
+    groupActive.appendChild(o);
   });
-  pb.cam = (cfg.channels[state.activeIdx] && cfg.channels[state.activeIdx].src) || cams[0];
+  sel.appendChild(groupActive);
+
+  const extraSet = new Set([
+    'nonburi1', 'nonburi2', 'nonburi4', 'nonburi5', 'nonburi6',
+    'Doonsad1', 'Doonsad5', 'Doonsad6',
+    'D_BPP215_1', 'D_BPP215_2', 'D_BPP215_3',
+    'nongwang1', 'nongwang2', 'nongwang3', 'nongwang4', 'nongwang5',
+    'nongwang6', 'nongwang7', 'nongwang8', 'nongwang9', 'nongwang10',
+    'nongwang11', 'nongwang12', 'nongwang13', 'nongwang14', 'nongwang15'
+  ]);
+  if (Array.isArray(window._hpCatalogCameras)) {
+    window._hpCatalogCameras.forEach(c => { if (c) extraSet.add(c); });
+  }
+  if (state.cameraNames) {
+    Object.keys(state.cameraNames).forEach(c => {
+      if (c && !activeCams.includes(c)) extraSet.add(c);
+    });
+  }
+  const extraCams = Array.from(extraSet).filter(c => !activeCams.includes(c));
+  if (extraCams.length > 0) {
+    extraCams.sort((a, b) => {
+      const aNb = /^nonburi/i.test(a) ? 0 : 1;
+      const bNb = /^nonburi/i.test(b) ? 0 : 1;
+      if (aNb !== bNb) return aNb - bNb;
+      return a.localeCompare(b);
+    });
+    const groupExtra = document.createElement('optgroup');
+    groupExtra.label = 'กล้องโนนบุรี & กล้องในระบบอื่นๆ';
+    extraCams.forEach(name => {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = pbCamLabel(name);
+      groupExtra.appendChild(o);
+    });
+    sel.appendChild(groupExtra);
+  }
+  return activeCams.concat(extraCams);
+}
+
+function openPlayback(preferredCam, preferredDate) {
+  const sel = $('pbCam');
+  const cams = pbPopulateCamSelect(sel, false);
+  pb.cam = (preferredCam && cams.includes(preferredCam))
+    ? preferredCam
+    : ((cfg.channels[state.activeIdx] && cfg.channels[state.activeIdx].src) || cams[0]);
   sel.value = pb.cam;
   const now = new Date();
-  const dstr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+  const dstr = preferredDate || (now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()));
   $('pbDate').value = dstr; // hidden input — flow เดิม (pbLoadDay/pbDownload) อ่านค่านี้เหมือนเดิม
-  pb.calYm = [now.getFullYear(), now.getMonth()];
+  const [sy, sm] = dstr.split('-').map(Number);
+  pb.calYm = [sy || now.getFullYear(), (sm || (now.getMonth() + 1)) - 1];
   pbRenderCalButton();
   pbLoadRecDays(); // จุดแดงบนปฏิทิน (summary คืนทุกวันที่มีบันทึก — โหลดครั้งเดียวพอ)
   $('playbackOverlay').hidden = false;
@@ -5691,7 +7333,7 @@ function closePlayback() {
   $('playbackOverlay').hidden = true;
 }
 function pbResetVideo() {
-  const v = $('pbVideo'); v.pause(); cleanupCompatJob(v); v.removeAttribute('src'); v.load(); v.style.display = 'none';
+  const v = $('pbVideo'); v.dataset.compatTried = ''; v.pause(); cleanupCompatJob(v); v.removeAttribute('src'); v.load(); v.style.display = 'none';
   pb.winStart = pb.winEnd = 0;
   pb.followers.forEach(f => { pbTeardownFollower(f); f.winStart = f.winEnd = 0; if (f.cam) pbCellMsg(f, 'เลือกช่วงเวลาบนไทม์ไลน์'); });
   pbAllZooms().forEach(zi => zi.reset()); // เปลี่ยนวัน/กล้อง = เริ่มมุมมองใหม่ (แต่ไม่ reset ตอนเปลี่ยน chunk)
@@ -5920,7 +7562,6 @@ function pbBuildFollowers() {
   const grid = $('pbGrid');
   grid.className = 'pb-grid layout-' + pb.layout;
   grid.querySelectorAll('.pb-cell.follower').forEach(el => el.remove());
-  const cams = pbCamList();
   for (let i = 0; i < pb.layout - 1; i++) {
     const cell = document.createElement('div');
     cell.className = 'pb-cell follower';
@@ -5933,14 +7574,26 @@ function pbBuildFollowers() {
     const sel = document.createElement('select');
     sel.className = 'pb-select pb-cell-sel';
     sel.setAttribute('aria-label', 'เลือกกล้องจอที่ ' + (i + 2));
-    const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '— เลือกกล้อง —'; sel.appendChild(o0);
-    cams.forEach(name => { const o = document.createElement('option'); o.value = name; o.textContent = pbCamLabel(name); sel.appendChild(o); });
+    pbPopulateCamSelect(sel, true);
     const f = { cam: '', video: v, msgEl: msg, segs: [], gen: 0, winStart: 0, winEnd: 0 };
     f.zoom = makeVideoZoom(cell, v, { onChange: updatePbZoomUi });
     f.zoom.onApplied = pbZoomApplied;
     sel.addEventListener('change', () => { f.cam = sel.value; f.zoom.reset(); pbSyncFollower(f, pbCurrentAbs()); });
     v.addEventListener('canplay', () => { v.playbackRate = pb.speed; f.msgEl.hidden = true; v.style.display = ''; if (!$('pbVideo').paused && $('pbVideo').getAttribute('src')) v.play().catch(() => {}); });
-    v.addEventListener('error', () => { if (v.getAttribute('src')) pbCellMsg(f, 'โหลดวิดีโอจอนี้ไม่สำเร็จ'); });
+    v.addEventListener('error', () => {
+      if (!v.getAttribute('src')) return;
+      if (v.dataset.compatTried !== '1' && f.cam && f.winStart && f.winEnd) {
+        v.dataset.compatTried = '1';
+        prepareAndPlayVideoCompat(
+          { purpose: 'playback', camera: f.cam, start: Math.floor(f.winStart), end: Math.floor(f.winEnd) },
+          v,
+          () => { f.msgEl.hidden = true; v.style.display = ''; v.playbackRate = pb.speed; },
+          () => pbCellMsg(f, 'โหลดวิดีโอจอนี้ไม่สำเร็จ')
+        );
+        return;
+      }
+      pbCellMsg(f, 'โหลดวิดีโอจอนี้ไม่สำเร็จ');
+    });
     v.addEventListener('ended', () => pbCellMsg(f, 'จบช่วง — จะตามจอหลักช่วงถัดไป')); // ไม่ auto-advance เอง กัน drift
     const snapBtn = document.createElement('button');
     snapBtn.type = 'button'; snapBtn.className = 'zoom-btn pb-cell-snap'; snapBtn.title = 'บันทึกภาพนิ่งจอนี้ลง Downloads';
@@ -5978,12 +7631,14 @@ async function pbSyncFollower(f, absT) {
   // เล่นเฉพาะเมื่อกล้องนี้มีภาพ "ณ เวลานั้นจริง" (ยอม snap ไปหน้าไม่เกิน 60 วิ) —
   // ถ้า snap ข้ามไปไกลถือว่าไม่มีภาพ ไม่เอาคนละเวลามาหลอกว่า sync กัน
   if (t === null || t - absT > 60) { pbCellMsg(f, 'ไม่มีภาพช่วงนี้'); return; }
-  const end = Math.max(t + 1, Math.min(t + pbChunkLen(), pbContiguousEnd(t, segs), pb.dayEnd));
+  const end = Math.max(t + 1, Math.min(t + pbChunkLen(f.cam), pbContiguousEnd(t, segs), pb.dayEnd));
   f.winStart = t; f.winEnd = end;
   const seekTo = Math.max(0, absT - t);
+  f.video.dataset.compatTried = '';
   f.video.addEventListener('loadedmetadata', () => { if (gen === f.gen) f.video.currentTime = seekTo; }, { once: true });
   if (isIOSBrowser) {
-    prepareAndPlayVideoCompat({ purpose: 'playback', camera: f.cam, start: Math.floor(t), end: Math.floor(end) }, f.video, () => { f.video.playbackRate = pb.speed; }, () => {});
+    f.video.dataset.compatTried = '1';
+    prepareAndPlayVideoCompat({ purpose: 'playback', camera: f.cam, start: Math.floor(t), end: Math.floor(end) }, f.video, () => { f.msgEl.hidden = true; f.video.style.display = ''; f.video.playbackRate = pb.speed; }, () => {});
   } else {
     f.video.src = apiUrl('/api/' + encodeURIComponent(f.cam) + '/start/' + Math.floor(t) + '/end/' + Math.floor(end) + '/clip.mp4');
     f.video.playbackRate = pb.speed;
@@ -6054,13 +7709,15 @@ function pbLoadClip(startTs) {
   const t = pbSnapToRecorded(startTs);
   if (t === null) { toast('ไม่มีบันทึกช่วงเวลานี้'); return; }
   // จำกัดไม่ให้ยาวเกิน chunk (ยาวขึ้นเมื่อ speed สูง) และไม่คร่อม gap → เวลาแม่นยำ
-  const end = Math.max(t + 1, Math.min(t + pbChunkLen(), pbContiguousEnd(t), pb.dayEnd));
+  const end = Math.max(t + 1, Math.min(t + pbChunkLen(pb.cam), pbContiguousEnd(t), pb.dayEnd));
   pb.winStart = t; pb.winEnd = end;
   const v = $('pbVideo');
+  v.dataset.compatTried = '';
   $('pbCenter').hidden = false; $('pbSpin').hidden = false; $('pbCenterText').textContent = 'กำลังโหลดวิดีโอ ' + fmtClock(t) + '…';
   v.style.display = 'none';
   if (isIOSBrowser) {
-    prepareAndPlayVideoCompat({ purpose: 'playback', camera: pb.cam, start: Math.floor(t), end: Math.floor(end) }, v, () => { v.playbackRate = pb.speed; }, () => {});
+    v.dataset.compatTried = '1';
+    prepareAndPlayVideoCompat({ purpose: 'playback', camera: pb.cam, start: Math.floor(t), end: Math.floor(end) }, v, () => { $('pbCenter').hidden = true; $('pbSpin').hidden = true; v.style.display = ''; v.playbackRate = pb.speed; }, () => {});
   } else {
     v.src = apiUrl('/api/' + encodeURIComponent(pb.cam) + '/start/' + Math.floor(t) + '/end/' + Math.floor(end) + '/clip.mp4');
     v.playbackRate = pb.speed; v.play().catch(() => {});
@@ -6093,7 +7750,7 @@ function pbSafeRate(video, rate) {
   try { video.playbackRate = Math.max(0.0625, Math.min(16, rate)); } catch (e) { /* browser แปลกๆ — คงค่าเดิม */ }
 }
 // chunk ยาวขึ้นเมื่อเร็ว — ที่ 16× chunk 90 วิ จะ reload ทุก ~5.6 วิ → ใช้ 300 วิเมื่อ speed สูง
-function pbChunkLen() { if (isIOSBrowser) return 60; return pb.speed >= 8 ? 300 : PB_CHUNK; }
+function pbChunkLen(camName) { if (isIOSBrowser || /^nonburi/i.test(camName || pb.cam || '')) return 60; return pb.speed >= 8 ? 300 : PB_CHUNK; }
 
 function pbSetSpeed(rate) {
   pb.speed = rate; pbSafeRate($('pbVideo'), rate);
@@ -6107,11 +7764,28 @@ function pbSetSpeed(rate) {
 async function pbLoadRecDays() {
   pb.recDays = new Set();
   if (cfg.demo) { pbRenderCal(); return; }
+  const targetCam = pb.cam;
   try {
     const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Asia/Bangkok';
-    const res = await fetch(apiUrl('/api/' + encodeURIComponent(pb.cam) + '/recordings/summary?timezone=' + encodeURIComponent(tz)), { signal: timeoutSignal(9000) });
+    const res = await fetch(apiUrl('/api/' + encodeURIComponent(targetCam) + '/recordings/summary?timezone=' + encodeURIComponent(tz)), { signal: timeoutSignal(9000) });
     if (res.ok) (await res.json()).forEach(d => { if (d && d.day) pb.recDays.add(d.day); });
   } catch (e) { /* ไม่มี summary — ปฏิทินยังใช้ได้ แค่ไม่มีจุด */ }
+  if (pb.cam !== targetCam) return;
+  const curDay = $('pbDate').value;
+  if (pb.recDays.size > 0 && !pb.recDays.has(curDay)) {
+    const latestDay = Array.from(pb.recDays).sort().pop();
+    if (latestDay) {
+      $('pbDate').value = latestDay;
+      const [sy, sm] = pbSelectedYmd();
+      pb.calYm = [sy, sm - 1];
+      pbRenderCalButton();
+      pbRenderCal();
+      pbResetVideo();
+      pbLoadDay();
+      toast('📅 เลื่อนไปยังวันที่มีบันทึกย้อนหลังล่าสุด (' + $('btnPbCal').textContent + ')');
+      return;
+    }
+  }
   pbRenderCal();
 }
 function pbSelectedYmd() { return ($('pbDate').value || '').split('-').map(Number); }
@@ -6181,6 +7855,7 @@ function openSettings() {
   // Tab 4 (การแจ้งเตือน): ALL roles — every user configures their own Telegram alerts.
   if ($('btnTabNvr')) { $('btnTabNvr').style.display = isAdminOrSuper ? '' : 'none'; }
   if ($('btnTabLprLearning')) { $('btnTabLprLearning').style.display = isSuperAdmin ? '' : 'none'; }
+  if ($('btnTabSystemUpdate')) { $('btnTabSystemUpdate').style.display = isAdminOrSuper ? 'inline-flex' : 'none'; }
 
   // Admin Profile Impersonation (Incident 2.52)
   if (isAdminOrSuper && $('impersonateDropdownWrap')) {
@@ -6202,11 +7877,15 @@ function openSettings() {
       Object.keys(profiles).sort().forEach(u => {
         if (u !== (window.bppSession?.username || '')) {
           const profile = profiles[u];
+          const disabledSet = new Set((profile && profile.disabled_ai_cameras) || []);
           let activeCams = 0;
           let aiCams = 0;
-          if (profile && Array.isArray(profile.channels)) {
-             activeCams = profile.channels.filter(c => c && c.src && c.enabled !== false).length;
-             aiCams = profile.channels.filter(c => c && c.src && c.enabled !== false && c.detect === true).length;
+          const chArr = (profile && Array.isArray(profile.channels) && profile.channels.length)
+            ? profile.channels
+            : ((profile && Array.isArray(profile.active_channels)) ? profile.active_channels : []);
+          if (chArr.length) {
+             activeCams = chArr.filter(c => c && c.src && c.enabled !== false).length;
+             aiCams = chArr.filter(c => c && c.src && c.enabled !== false && c.detect === true && !disabledSet.has(c.src)).length;
           }
 
           const opt = document.createElement('div');
@@ -6231,18 +7910,17 @@ function openSettings() {
       txt.textContent = state.impersonatingUser ? (window.bppAccountLabel ? window.bppAccountLabel.text(state.impersonatingUser) : state.impersonatingUser) : '-- หน้าจอของคุณ --';
     };
 
-    if (!state.allUserProfilesCache) {
-      fetch('/api/nas-bot/admin/user-profiles')
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data && data.profiles) {
-            state.allUserProfilesCache = data.profiles;
-            populateDropdown(state.allUserProfilesCache);
-          }
-        }).catch(e => console.warn('Failed to load user profiles', e));
-    } else {
+    if (state.allUserProfilesCache) {
       populateDropdown(state.allUserProfilesCache);
     }
+    fetch('/api/nas-bot/admin/user-profiles', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.profiles) {
+          state.allUserProfilesCache = data.profiles;
+          populateDropdown(state.allUserProfilesCache);
+        }
+      }).catch(e => console.warn('Failed to load user profiles', e));
   }
 
   // For non-admin users: default to Tab 2 (Dashboard) since Tab 1 is hidden
@@ -6251,6 +7929,7 @@ function openSettings() {
     if ($('tabDash')) $('tabDash').style.display = 'flex';
     if ($('tabLprLearning')) $('tabLprLearning').style.display = 'none';
     if ($('tabMyAlerts')) $('tabMyAlerts').style.display = 'none';
+    if ($('tabSystemUpdate')) $('tabSystemUpdate').style.display = 'none';
     if ($('btnTabDash')) {
       $('btnTabDash').style.borderBottomColor = '#a855f7';
       $('btnTabDash').style.color = '#fff';
@@ -6515,6 +8194,15 @@ async function loadLprSettings() {
     const res = await fetch('/settings/object_alerts', { cache: 'no-store' });
     state.objectAlerts = res.ok ? ((await res.json()) || {}) : {};
   } catch (e) { state.objectAlerts = {}; }
+  try {
+    const res = await fetch('/api/watchlist/faces/cameras', { cache: 'no-store' });
+    if (res.ok) {
+      const fcfg = await res.json();
+      state.disabledFaceCams = new Set(Array.isArray(fcfg.disabled_cameras) ? fcfg.disabled_cameras : []);
+    } else {
+      state.disabledFaceCams = new Set();
+    }
+  } catch (e) { state.disabledFaceCams = new Set(); }
   renderChForm();
 }
 
@@ -6578,6 +8266,8 @@ async function requestTelegramPairCode(targetUsername) {
 }
 
 async function loadMyAlertsSettings() {
+  state.myAlertsLoaded = false;
+  state.myAlertsDirty = false;
   const targetUser = state.alertTargetUser || '';
   const url = targetUser 
     ? '/api/nas-bot/admin/subscriptions/' + encodeURIComponent(targetUser) + '/cameras'
@@ -6590,6 +8280,7 @@ async function loadMyAlertsSettings() {
     if (!res.ok) throw new Error();
     const data = await res.json();
     state.mySubscription = data.subscription || {};
+    state.myAlertsLoaded = true;
     
     const pEl = document.getElementById('stMyTelegramPair');
     const bName = data.bot_username || '@Sloth_bpp215bot';
@@ -6609,10 +8300,51 @@ async function loadMyAlertsSettings() {
       }
     }
     
+    initAll24hSelects();
+    const myStart = state.mySubscription.schedule_start || '00:00';
+    const myEnd = state.mySubscription.schedule_end || '23:59';
+    const [mshRaw, msmRaw] = String(myStart).split(':');
+    const [mehRaw, memRaw] = String(myEnd).split(':');
+    const mshPadded = String(mshRaw || '00').padStart(2, '0');
+    const msmPadded = String(msmRaw || '00').padStart(2, '0');
+    const mehPadded = String(mehRaw || '23').padStart(2, '0');
+    const memPadded = String(memRaw || '59').padStart(2, '0');
+
+    if (document.getElementById('selMySchedStartH')) document.getElementById('selMySchedStartH').value = mshPadded;
+    if (document.getElementById('selMySchedStartM')) document.getElementById('selMySchedStartM').value = msmPadded;
+    if (document.getElementById('selMySchedEndH')) document.getElementById('selMySchedEndH').value = mehPadded;
+    if (document.getElementById('selMySchedEndM')) document.getElementById('selMySchedEndM').value = memPadded;
+    if (document.getElementById('inpMyScheduleStart')) document.getElementById('inpMyScheduleStart').value = `${mshPadded}:${msmPadded}`;
+    if (document.getElementById('inpMyScheduleEnd')) document.getElementById('inpMyScheduleEnd').value = `${mehPadded}:${memPadded}`;
+
+    const syncMySchedFromSelects = () => {
+      const sh = (document.getElementById('selMySchedStartH')?.value || '00').padStart(2, '0');
+      const sm = (document.getElementById('selMySchedStartM')?.value || '00').padStart(2, '0');
+      const eh = (document.getElementById('selMySchedEndH')?.value || '23').padStart(2, '0');
+      const em = (document.getElementById('selMySchedEndM')?.value || '59').padStart(2, '0');
+      if (document.getElementById('inpMyScheduleStart')) document.getElementById('inpMyScheduleStart').value = `${sh}:${sm}`;
+      if (document.getElementById('inpMyScheduleEnd')) document.getElementById('inpMyScheduleEnd').value = `${eh}:${em}`;
+      state.myAlertsDirty = true;
+    };
+
+    ['selMySchedStartH', 'selMySchedStartM', 'selMySchedEndH', 'selMySchedEndM'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el._dirtyWired) {
+        el._dirtyWired = true;
+        el.addEventListener('change', syncMySchedFromSelects);
+      }
+    });
+
+    ['chkMyMasterAlert', 'chkMyScheduleAlert', 'chkAdminBroadcast'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el._dirtyWired) {
+        el._dirtyWired = true;
+        el.addEventListener('change', () => { state.myAlertsDirty = true; });
+      }
+    });
+
     if (document.getElementById('chkMyMasterAlert')) document.getElementById('chkMyMasterAlert').checked = (state.mySubscription.master_enabled === true);
     if (document.getElementById('chkMyScheduleAlert')) document.getElementById('chkMyScheduleAlert').checked = (state.mySubscription.schedule_enabled === true);
-    if (document.getElementById('inpMyScheduleStart')) document.getElementById('inpMyScheduleStart').value = state.mySubscription.schedule_start || '00:00';
-    if (document.getElementById('inpMyScheduleEnd')) document.getElementById('inpMyScheduleEnd').value = state.mySubscription.schedule_end || '23:59';
     
     const curUser = (window.bppSession && window.bppSession.username) || data.username || '';
     const curRole = (window.bppSession && window.bppSession.role) || data.role || (typeof userRole !== 'undefined' ? userRole : '') || '';
@@ -6892,10 +8624,12 @@ function renderMyAlertsMatrix() {
       const thaiName = displayCameraName(c.src, c.name);
       const dispTitle = (thaiName && thaiName !== srcId) ? `${chNum} (${thaiName})` : `${chNum} (${srcId})`;
       if (!cams.some(x => x.srcId === srcId)) {
-        let isAiOn = c.detect !== false;
-        if (state.frigateDetect && state.frigateDetect.hasOwnProperty(srcId)) {
-          isAiOn = state.frigateDetect[srcId] !== false;
-        }
+        const activeProf = state.impersonatingUser ? (state.allUserProfilesCache?.[state.impersonatingUser] || {}) : (state.userProfile || {});
+        const disabledAiSet = new Set(activeProf.disabled_ai_cameras || []);
+        let isAiOn = (c.detect !== undefined)
+          ? (c.detect === true)
+          : (state.frigateDetect && state.frigateDetect.hasOwnProperty(srcId) ? state.frigateDetect[srcId] !== false : true);
+        if (disabledAiSet.has(srcId)) isAiOn = false;
         cams.push({ srcId, name: thaiName, title: dispTitle, isAiOn });
       }
     }
@@ -7027,6 +8761,10 @@ function renderMyAlertsMatrix() {
         b.addEventListener('click', () => {
           const active = b.classList.toggle('on');
           b.setAttribute('aria-pressed', String(active));
+          state.myAlertsDirty = true;
+          if (active && document.getElementById('chkMyMasterAlert') && !document.getElementById('chkMyMasterAlert').checked) {
+            document.getElementById('chkMyMasterAlert').checked = true;
+          }
           if (!isAiOn && isAiObj) {
             b.title = '⚠️ กล้องนี้ปิดระบบ AI บน NVR (ต้องเปิด AI ที่หน้าตั้งค่ากล้องแดชบอร์ดเพื่อให้ระบบตรวจจับและแจ้งเตือนได้)';
             if (active && window.bppToast) {
@@ -7046,6 +8784,10 @@ function renderMyAlertsMatrix() {
     
     // ผูก Event Listener ให้ปุ่มลัดประจำกล้อง
     btnPreset.addEventListener('click', () => {
+      state.myAlertsDirty = true;
+      if (document.getElementById('chkMyMasterAlert') && !document.getElementById('chkMyMasterAlert').checked) {
+        document.getElementById('chkMyMasterAlert').checked = true;
+      }
       const chips = wrap.querySelectorAll('.obj-item');
       chips.forEach(chip => {
         chip.classList.add('on');
@@ -7056,6 +8798,7 @@ function renderMyAlertsMatrix() {
     });
     
     btnClear.addEventListener('click', () => {
+      state.myAlertsDirty = true;
       const chips = wrap.querySelectorAll('.obj-item');
       chips.forEach(chip => {
         chip.classList.remove('on');
@@ -7113,6 +8856,7 @@ async function saveMyAlertsSettings() {
       body: JSON.stringify(payload)
     });
     if (res.ok) {
+      state.myAlertsDirty = false;
       if (state.mySubscription && !targetUser) {
         state.mySubscription.master_enabled = master;
         state.mySubscription.broadcast_to_all = broadcast;
@@ -7135,6 +8879,7 @@ async function saveMyAlertsSettings() {
         }
       }
 
+      triggerDemandReconciliation(false);
       const uName = targetUser ? ('สำหรับ ' + targetUser) : 'ส่วนตัว';
       toast('บันทึกการแจ้งเตือน' + uName + 'เรียบร้อยแล้ว');
     }
@@ -7409,7 +9154,8 @@ function chStatusText(i) {
 function renderChList() {
   const wrap = $('chList');
   wrap.innerHTML = '';
-  const hiddenSet = new Set((state.userProfile && state.userProfile.hidden_channels) || []);
+  const activeProf = state.impersonatingUser ? (state.allUserProfilesCache?.[state.impersonatingUser] || {}) : (state.userProfile || {});
+  const hiddenSet = new Set(activeProf.hidden_channels || []);
 
   const curCh = (state.draft || cfg.channels)[state.selCh];
   if ($('chCurrentHint') && curCh) {
@@ -7488,7 +9234,8 @@ function renderChForm() {
   }
 
   // Personal visibility check for button state
-  const hiddenSet = new Set((state.userProfile && state.userProfile.hidden_channels) || []);
+  const activeProf = state.impersonatingUser ? (state.allUserProfilesCache?.[state.impersonatingUser] || {}) : (state.userProfile || {});
+  const hiddenSet = new Set(activeProf.hidden_channels || []);
   const isHiddenByMe = !!(ch.src && hiddenSet.has(ch.src));
   const personallyVisible = !isHiddenByMe && isSysEnabled;
 
@@ -7511,10 +9258,11 @@ function renderChForm() {
       : 'คลิกเพื่อแสดงกล้องนี้กลับมาบนหน้าจอ Dashboard ส่วนตัวของคุณ';
   }
 
-  // Authoritative AI detection status (ADR-0022)
-  const isSysAiOn = ch.detect === true;
+  // Authoritative AI detection status (ADR-0022 / ADR-0024)
+  const disabledAiSet = new Set(activeProf.disabled_ai_cameras || []);
+  const isSysAiOn = (ch.detect === true) && !(ch.src && disabledAiSet.has(ch.src));
 
-  const disabledLprSet = new Set((state.userProfile && state.userProfile.disabled_lpr_cameras) || []);
+  const disabledLprSet = new Set(activeProf.disabled_lpr_cameras || []);
   const isLprDisabledByMe = !!(ch.src && disabledLprSet.has(ch.src));
   const lprOn = !isLprDisabledByMe && !!(state.lprCams && ch.src && state.lprCams.has(ch.src));
 
@@ -7528,12 +9276,19 @@ function renderChForm() {
     const ownDemand = isSysAiOn && ch.enabled !== false;
     const otherDemand = (ch.src && state.aiDemandCounts)
       ? Math.max(0, (state.aiDemandCounts[ch.src] || 0) - (ownDemand ? 1 : 0)) : 0;
+    const rawUsers = (ch.src && state.aiDemandUsers && state.aiDemandUsers[ch.src]) || [];
+    const myUname = (activeProf && activeProf.username) || '';
+    const otherUsersList = rawUsers.filter(u => u !== myUname);
+    const usersSuffix = otherUsersList.length > 0 ? ` (${otherUsersList.join(', ')})` : '';
+
     db.innerHTML = botSvg + (isSysAiOn ? 'AI เปิด' : 'AI ปิด') +
-      (!isSysAiOn && otherDemand > 0 ? ` · ยังเปิดโดย ${otherDemand} บัญชีอื่น` : '');
+      (!isSysAiOn && otherDemand > 0 ? ` · ยังเปิดโดย ${otherDemand} บัญชีอื่น${usersSuffix}` : '');
     db.disabled = false;
     db.title = isSysAiOn 
       ? 'คลิกเพื่อปิดระบบตรวจจับ AI (Frigate) สำหรับกล้องนี้' 
-      : 'คลิกเพื่อเปิดระบบตรวจจับ AI (Frigate) สำหรับกล้องนี้';
+      : (otherUsersList.length > 0
+          ? `เปิดใช้งานโดย: ${otherUsersList.join(', ')} — คลิกเพื่อเปิด AI ร่วมด้วย`
+          : 'คลิกเพื่อเปิดระบบตรวจจับ AI (Frigate) สำหรับกล้องนี้');
   }
   // ปุ่ม LPR + โซนจับป้าย
   const lb = $('btnChLpr'), zb = $('btnChLprZone');
@@ -7544,6 +9299,21 @@ function renderChForm() {
   lb.title = (lprOn ? 'คลิกเพื่อปิด' : 'คลิกเพื่อเปิด') + 'ระบบอ่านป้ายทะเบียนของกล้องนี้ (เฉพาะบัญชีของคุณ)';
   zb.hidden = !ch.src || !state.lprCams;
   zb.title = 'ตีกรอบบริเวณที่ป้ายทะเบียนเห็นชัด — รถแตะกรอบ = ระบบดึงภาพเต็มความละเอียดมาอ่าน';
+
+  // ปุ่มเปิด/ปิดระบบตรวจจับใบหน้า & เทียบหมายจับ (Face AI 512-D)
+  const fb = $('btnChFace');
+  if (fb) {
+    fb.hidden = !ch.src;
+    const disabledFaceSet = new Set([
+      ...(activeProf.disabled_face_cameras || []),
+      ...(state.disabledFaceCams ? Array.from(state.disabledFaceCams) : []),
+    ]);
+    const faceOn = isSysAiOn && !(ch.src && disabledFaceSet.has(ch.src));
+    fb.classList.toggle('off', !faceOn);
+    const faceSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+    fb.innerHTML = faceSvg + (faceOn ? 'ใบหน้า เปิด' : 'ใบหน้า ปิด');
+    fb.title = (faceOn ? 'คลิกเพื่อปิด' : 'คลิกเพื่อเปิด') + 'ระบบตรวจจับใบหน้า & เทียบหมายจับ (ArcFace 512-D) ของกล้องนี้';
+  }
   const gpsb = $('btnChGps');
   if (gpsb) {
     gpsb.hidden = !ch.src;
@@ -7556,34 +9326,103 @@ function renderChForm() {
   if($('btnTestMain')) resetTestBtn($('btnTestMain'));
   if($('btnTestSub')) resetTestBtn($('btnTestSub'));
   renderObjGrid();
+  renderAiSchedule();
+}
+
+const DEFAULT_AI_SCHED = { enabled: false, start_time: '18:00', end_time: '06:00', days: [1, 2, 3, 4, 5, 6, 7] };
+
+function cloneSchedEntry(raw) {
+  const s = (raw && typeof raw === 'object') ? raw : {};
+  const days = Array.isArray(s.days) && s.days.length
+    ? Array.from(new Set(s.days.map(Number).filter(d => d >= 1 && d <= 7))).sort((a, b) => a - b)
+    : [1, 2, 3, 4, 5, 6, 7];
+  return {
+    enabled: !!s.enabled,
+    start_time: (typeof s.start_time === 'string' && /^\d{2}:\d{2}$/.test(s.start_time)) ? s.start_time : '18:00',
+    end_time: (typeof s.end_time === 'string' && /^\d{2}:\d{2}$/.test(s.end_time)) ? s.end_time : '06:00',
+    days: days.length ? days : [1, 2, 3, 4, 5, 6, 7],
+  };
+}
+
+function populate24hSelect(sel, max) {
+  if (!sel || sel.options.length > 0) return;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < max; i++) {
+    const val = String(i).padStart(2, '0');
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = val;
+    frag.appendChild(opt);
+  }
+  sel.appendChild(frag);
+}
+
+function initAll24hSelects() {
+  ['selAiSchedStartH', 'selAiSchedEndH', 'selMySchedStartH', 'selMySchedEndH'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) populate24hSelect(el, 24);
+  });
+  ['selAiSchedStartM', 'selAiSchedEndM', 'selMySchedStartM', 'selMySchedEndM'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) populate24hSelect(el, 60);
+  });
 }
 
 /* ============ object detection ต่อกล้อง (ผ่าน admin Config API) ============ */
-// โหลดกล้องจริง + object ที่ track อยู่จาก Frigate (เรียกตอนเปิด settings)
+// โหลดกล้องจริง + object ที่ track อยู่ + ตารางเวลา AI จาก Frigate (เรียกตอนเปิด settings)
 async function loadFrigateObjects() {
   state.frigateCams = new Set();
   state.frigateDetect = {};
   state.objBase = {}; state.objDraft = {}; state.objDirty = {};
-  if (cfg.demo || !SAME_ORIGIN) { renderObjGrid(); return; }
+  state.schedBase = {}; state.schedDraft = {}; state.schedDirty = {};
+  if (cfg.demo || !SAME_ORIGIN) { renderObjGrid(); renderAiSchedule(); return; }
   try {
-    const res = await fetch(apiUrl('/api/config?t=' + Date.now()), { signal: timeoutSignal(6000) });
-    if (!res.ok) throw new Error();
-    const conf = await res.json();
-    // bus/truck เลือกได้ต่อเมื่อ model.labelmap override {5,7} ถูก restart แล้ว
-    // (ไม่งั้น save ผ่าน validation ไม่ได้ / detector ไม่รู้จัก) — degrade เป็น chip disabled
-    const lm = (conf.model && conf.model.labelmap) || {};
-    state.busTruckReady = (lm['5'] === 'bus' || lm[5] === 'bus') && (lm['7'] === 'truck' || lm[7] === 'truck');
-    const globalTrack = (conf.objects && conf.objects.track) || [];
-    const cams = conf.cameras || {};
-    Object.keys(cams).forEach(name => {
-      state.frigateCams.add(name);
-      const camObj = cams[name].objects;
-      const track = (camObj && camObj.track) ? camObj.track : globalTrack;
-      state.objBase[name] = track.slice();
-      state.objDraft[name] = track.slice();
-      const det = cams[name].detect;
-      state.frigateDetect[name] = det ? (det.enabled !== false) : true;
-    });
+    let loaded = false;
+    try {
+      const catRes = await fetch('/api/public-config/cameras-catalog?t=' + Date.now(), { signal: timeoutSignal(8000) });
+      if (catRes.ok) {
+        const cat = await catRes.json();
+        state.busTruckReady = cat.bus_truck_ready !== false;
+        const globalTrack = Array.isArray(cat.global_track) ? cat.global_track : ['person', 'car', 'motorcycle'];
+        const cams = Array.isArray(cat.cameras) ? cat.cameras : [];
+        const schedMap = (cat.schedules && typeof cat.schedules === 'object') ? cat.schedules : {};
+        cams.forEach(c => {
+          if (!c || !c.name) return;
+          state.frigateCams.add(c.name);
+          const track = (Array.isArray(c.track) && c.track.length) ? c.track : globalTrack;
+          state.objBase[c.name] = track.slice();
+          state.objDraft[c.name] = track.slice();
+          state.frigateDetect[c.name] = c.ai_enabled !== false;
+          const sc = cloneSchedEntry(c.schedule || schedMap[c.name] || DEFAULT_AI_SCHED);
+          state.schedBase[c.name] = cloneSchedEntry(sc);
+          state.schedDraft[c.name] = cloneSchedEntry(sc);
+        });
+        loaded = state.frigateCams.size > 0;
+      }
+    } catch (e) {}
+
+    if (!loaded) {
+      const res = await fetch(apiUrl('/api/config?t=' + Date.now()), { signal: timeoutSignal(6000) });
+      if (!res.ok) throw new Error();
+      const conf = await res.json();
+      // bus/truck เลือกได้ต่อเมื่อ model.labelmap override {5,7} ถูก restart แล้ว
+      // (ไม่งั้น save ผ่าน validation ไม่ได้ / detector ไม่รู้จัก) — degrade เป็น chip disabled
+      const lm = (conf.model && conf.model.labelmap) || {};
+      state.busTruckReady = (lm['5'] === 'bus' || lm[5] === 'bus') && (lm['7'] === 'truck' || lm[7] === 'truck');
+      const globalTrack = (conf.objects && conf.objects.track) || [];
+      const cams = conf.cameras || {};
+      Object.keys(cams).forEach(name => {
+        state.frigateCams.add(name);
+        const camObj = cams[name].objects;
+        const track = (camObj && camObj.track) ? camObj.track : globalTrack;
+        state.objBase[name] = track.slice();
+        state.objDraft[name] = track.slice();
+        const det = cams[name].detect;
+        state.frigateDetect[name] = det ? (det.enabled !== false) : true;
+        state.schedBase[name] = cloneSchedEntry(DEFAULT_AI_SCHED);
+        state.schedDraft[name] = cloneSchedEntry(DEFAULT_AI_SCHED);
+      });
+    }
 
     // ADR-0024: a channel's `detect` is the account's own AI demand; it is no longer
     // overwritten from Frigate. state.frigateDetect only tells us when Frigate must be toggled.
@@ -7592,7 +9431,9 @@ async function loadFrigateObjects() {
   }
   fetchAiDemandCounts().then(c => { if (c) renderChForm(); });
   renderObjGrid();
+  renderAiSchedule();
 }
+
 
 function selectedCamName() {
   const ch = (state.draft || cfg.channels)[state.selCh];
@@ -7697,7 +9538,7 @@ async function applyObjectChanges() {
   for (const name of names) {
     try {
       const track = state.objDraft[name] || [];
-      const res = await fetch(`/api/config/cameras/${encodeURIComponent(name)}/objects`, {
+      const res = await fetch(`/api/public-config/cameras/${encodeURIComponent(name)}/objects`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ track: track }),
@@ -7714,6 +9555,205 @@ async function applyObjectChanges() {
     } catch (e) {
       console.warn(`[applyObjectChanges] Network/Timeout error for camera ${name}:`, e);
       /* กล้องนี้ยังคงค้างใน objDirty (ผู้ใช้เห็นว่ายังไม่บันทึก) */
+    }
+  }
+  return { changed: applied, failed: names.length - applied, ok: applied === names.length };
+}
+
+/**
+ * Evaluate whether a camera's schedule permits AI detection right now in Asia/Bangkok (UTC+7).
+ *
+ * @param {Object} sched - Schedule object with enabled, start_time, end_time, days.
+ * @returns {boolean} True when schedule is disabled (24h) or current time is inside window.
+ */
+function evaluateClientSchedule(sched) {
+  if (!sched || !sched.enabled) return true;
+  const days = Array.isArray(sched.days) && sched.days.length ? sched.days : [1, 2, 3, 4, 5, 6, 7];
+  // Calculate current Asia/Bangkok (UTC+7) day and HH:MM
+  const nowUtcMs = Date.now();
+  const bkkDate = new Date(nowUtcMs + (7 * 60 * 60 * 1000));
+  const jsDay = bkkDate.getUTCDay(); // 0=Sun..6=Sat
+  const isoDay = jsDay === 0 ? 7 : jsDay; // 1=Mon..7=Sun
+  if (!days.includes(isoDay)) return false;
+
+  const [sh, sm] = String(sched.start_time || '18:00').split(':').map(Number);
+  const [eh, em] = String(sched.end_time || '06:00').split(':').map(Number);
+  if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return true;
+
+  const startMins = sh * 60 + sm;
+  const endMins = eh * 60 + em;
+  const nowMins = bkkDate.getUTCHours() * 60 + bkkDate.getUTCMinutes();
+
+  if (startMins === endMins) return true;
+  if (startMins < endMins) return nowMins >= startMins && nowMins <= endMins;
+  return nowMins >= startMins || nowMins <= endMins;
+}
+
+/**
+ * Render the Per-Camera AI Detection Schedule controls in the Settings modal.
+ */
+function renderAiSchedule() {
+  const mainWrap = $('aiSchedMainWrap');
+  const noteEl = $('aiSchedNote');
+  if (!mainWrap || !noteEl) return;
+
+  const name = selectedCamName();
+  const isReal = !!(name && state.frigateCams && state.frigateCams.has(name));
+  const chDraft = (state.draft || cfg.channels)[state.selCh];
+  const dt = !!(chDraft && chDraft.detect !== false);
+
+  const btnNight = $('btnSchedPresetNight');
+  const btnLate = $('btnSchedPresetLate');
+  const btnWork = $('btnSchedPresetWork');
+  const btn24h = $('btnSchedPreset24h');
+  if (btnNight) btnNight.disabled = !isReal || !dt;
+  if (btnLate) btnLate.disabled = !isReal || !dt;
+  if (btnWork) btnWork.disabled = !isReal || !dt;
+  if (btn24h) btn24h.disabled = !isReal || !dt;
+
+  const showNote = (msg) => {
+    mainWrap.hidden = true;
+    noteEl.hidden = false;
+    noteEl.textContent = msg;
+  };
+
+  if (cfg.demo) return showNote('โหมดสาธิต — ตั้งเวลาตรวจจับจริงไม่ได้');
+  if (!SAME_ORIGIN) return showNote('ตั้งค่าได้เมื่อเปิดผ่านหน้าเว็บ dashboard เท่านั้น');
+  if (!name) return showNote('เลือกกล้องจาก NVR สำหรับช่องนี้ก่อน');
+  if (chDraft && chDraft.detect === false) {
+    return showNote('AI ปิดอยู่ — คลิกปุ่ม "AI ปิด" ด้านบนให้เป็น "AI เปิด" ก่อนกำหนดช่วงเวลา');
+  }
+  if (!state.frigateCams) return showNote('กำลังโหลดตารางเวลาจากระบบ…');
+  if (!isReal) return showNote('กล้อง "' + name + '" ยังไม่มีในระบบ NVR');
+
+  mainWrap.hidden = false;
+  noteEl.hidden = true;
+
+  if (!state.schedDraft) state.schedDraft = {};
+  if (!state.schedBase) state.schedBase = {};
+  if (!state.schedDraft[name]) {
+    state.schedDraft[name] = cloneSchedEntry(state.schedBase[name] || DEFAULT_AI_SCHED);
+  }
+  const sched = state.schedDraft[name];
+
+  initAll24hSelects();
+
+  const chk = $('chkAiSchedEnabled');
+  const inpStart = $('inpAiSchedStart');
+  const inpEnd = $('inpAiSchedEnd');
+  const selStartH = $('selAiSchedStartH');
+  const selStartM = $('selAiSchedStartM');
+  const selEndH = $('selAiSchedEndH');
+  const selEndM = $('selAiSchedEndM');
+  const controls = $('aiSchedControls');
+  const overnightTag = $('aiSchedOvernightTag');
+  const badge = $('aiSchedStatusBadge');
+
+  if (chk) chk.checked = !!sched.enabled;
+
+  const [shRaw, smRaw] = String(sched.start_time || '18:00').split(':');
+  const [ehRaw, emRaw] = String(sched.end_time || '06:00').split(':');
+  const shPadded = String(shRaw || '18').padStart(2, '0');
+  const smPadded = String(smRaw || '00').padStart(2, '0');
+  const ehPadded = String(ehRaw || '06').padStart(2, '0');
+  const emPadded = String(emRaw || '00').padStart(2, '0');
+
+  if (selStartH) selStartH.value = shPadded;
+  if (selStartM) selStartM.value = smPadded;
+  if (selEndH) selEndH.value = ehPadded;
+  if (selEndM) selEndM.value = emPadded;
+
+  if (inpStart) inpStart.value = `${shPadded}:${smPadded}`;
+  if (inpEnd) inpEnd.value = `${ehPadded}:${emPadded}`;
+
+  if (controls) controls.classList.toggle('dimmed', !sched.enabled);
+
+  // Check if overnight (start > end)
+  const isOvernight = (Number(shPadded) * 60 + Number(smPadded)) > (Number(ehPadded) * 60 + Number(emPadded));
+  if (overnightTag) overnightTag.hidden = !isOvernight;
+
+  // Update day buttons
+  const daysSet = new Set(Array.isArray(sched.days) ? sched.days.map(Number) : [1, 2, 3, 4, 5, 6, 7]);
+  document.querySelectorAll('#aiSchedDaysWrap .ai-sched-day-btn').forEach(btn => {
+    const d = Number(btn.dataset.day);
+    const on = daysSet.has(d);
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+
+  // Update live status badge
+  if (badge) {
+    if (!sched.enabled) {
+      badge.className = 'ai-sched-badge mode-24h';
+      badge.textContent = '🕒 ทำงานตลอด 24 ชม.';
+    } else {
+      const inWin = evaluateClientSchedule(sched);
+      if (inWin) {
+        badge.className = 'ai-sched-badge mode-active';
+        badge.textContent = `🟢 อยู่ในช่วงเวลาตรวจจับ (${sched.start_time}–${sched.end_time} น.)`;
+      } else {
+        badge.className = 'ai-sched-badge mode-paused';
+        badge.textContent = `⏸️ อยู่นอกช่วงเวลา — AI พักการทำงาน (เริ่ม ${sched.start_time} น.)`;
+      }
+    }
+  }
+}
+
+function serializeSched(s) {
+  const c = cloneSchedEntry(s);
+  return `${c.enabled ? 1 : 0}|${c.start_time}|${c.end_time}|${c.days.join(',')}`;
+}
+
+function recomputeSchedDirty(name) {
+  if (!name) return;
+  if (!state.schedDirty) state.schedDirty = {};
+  const base = serializeSched((state.schedBase && state.schedBase[name]) || DEFAULT_AI_SCHED);
+  const draft = serializeSched((state.schedDraft && state.schedDraft[name]) || DEFAULT_AI_SCHED);
+  if (base === draft) delete state.schedDirty[name];
+  else state.schedDirty[name] = true;
+}
+
+function setSchedPreset(name, preset) {
+  if (!name) return;
+  if (!state.schedDraft) state.schedDraft = {};
+  state.schedDraft[name] = cloneSchedEntry(preset);
+  recomputeSchedDirty(name);
+  renderAiSchedule();
+  renderSyncMsg();
+}
+
+/**
+ * Persist modified per-camera AI schedules to config-api and sync runtime detect state.
+ */
+async function applyScheduleChanges() {
+  const names = Object.keys(state.schedDirty || {}).filter(n => n && n.trim());
+  if (!names.length || cfg.demo || !SAME_ORIGIN) return { changed: 0, failed: 0, ok: true };
+  let applied = 0;
+  for (const name of names) {
+    try {
+      const payload = cloneSchedEntry(state.schedDraft[name] || DEFAULT_AI_SCHED);
+      const res = await fetch(`/api/public-config/cameras/${encodeURIComponent(name)}/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: timeoutSignal(15000),
+      });
+      if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        state.schedBase[name] = cloneSchedEntry(payload);
+        delete state.schedDirty[name];
+        if (typeof resData.runtime_detect_enabled === 'boolean') {
+          await sendFrigateWsCommands([
+            { topic: `${name}/detect/set`, payload: resData.runtime_detect_enabled ? 'ON' : 'OFF' },
+          ]);
+        }
+        applied++;
+      } else {
+        const errTxt = await res.text().catch(() => '');
+        console.warn(`[applyScheduleChanges] Failed for camera ${name}: HTTP ${res.status}`, errTxt);
+      }
+    } catch (e) {
+      console.warn(`[applyScheduleChanges] Network/Timeout error for camera ${name}:`, e);
     }
   }
   return { changed: applied, failed: names.length - applied, ok: applied === names.length };
@@ -7776,8 +9816,8 @@ async function applyEnabledChanges(changes) {
 
 function markDirty(i) { state.dirty[i] = true; renderSyncMsg(); renderChList(); }
 function renderSyncMsg() {
-  // นับรวม lprDirty ด้วย — สถานะเปิด LPR รายกล้องเป็น pending change เหมือนกลุ่มอื่น
-  const n = Object.keys(state.dirty).length + (state.connDirty ? 1 : 0) + (state.storageDirty ? 1 : 0) + Object.keys(state.objDirty).length + (state.lprDirty ? 1 : 0);
+  // นับรวม lprDirty และ schedDirty ด้วย — สถานะเปิด LPR และตารางเวลา AI รายกล้องเป็น pending change
+  const n = Object.keys(state.dirty).length + (state.connDirty ? 1 : 0) + (state.storageDirty ? 1 : 0) + Object.keys(state.objDirty).length + Object.keys(state.schedDirty || {}).length + (state.lprDirty ? 1 : 0);
   const el = $('syncMsg');
   el.className = 'sync-msg' + (n ? ' warn' : '');
   el.textContent = n ? `แก้ไขแล้ว ${n} รายการ — ยังไม่บันทึก` : '';
@@ -7816,10 +9856,19 @@ async function runTest(btn, src, chAtStart) {
  */
 async function saveCameraDisplayNames() {
   if (cfg.demo || !SAME_ORIGIN) return true;
+  let mergedNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...(state.cameraNames || {}) };
+  try {
+    const curRes = await fetch('/settings/camera_names?t=' + Date.now());
+    if (curRes.ok) {
+      const serverNames = await curRes.json();
+      mergedNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...(serverNames || {}), ...(state.cameraNames || {}) };
+      state.cameraNames = mergedNames;
+    }
+  } catch (e) {}
   const response = await fetch('/settings/admin/camera_names', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state.cameraNames || {}),
+    body: JSON.stringify(mergedNames),
     signal: timeoutSignal(8000)
   });
   if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -7971,12 +10020,15 @@ function saveSettings() {
       await saveUserProfile();
       successSteps.push('มุมมองกล้องส่วนตัว');
 
-      // 2. บันทึกการแจ้งเตือนส่วนตัว (My Alerts)
-      try {
-        await saveMyAlertsSettings();
-        successSteps.push('การแจ้งเตือนส่วนตัว');
-      } catch (e) {
-        errorDetails.push('ไม่สามารถบันทึกการแจ้งเตือนส่วนตัวได้');
+      // 2. บันทึกการแจ้งเตือนส่วนตัว (My Alerts) — บันทึกเฉพาะเมื่อโหลดสำเร็จและมีการแก้ไขหรือเปิดอยู่บนหน้า Tab 4
+      const isTabMyAlertsVisible = !!(document.getElementById('tabMyAlerts') && document.getElementById('tabMyAlerts').style.display !== 'none' && !document.getElementById('tabMyAlerts').hidden);
+      if (state.myAlertsLoaded && (state.myAlertsDirty || isTabMyAlertsVisible)) {
+        try {
+          await saveMyAlertsSettings();
+          successSteps.push('การแจ้งเตือนส่วนตัว');
+        } catch (e) {
+          errorDetails.push('ไม่สามารถบันทึกการแจ้งเตือนส่วนตัวได้');
+        }
       }
 
       // 3. จัดการระบบ NVR ส่วนกลาง (เฉพาะ Superadmin เท่านั้น)
@@ -7986,15 +10038,50 @@ function saveSettings() {
 
       // ADR-0021: Always synchronize Tab 2 draft back to active screen & user profile
       if (state.draft && state.draft.length) {
+        const affectedCams = new Set();
+        state.draft.forEach(c => { if (c && c.src) affectedCams.add(c.src); });
         if (state.impersonatingUser) {
           const targetProf = state.allUserProfilesCache?.[state.impersonatingUser] || {};
+          ((targetProf && targetProf.channels) || []).forEach(c => { if (c && c.src) affectedCams.add(c.src); });
           targetProf.channels = state.draft.map(c => ({ ...c }));
+          const disabledSet = new Set(targetProf.disabled_ai_cameras || []);
+          targetProf.channels.forEach(c => {
+            if (!c || !c.src) return;
+            if (c.detect === false) disabledSet.add(c.src);
+            else if (c.detect === true) disabledSet.delete(c.src);
+          });
+          targetProf.disabled_ai_cameras = Array.from(disabledSet);
           try {
             await fetch('/api/nas-bot/admin/user-profile/' + encodeURIComponent(state.impersonatingUser), {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(targetProf)
             });
+            await refreshUserProfilesCache();
+            const counts = await fetchAiDemandCounts();
+            if (counts) {
+              for (const cam of affectedCams) {
+                const wantOn = (counts[cam] || 0) > 0;
+                if (!wantOn || wantOn !== liveFrigateAiOn(cam)) {
+                  await setFrigateAi(cam, wantOn);
+                }
+              }
+            }
+            if (Object.keys(state.objDirty || {}).length > 0) {
+              const objRes = await applyObjectChanges();
+              if (objRes.failed > 0) {
+                errorDetails.push(`ปรับตั้งค่า AI ตรวจจับวัตถุไม่สำเร็จ ${objRes.failed} ช่อง`);
+              }
+            }
+            if (Object.keys(state.schedDirty || {}).length > 0) {
+              const schedRes = await applyScheduleChanges();
+              if (schedRes.failed > 0) {
+                errorDetails.push(`บันทึกตารางเวลาตรวจจับ AI ไม่สำเร็จ ${schedRes.failed} ช่อง`);
+              } else if (schedRes.changed > 0) {
+                successSteps.push('ตารางเวลาตรวจจับ AI');
+              }
+            }
+            triggerDemandReconciliation(false);
             successSteps.push(`ผังหน้าจอของ ${state.impersonatingUser}`);
           } catch(e) {
              errorDetails.push(`ไม่สามารถบันทึกผังหน้าจอของ ${state.impersonatingUser} ได้`);
@@ -8004,8 +10091,39 @@ function saveSettings() {
           saveCfg();
           if (!state.userProfile) state.userProfile = {};
           state.userProfile.channels = cfg.channels.map(c => ({ ...c }));
+          const disabledSet = new Set(state.userProfile.disabled_ai_cameras || []);
+          cfg.channels.forEach(c => {
+            if (!c || !c.src) return;
+            if (c.detect === false) disabledSet.add(c.src);
+            else if (c.detect === true) disabledSet.delete(c.src);
+          });
+          state.userProfile.disabled_ai_cameras = Array.from(disabledSet);
           try {
             await saveUserProfile();
+            const counts = await fetchAiDemandCounts();
+            if (counts) {
+              for (const cam of affectedCams) {
+                const wantOn = (counts[cam] || 0) > 0;
+                if (!wantOn || wantOn !== liveFrigateAiOn(cam)) {
+                  await setFrigateAi(cam, wantOn);
+                }
+              }
+            }
+            if (Object.keys(state.objDirty || {}).length > 0) {
+              const objRes = await applyObjectChanges();
+              if (objRes.failed > 0) {
+                errorDetails.push(`ปรับตั้งค่า AI ตรวจจับวัตถุไม่สำเร็จ ${objRes.failed} ช่อง`);
+              }
+            }
+            if (Object.keys(state.schedDirty || {}).length > 0) {
+              const schedRes = await applyScheduleChanges();
+              if (schedRes.failed > 0) {
+                errorDetails.push(`บันทึกตารางเวลาตรวจจับ AI ไม่สำเร็จ ${schedRes.failed} ช่อง`);
+              } else if (schedRes.changed > 0) {
+                successSteps.push('ตารางเวลาตรวจจับ AI');
+              }
+            }
+            triggerDemandReconciliation(false);
           } catch (e) {
             console.warn('saveUserProfile in saveSettings error:', e);
           }
@@ -8082,9 +10200,10 @@ function saveSettings() {
               srcMap[c.src].detect = srcMap[c.src].detect || (en && det);
             }
           });
-          if (state.frigateCams && state.frigateCams.size) {
-            state.frigateCams.forEach(camName => {
-              if (camName && !srcMap[camName]) {
+          if (propagateMaster && Array.isArray(state.nvrCameras) && state.nvrCameras.length) {
+            state.nvrCameras.forEach(nc => {
+              const camName = nc && nc.name;
+              if (camName && !srcMap[camName] && nc.enabled === true) {
                 const isCore = ['D_BPP215_1', 'D_BPP215_2', 'D_BPP215_3'].includes(camName);
                 if (!isCore) {
                   srcMap[camName] = { enabled: false, detect: false };
@@ -8103,12 +10222,14 @@ function saveSettings() {
             if (Array.isArray(state.nvrCameras) && state.nvrCameras.length) {
               const live = state.nvrCameras.find(nc => nc.name === c.name);
               if (live) {
-                const liveEnabled = live.enabled !== false;
-                const liveDetect = live.ai_enabled !== undefined ? (live.ai_enabled !== false) : true;
+                const liveEnabled = live.enabled === true;
+                const liveDetect = live.ai_enabled === true;
                 const targetDetect = c.enabled ? (c.detect !== undefined ? c.detect : true) : false;
                 if (liveEnabled === c.enabled && (c.enabled ? (liveDetect === targetDetect) : true)) {
                   return false;
                 }
+              } else if (!c.enabled) {
+                return false;
               }
             }
             return true;
@@ -8162,6 +10283,7 @@ function saveSettings() {
       renderChList();
       renderChForm();
       renderObjGrid();
+      renderAiSchedule();
 
       // สรุปรายงานตามความเป็นจริง 100%
       if (errorDetails.length > 0) {
@@ -8279,6 +10401,39 @@ function bind() {
   $('btnEvents').addEventListener('click', () => setEventsOpen($('eventsRail').hidden));
   $('btnHideEvents').addEventListener('click', () => setEventsOpen(false));
   $('railTab').addEventListener('click', () => setEventsOpen(true));
+
+  // Incident 2.172: Mobile Events Drawer Backdrop Dismiss & Swipe-to-Close
+  const eventsBackdrop = $('eventsBackdrop');
+  if (eventsBackdrop) {
+    eventsBackdrop.addEventListener('click', () => setEventsOpen(false));
+  }
+  document.addEventListener('click', e => {
+    if (window.innerWidth <= 899 && $('eventsRail') && !$('eventsRail').hidden) {
+      if (!e.target.closest('#eventsRail') && !e.target.closest('#btnEvents') && !e.target.closest('#railTab') && !e.target.closest('#eventsBackdrop')) {
+        setEventsOpen(false);
+      }
+    }
+  });
+  const railEl = $('eventsRail');
+  if (railEl) {
+    let tStartX = 0;
+    let tStartY = 0;
+    railEl.addEventListener('touchstart', e => {
+      if (e.touches && e.touches[0]) {
+        tStartX = e.touches[0].clientX;
+        tStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+    railEl.addEventListener('touchend', e => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        const dx = e.changedTouches[0].clientX - tStartX;
+        const dy = e.changedTouches[0].clientY - tStartY;
+        if (window.innerWidth <= 899 && dx > 45 && Math.abs(dx) > Math.abs(dy)) {
+          setEventsOpen(false);
+        }
+      }
+    }, { passive: true });
+  }
   // เลือก class โฟกัสของแถบเหตุการณ์
   $('btnRailClasses').addEventListener('click', () => {
     const pop = $('railClassPop');
@@ -8378,9 +10533,33 @@ function bind() {
           if (res.ok) {
             const foundCands = await res.json();
             if (Array.isArray(foundCands) && foundCands.length > 0) {
+              if (!state.emgrLprByEvent) state.emgrLprByEvent = new Map();
+              if (!state.emgrMmcrByEvent) state.emgrMmcrByEvent = new Map();
               const knownIds = new Set(state.emgrEvents.map(ev => ev.id));
               let added = 0;
               foundCands.forEach(c => {
+                const pStr = [c.plate_text, c.province].filter(Boolean).join(' ');
+                const isReviewed = Boolean(Number(c.human_confirmed) === 1 || c.review_state === 'confirmed');
+                if (c.event_id) {
+                  state.emgrLprByEvent.set(c.event_id, {
+                    bucket: lprCandidateBucket(c),
+                    isNonPlate: false,
+                    isReviewed,
+                    status: c.status,
+                    reviewState: c.review_state,
+                    plateText: c.plate_text || '',
+                    province: c.province || '',
+                    source: c.source || '',
+                  });
+                  state.emgrMmcrByEvent.set(c.event_id, {
+                    plateStr: pStr,
+                    vehicle_color: c.vehicle_color || '',
+                    vehicle_type: c.vehicle_type || '',
+                    vehicle_brand: c.vehicle_brand || '',
+                    vehicle_model: c.vehicle_model || '',
+                    description: c.description || '',
+                  });
+                }
                 if (c.event_id && !knownIds.has(c.event_id)) {
                   knownIds.add(c.event_id);
                   let eventTime = 0;
@@ -8388,13 +10567,14 @@ function bind() {
                   if (match) eventTime = parseFloat(match[1]);
                   else if (c.created_at) eventTime = new Date(c.created_at).getTime() / 1000;
                   const camIdx = cfg.channels.findIndex(ch => ch.src === c.camera);
-                  const pStr = [c.plate_text, c.province].filter(Boolean).join(' ');
                   state.emgrEvents.push({
                     id: c.event_id,
                     camera: c.camera || '',
                     camIdx: camIdx >= 0 ? camIdx : null,
                     label: 'car',
                     type: 'car',
+                    source: c.source || '',
+                    crop_path: c.crop_path || '',
                     startTime: eventTime,
                     mins: Math.max(0, (Date.now() / 1000 - eventTime) / 60),
                     dur: 5,
@@ -8413,6 +10593,7 @@ function bind() {
                 } else if (c.event_id && knownIds.has(c.event_id)) {
                   const existing = state.emgrEvents.find(ev => ev.id === c.event_id);
                   if (existing) {
+                    if (pStr) existing.plate = pStr;
                     if (c.vehicle_color) existing.vehicle_color = c.vehicle_color;
                     if (c.vehicle_type) existing.vehicle_type = c.vehicle_type;
                     if (c.vehicle_brand) existing.vehicle_brand = c.vehicle_brand;
@@ -8468,6 +10649,115 @@ function bind() {
     recomputeObjDirty(name);
     renderObjGrid();
     renderSyncMsg();
+  });
+
+  // ---- Per-Camera AI Detection Schedule Event Listeners ----
+  $('btnSchedPresetNight')?.addEventListener('click', () => {
+    const name = selectedCamName();
+    if (!name) return;
+    setSchedPreset(name, { enabled: true, start_time: '18:00', end_time: '06:00', days: [1, 2, 3, 4, 5, 6, 7] });
+  });
+  $('btnSchedPresetLate')?.addEventListener('click', () => {
+    const name = selectedCamName();
+    if (!name) return;
+    setSchedPreset(name, { enabled: true, start_time: '22:00', end_time: '05:00', days: [1, 2, 3, 4, 5, 6, 7] });
+  });
+  $('btnSchedPresetWork')?.addEventListener('click', () => {
+    const name = selectedCamName();
+    if (!name) return;
+    setSchedPreset(name, { enabled: true, start_time: '08:00', end_time: '17:00', days: [1, 2, 3, 4, 5] });
+  });
+  $('btnSchedPreset24h')?.addEventListener('click', () => {
+    const name = selectedCamName();
+    if (!name) return;
+    const cur = (state.schedDraft && state.schedDraft[name]) || DEFAULT_AI_SCHED;
+    setSchedPreset(name, { ...cur, enabled: false });
+  });
+  $('chkAiSchedEnabled')?.addEventListener('change', (e) => {
+    const name = selectedCamName();
+    if (!name) return;
+    if (!state.schedDraft) state.schedDraft = {};
+    const cur = cloneSchedEntry(state.schedDraft[name] || DEFAULT_AI_SCHED);
+    cur.enabled = !!e.target.checked;
+    state.schedDraft[name] = cur;
+    recomputeSchedDirty(name);
+    renderAiSchedule();
+    renderSyncMsg();
+  });
+  const onAiSchedTimeChange = () => {
+    const name = selectedCamName();
+    if (!name) return;
+    if (!state.schedDraft) state.schedDraft = {};
+    const cur = cloneSchedEntry(state.schedDraft[name] || DEFAULT_AI_SCHED);
+    const sh = ($('selAiSchedStartH')?.value || '18').padStart(2, '0');
+    const sm = ($('selAiSchedStartM')?.value || '00').padStart(2, '0');
+    const eh = ($('selAiSchedEndH')?.value || '06').padStart(2, '0');
+    const em = ($('selAiSchedEndM')?.value || '00').padStart(2, '0');
+    cur.start_time = `${sh}:${sm}`;
+    cur.end_time = `${eh}:${em}`;
+    cur.enabled = true;
+    if ($('inpAiSchedStart')) $('inpAiSchedStart').value = cur.start_time;
+    if ($('inpAiSchedEnd')) $('inpAiSchedEnd').value = cur.end_time;
+    state.schedDraft[name] = cur;
+    recomputeSchedDirty(name);
+    renderAiSchedule();
+    renderSyncMsg();
+  };
+  ['selAiSchedStartH', 'selAiSchedStartM', 'selAiSchedEndH', 'selAiSchedEndM'].forEach(id => {
+    $(id)?.addEventListener('change', onAiSchedTimeChange);
+  });
+  $('inpAiSchedStart')?.addEventListener('change', (e) => {
+    const name = selectedCamName();
+    if (!name) return;
+    if (!state.schedDraft) state.schedDraft = {};
+    const cur = cloneSchedEntry(state.schedDraft[name] || DEFAULT_AI_SCHED);
+    if (/^\d{2}:\d{2}$/.test(e.target.value)) {
+      cur.start_time = e.target.value;
+      cur.enabled = true;
+    }
+    state.schedDraft[name] = cur;
+    recomputeSchedDirty(name);
+    renderAiSchedule();
+    renderSyncMsg();
+  });
+  $('inpAiSchedEnd')?.addEventListener('change', (e) => {
+    const name = selectedCamName();
+    if (!name) return;
+    if (!state.schedDraft) state.schedDraft = {};
+    const cur = cloneSchedEntry(state.schedDraft[name] || DEFAULT_AI_SCHED);
+    if (/^\d{2}:\d{2}$/.test(e.target.value)) {
+      cur.end_time = e.target.value;
+      cur.enabled = true;
+    }
+    state.schedDraft[name] = cur;
+    recomputeSchedDirty(name);
+    renderAiSchedule();
+    renderSyncMsg();
+  });
+  document.querySelectorAll('#aiSchedDaysWrap .ai-sched-day-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = selectedCamName();
+      if (!name) return;
+      if (!state.schedDraft) state.schedDraft = {};
+      const cur = cloneSchedEntry(state.schedDraft[name] || DEFAULT_AI_SCHED);
+      const day = Number(btn.dataset.day);
+      const set = new Set(cur.days);
+      if (set.has(day)) {
+        if (set.size <= 1) {
+          toast('ต้องเลือกอย่างน้อย 1 วันในสัปดาห์');
+          return;
+        }
+        set.delete(day);
+      } else {
+        set.add(day);
+      }
+      cur.days = Array.from(set).sort((a, b) => a - b);
+      cur.enabled = true;
+      state.schedDraft[name] = cur;
+      recomputeSchedDirty(name);
+      renderAiSchedule();
+      renderSyncMsg();
+    });
   });
 
   // ขนาดภาพย่อ (sm/md/lg) — CSS var ตัวเดียว inherit ลง .emgr-grid ทุกกลุ่ม + persist ใน cfg
@@ -8603,7 +10893,7 @@ function bind() {
   const btnCvAudio = $('btnCvAudio');
   if (btnCvAudio) {
     btnCvAudio.addEventListener('click', () => {
-      const cvVid = $('cvVideo');
+      const cvVid = activeViewerVideo();
       if (!cvVid) return;
       const willUnmute = cvVid.muted;
       if (willUnmute) {
@@ -8621,6 +10911,7 @@ function bind() {
         if (state.viewerIdx !== null && state.tiles[state.viewerIdx]) {
           const t = state.tiles[state.viewerIdx];
           t.audioUnmuted = true;
+          if (t.cam) t.cam.unmutedByUser = true;
           if (t.audioBtn) {
             t.audioBtn.classList.add('audio-on');
             t.audioBtn.innerHTML = TILE_SVG_AUDIO_ON;
@@ -8631,6 +10922,8 @@ function bind() {
       } else {
         state.unmutedSrc = null;
         cvVid.muted = true;
+        const rawCvVid = $('cvVideo');
+        if (rawCvVid) rawCvVid.muted = true;
         if (state.viewerCam) state.viewerCam.unmutedByUser = false;
         btnCvAudio.classList.remove('audio-on');
         btnCvAudio.innerHTML = CV_SVG_AUDIO_MUTE;
@@ -8638,6 +10931,7 @@ function bind() {
         if (state.viewerIdx !== null && state.tiles[state.viewerIdx]) {
           const t = state.tiles[state.viewerIdx];
           t.audioUnmuted = false;
+          if (t.cam) t.cam.unmutedByUser = false;
           if (t.video) t.video.muted = true;
           if (t.audioBtn) {
             t.audioBtn.classList.remove('audio-on');
@@ -8649,7 +10943,7 @@ function bind() {
       }
     });
   }
-  $('btnCvSnap').addEventListener('click', () => snapVideoFrame($('cvVideo'), $('cvChip').textContent + '_main'));
+  $('btnCvSnap').addEventListener('click', () => snapVideoFrame(activeViewerVideo(), $('cvChip').textContent + '_main'));
   $('btnCvRec').addEventListener('click', () => {
     if (!state.viewingSrc) return;
     const ch = (cfg.channels && cfg.channels[state.viewerIdx]) || {};
@@ -8663,7 +10957,21 @@ function bind() {
   pbv.addEventListener('play', () => setPbPlayUi(true));
   pbv.addEventListener('pause', () => setPbPlayUi(false));
   pbv.addEventListener('ended', () => { const nx = pbSnapToRecorded(pb.winEnd + 1); if (nx !== null) pbLoadClip(nx); }); // เล่นช่วงถัดไปต่อ
-  pbv.addEventListener('error', () => { if (!pbv.getAttribute('src')) return; $('pbCenter').hidden = false; $('pbSpin').hidden = true; $('pbCenterText').textContent = 'โหลดวิดีโอช่วงนี้ไม่สำเร็จ — ลองช่วงอื่น'; pbv.style.display = 'none'; });
+  pbv.addEventListener('error', () => {
+    if (!pbv.getAttribute('src')) return;
+    if (pbv.dataset.compatTried !== '1' && pb.cam && pb.winStart && pb.winEnd) {
+      pbv.dataset.compatTried = '1';
+      $('pbCenter').hidden = false; $('pbSpin').hidden = false; $('pbCenterText').textContent = 'กำลังแปลงวิดีโอ H.265 ➔ H.264 (NVENC)…';
+      prepareAndPlayVideoCompat(
+        { purpose: 'playback', camera: pb.cam, start: Math.floor(pb.winStart), end: Math.floor(pb.winEnd) },
+        pbv,
+        () => { $('pbCenter').hidden = true; $('pbSpin').hidden = true; pbv.style.display = ''; pbv.playbackRate = pb.speed; },
+        () => { $('pbCenter').hidden = false; $('pbSpin').hidden = true; $('pbCenterText').textContent = 'โหลดวิดีโอช่วงนี้ไม่สำเร็จ — ลองช่วงอื่น'; pbv.style.display = 'none'; }
+      );
+      return;
+    }
+    $('pbCenter').hidden = false; $('pbSpin').hidden = true; $('pbCenterText').textContent = 'โหลดวิดีโอช่วงนี้ไม่สำเร็จ — ลองช่วงอื่น'; pbv.style.display = 'none';
+  });
 
   // Watchlist
   const btnWatchlist = $('btnWatchlist');
@@ -8690,7 +10998,7 @@ function bind() {
   window.selectImpersonateUser = function(u) {
     state.impersonatingUser = u;
     const txt = $('txtImpersonateSelected');
-    if (txt) txt.textContent = u ? u : '-- หน้าจอของคุณ --';
+    if (txt) txt.textContent = u ? (window.bppAccountLabel ? window.bppAccountLabel.text(u) : u) : '-- หน้าจอของคุณ --';
     const menu = $('impersonateDropdownMenu');
     if (menu) menu.style.display = 'none';
 
@@ -8700,9 +11008,35 @@ function bind() {
       toast('กลับสู่หน้าจอของคุณ');
     } else {
       const profile = state.allUserProfilesCache?.[u];
+      const disabledAi = new Set((profile && profile.disabled_ai_cameras) || []);
       let userChannels = profile?.channels;
       if (!userChannels || !userChannels.length) {
-         userChannels = Array.from({length: 16}).map(() => ({src:'', name:'', sub:'', enabled:true, detect:false}));
+        if (profile && Array.isArray(profile.active_channels) && profile.active_channels.length) {
+          userChannels = Array.from({ length: 16 }, (_, idx) => {
+            const ac = profile.active_channels[idx];
+            if (ac && ac.src) {
+              const src = String(ac.src);
+              return normalizeChannelStreams({
+                src,
+                name: displayCameraName(src, ac.name) || src,
+                sub: ac.sub || '',
+                hd: ac.hd || '',
+                enabled: ac.enabled !== false,
+                detect: ac.detect !== undefined ? (ac.detect === true && !disabledAi.has(src)) : !disabledAi.has(src)
+              });
+            }
+            return { src: '', name: '', sub: '', enabled: true, detect: false };
+          });
+        } else {
+          userChannels = Array.from({ length: 16 }).map(() => ({ src: '', name: '', sub: '', enabled: true, detect: false }));
+        }
+      } else {
+        userChannels = userChannels.map(c => {
+          const copy = normalizeChannelStreams({ ...c });
+          if (copy.src && disabledAi.has(copy.src)) copy.detect = false;
+          else if (copy.src && copy.detect === undefined) copy.detect = !disabledAi.has(copy.src);
+          return copy;
+        });
       }
       state.draft = userChannels.map(c => ({ ...c }));
       if ($('txtGridBannerTitle')) $('txtGridBannerTitle').textContent = `ผังหน้าจอของบัญชี: ${u}`;
@@ -8712,6 +11046,10 @@ function bind() {
     updateKillSwitchUi();
     renderChList();
     renderChForm();
+    renderMyAlertsMatrix();
+    fetchAiDemandCounts().then(() => {
+      renderChForm();
+    });
   };
 
   if ($('btnImpersonateToggle')) {
@@ -9017,38 +11355,194 @@ function bind() {
   $('btnCloseSettings2').addEventListener('click', closeSettings);
   $('btnSave').addEventListener('click', saveSettings);
   $('settingsOverlay').addEventListener('click', e => { if (e.target === $('settingsOverlay')) closeSettings(); });
+  function setActiveSettingsTab(activeTabId, activeBtnId) {
+    ['tabNvr', 'tabDash', 'tabLprLearning', 'tabMyAlerts', 'tabSystemUpdate'].forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      if (id === activeTabId) {
+        el.style.display = id === 'tabNvr' ? 'block' : 'flex';
+      } else {
+        el.style.display = 'none';
+      }
+    });
+    ['btnTabNvr', 'btnTabDash', 'btnTabLprLearning', 'btnTabMyAlerts', 'btnTabSystemUpdate'].forEach(id => {
+      const btn = $(id);
+      if (!btn) return;
+      if (id === activeBtnId) {
+        btn.style.borderBottomColor = '#a855f7';
+        btn.style.color = '#fff';
+      } else {
+        btn.style.borderBottomColor = 'transparent';
+        btn.style.color = '#9aa0bd';
+      }
+    });
+  }
+
+  async function loadSystemUpdateStatus(forceRefresh = false) {
+    const summaryEl = $('sysUpdateSummary');
+    const commitsEl = $('sysUpdateCommitsList');
+    const badgeEl = $('badgeSysUpdateState');
+    if (!summaryEl) return;
+    if (forceRefresh) {
+      summaryEl.textContent = 'กำลังดึงข้อมูลล่าสุดจาก Git Repository…';
+    }
+    try {
+      const res = await fetch('/api/config/system/update/status' + (forceRefresh ? '?refresh=true' : ''), {
+        signal: timeoutSignal(25000),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const st = await res.json();
+      if ($('chkAutoWebSync')) $('chkAutoWebSync').checked = st.auto_web_sync !== false;
+      if ($('inpAutoWebSyncMins') && st.interval_minutes) $('inpAutoWebSyncMins').value = st.interval_minutes;
+
+      const lastWebStr = st.last_web_sync_at ? new Date(st.last_web_sync_at).toLocaleString('th-TH') : 'ยังไม่เคยซิงค์';
+      const lastFullStr = st.last_full_update_at ? new Date(st.last_full_update_at).toLocaleString('th-TH') : '—';
+      const behind = Number(st.behind_count || 0);
+
+      if (badgeEl) {
+        if (behind > 0) {
+          badgeEl.textContent = `มีอัปเดตใหม่ (${behind} รายการ)`;
+          badgeEl.style.background = 'rgba(245,158,11,0.2)';
+          badgeEl.style.color = '#fbbf24';
+          badgeEl.style.borderColor = 'rgba(245,158,11,0.45)';
+        } else {
+          badgeEl.textContent = 'เป็นเวอร์ชันล่าสุดแล้ว';
+          badgeEl.style.background = 'rgba(16,185,129,0.18)';
+          badgeEl.style.color = '#34d399';
+          badgeEl.style.borderColor = 'rgba(16,185,129,0.4)';
+        }
+      }
+
+      summaryEl.innerHTML =
+        `<div>• <b>กิ่งพัฒนา (Branch):</b> <code>${escapeHtml(st.branch || 'main')}</code> · <b>เวอร์ชันเครื่องนี้:</b> <code>${escapeHtml(st.local_commit || 'unknown')}</code> · <b>เวอร์ชันบนเซิร์ฟเวอร์ Git:</b> <code>${escapeHtml(st.remote_commit || 'unknown')}</code></div>` +
+        `<div>• <b>สถานะ:</b> ${behind > 0 ? `<span style="color:#fbbf24; font-weight:700;">มีอัปเดตใหม่ ${behind} รายการ (หน้าเว็บ ${st.web_files_changed || 0} ไฟล์, ระบบหลังบ้าน/AI ${st.backend_files_changed || 0} ไฟล์)</span>` : '<span style="color:#34d399; font-weight:600;">เป็นเวอร์ชันล่าสุดตรงกับ Git Repository แล้ว</span>'}</div>` +
+        `<div>• <b>ซิงค์หน้าเว็บล่าสุด:</b> ${escapeHtml(lastWebStr)} · <b>อัปเดตเต็มรูปแบบล่าสุด:</b> ${escapeHtml(lastFullStr)}</div>` +
+        (st.last_error ? `<div style="color:#f87171;">• <b>ข้อผิดพลาดล่าสุด:</b> ${escapeHtml(st.last_error)}</div>` : '');
+
+      if (commitsEl) {
+        const list = Array.isArray(st.pending_commits) ? st.pending_commits : [];
+        if (!list.length) {
+          commitsEl.innerHTML = '<span style="color:#34d399;">✓ ไม่มีรายการอัปเดตค้าง ระบบเป็นปัจจุบันแล้ว</span>';
+        } else {
+          commitsEl.innerHTML = list.map(c =>
+            `<div style="padding:6px 10px; border-radius:6px; background:rgba(15,23,42,0.7); border:1px solid rgba(148,163,184,0.18);"><code style="color:#38bdf8; margin-right:8px;">${escapeHtml(c.hash || '')}</code><span style="color:#e2e8f0;">${escapeHtml(c.message || '')}</span></div>`
+          ).join('');
+        }
+      }
+
+      // Fetch Native .exe / All-GPU / RTMP / DuckDNS diagnostics if running in Native Edition
+      const diagEl = $('nativeRuntimeDiagSummary');
+      const modeBadge = $('badgeNativeMode');
+      if (diagEl) {
+        try {
+          const nRes = await fetch('/api/native/health', { signal: timeoutSignal(5000) });
+          if (nRes.ok) {
+            const nh = await nRes.json();
+            const g = (nh.diagnostics && nh.diagnostics.gpu) || {};
+            const rtmp = nh.rtmp || {};
+            const net = nh.network || {};
+            const up = nh.field_uplink || {};
+            if (modeBadge) {
+              modeBadge.textContent = '🟢 Native Windows .exe (Zero-Docker)';
+              modeBadge.style.background = 'rgba(16,185,129,0.2)';
+              modeBadge.style.color = '#34d399';
+              modeBadge.style.borderColor = 'rgba(16,185,129,0.45)';
+            }
+            const gpus = Array.isArray(g.gpu_names) && g.gpu_names.length ? g.gpu_names.join(' + ') : 'CPU';
+            const provs = Array.isArray(g.ort_selected_providers) ? g.ort_selected_providers.join(', ') : 'CPUExecutionProvider';
+            diagEl.innerHTML =
+              `<div>• <b>การ์ดจอที่ตรวจพบ (All-GPU):</b> <span style="color:#38bdf8; font-weight:600;">${escapeHtml(gpus)}</span> · <b>Video Encoder:</b> <code>${escapeHtml(g.ffmpeg_h264_encoder || 'libx264')}</code></div>` +
+              `<div>• <b>ONNX AI Providers:</b> <code>${escapeHtml(provs)}</code> · <b>โมเดลที่โหลดพร้อมใช้งาน:</b> <code>thlprv2.onnx (384×640)</code>, <code>color.onnx (15 สี)</code>, <code>brand.onnx (24 ยี่ห้อ)</code>, <code>face.onnx + w600k_r50.onnx</code></div>` +
+              `<div>• <b>เซิร์ฟเวอร์รับสตรีมโดรน RTMP (:1935):</b> ${rtmp.running ? '<span style="color:#34d399; font-weight:600;">🟢 ออนไลน์พร้อมรับสตรีม</span>' : '<span style="color:#fbbf24;">พร้อมเปิดใช้งาน</span>'} (<code>${escapeHtml(rtmp.rtmp_ingest_url || 'rtmp://<host-ip>:1935/live/<stream>')}</code>)</div>` +
+              `<div>• <b>การเชื่อมต่อเว็บ &amp; ศูนย์กลาง:</b> รองรับเข้าผ่านเบราว์เซอร์ · HQ: <code>${escapeHtml(up.hq_url || 'https://vms.local')}</code> · DuckDNS: <code>${escapeHtml(net.duckdns_domain || 'bpp215')}.duckdns.org</code></div>`;
+          } else {
+            if (modeBadge) modeBadge.textContent = '🌐 HQ Server Mode (vms.local)';
+          }
+        } catch (_) {
+          if (modeBadge) modeBadge.textContent = '🌐 HQ Server Mode (vms.local)';
+        }
+      }
+    } catch (e) {
+      summaryEl.textContent = 'ไม่สามารถตรวจสอบสถานะอัปเดตได้: ' + (e.message || e);
+    }
+  }
+
   $('btnTabNvr').addEventListener('click', () => {
-    $('tabNvr').style.display = 'block'; $('tabDash').style.display = 'none'; $('tabLprLearning').style.display = 'none'; $('tabMyAlerts').style.display = 'none';
-    $('btnTabNvr').style.borderBottomColor = '#a855f7'; $('btnTabNvr').style.color = '#fff';
-    $('btnTabDash').style.borderBottomColor = 'transparent'; $('btnTabDash').style.color = '#9aa0bd';
-    $('btnTabLprLearning').style.borderBottomColor = 'transparent'; $('btnTabLprLearning').style.color = '#9aa0bd';
-    $('btnTabMyAlerts').style.borderBottomColor = 'transparent'; $('btnTabMyAlerts').style.color = '#9aa0bd';
+    setActiveSettingsTab('tabNvr', 'btnTabNvr');
   });
   $('btnTabDash').addEventListener('click', () => {
-    $('tabDash').style.display = 'flex'; $('tabNvr').style.display = 'none'; $('tabLprLearning').style.display = 'none'; $('tabMyAlerts').style.display = 'none';
-    $('btnTabDash').style.borderBottomColor = '#a855f7'; $('btnTabDash').style.color = '#fff';
-    $('btnTabNvr').style.borderBottomColor = 'transparent'; $('btnTabNvr').style.color = '#9aa0bd';
-    $('btnTabLprLearning').style.borderBottomColor = 'transparent'; $('btnTabLprLearning').style.color = '#9aa0bd';
-    $('btnTabMyAlerts').style.borderBottomColor = 'transparent'; $('btnTabMyAlerts').style.color = '#9aa0bd';
+    setActiveSettingsTab('tabDash', 'btnTabDash');
     renderChList();
     renderChForm();
   });
   $('btnTabLprLearning').addEventListener('click', () => {
-    $('tabLprLearning').style.display = 'flex'; $('tabNvr').style.display = 'none'; $('tabDash').style.display = 'none'; $('tabMyAlerts').style.display = 'none';
-    $('btnTabLprLearning').style.borderBottomColor = '#a855f7'; $('btnTabLprLearning').style.color = '#fff';
-    $('btnTabNvr').style.borderBottomColor = 'transparent'; $('btnTabNvr').style.color = '#9aa0bd';
-    $('btnTabDash').style.borderBottomColor = 'transparent'; $('btnTabDash').style.color = '#9aa0bd';
-    $('btnTabMyAlerts').style.borderBottomColor = 'transparent'; $('btnTabMyAlerts').style.color = '#9aa0bd';
+    setActiveSettingsTab('tabLprLearning', 'btnTabLprLearning');
     loadLprLearningStatus();
   });
   if ($('btnTabMyAlerts')) {
     $('btnTabMyAlerts').addEventListener('click', () => {
-      $('tabMyAlerts').style.display = 'flex'; $('tabNvr').style.display = 'none'; $('tabDash').style.display = 'none'; $('tabLprLearning').style.display = 'none';
-      $('btnTabMyAlerts').style.borderBottomColor = '#a855f7'; $('btnTabMyAlerts').style.color = '#fff';
-      $('btnTabNvr').style.borderBottomColor = 'transparent'; $('btnTabNvr').style.color = '#9aa0bd';
-      $('btnTabDash').style.borderBottomColor = 'transparent'; $('btnTabDash').style.color = '#9aa0bd';
-      $('btnTabLprLearning').style.borderBottomColor = 'transparent'; $('btnTabLprLearning').style.color = '#9aa0bd';
+      setActiveSettingsTab('tabMyAlerts', 'btnTabMyAlerts');
       loadMyAlertsSettings();
+    });
+  }
+  if ($('btnTabSystemUpdate')) {
+    $('btnTabSystemUpdate').addEventListener('click', () => {
+      setActiveSettingsTab('tabSystemUpdate', 'btnTabSystemUpdate');
+      loadSystemUpdateStatus(true);
+    });
+  }
+  if ($('btnCheckSystemUpdate')) {
+    $('btnCheckSystemUpdate').addEventListener('click', () => loadSystemUpdateStatus(true));
+  }
+  if ($('btnSaveUpdateSettings')) {
+    $('btnSaveUpdateSettings').addEventListener('click', async () => {
+      try {
+        const autoWebSync = $('chkAutoWebSync') ? $('chkAutoWebSync').checked : true;
+        const mins = Math.max(5, Math.min(1440, parseInt($('inpAutoWebSyncMins')?.value || '15', 10) || 15));
+        const res = await fetch('/api/config/system/update/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ auto_web_sync: autoWebSync, interval_minutes: mins }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        toast('บันทึกการตั้งค่าซิงค์หน้าเว็บอัตโนมัติเรียบร้อยแล้ว');
+        loadSystemUpdateStatus(false);
+      } catch (e) {
+        toast('บันทึกการตั้งค่าไม่สำเร็จ: ' + (e.message || e), true);
+      }
+    });
+  }
+  if ($('btnSyncWebUiNow')) {
+    $('btnSyncWebUiNow').addEventListener('click', async () => {
+      try {
+        toast('กำลังซิงค์ไฟล์หน้าเว็บล่าสุดแบบ Zero-Downtime…');
+        const res = await fetch('/api/config/system/update/web-sync', { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || ('HTTP ' + res.status));
+        toast('✓ ซิงค์หน้าเว็บสำเร็จ (' + (data.synced_commit || 'latest') + ') — รีเฟรชหน้าจอได้ทันที');
+        loadSystemUpdateStatus(false);
+      } catch (e) {
+        toast('ซิงค์หน้าเว็บไม่สำเร็จ: ' + (e.message || e), true);
+      }
+    });
+  }
+  if ($('btnApplyFullUpdate')) {
+    $('btnApplyFullUpdate').addEventListener('click', async () => {
+      const ok = await window.bppConfirm(
+        'ต้องการอัปเดตระบบทั้งหมด (หน้าเว็บ + Backend + โมเดล AI) ใช่หรือไม่?\n\n• ระบบจะสำรองไฟล์ config.yml อัตโนมัติก่อนอัปเดต\n• สตรีมวิดีโอสดจะไม่ถูกล้างค่ากล้อง'
+      );
+      if (!ok) return;
+      try {
+        toast('กำลังสำรองการตั้งค่าและอัปเดตระบบทั้งหมด…');
+        const res = await fetch('/api/config/system/update/apply', { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || ('HTTP ' + res.status));
+        toast('✓ อัปเดตระบบสำเร็จ (' + (data.updated_commit || 'latest') + ') — กำลังรีโหลดหน้าเว็บใน 3 วินาที');
+        loadSystemUpdateStatus(false);
+        setTimeout(() => location.reload(), 3000);
+      } catch (e) {
+        toast('อัปเดตระบบไม่สำเร็จ: ' + (e.message || e), true);
+      }
     });
   }
 
@@ -9153,21 +11647,14 @@ function bind() {
   if($('inpCamSelect')) {
     $('inpCamSelect').addEventListener('change', e => { 
       const selName = e.target.value;
-      const camDef = state.nvrCameras.find(c => c.name === selName);
       const draftChannel = state.draft[state.selCh];
       // Keep the channel fallback technical as well. Display text belongs only
       // to camera_names.json, preventing one channel from renaming another.
       draftChannel.src = selName;
       draftChannel.name = selName;
-      if (camDef && camDef.sub_url) {
-          draftChannel.sub = selName + '_sub';
-      } else {
-          draftChannel.sub = '';
-      }
-      // เชื่อสิ่งที่ config-api รายงาน (has_hd) แทนการเดาจากชื่อ — กล้องที่เพิ่มไว้ก่อน
-      // มีสถาปัตยกรรมสตรีมแยก จะไม่มี <name>_hd อยู่จริง การชี้ไปหาสตรีมที่ไม่มีจะทำให้
-      // หน้าดูเต็มจอค้างรอ connection ที่ไม่มีวันสำเร็จ
-      draftChannel.hd = (camDef && camDef.has_hd) ? selName + '_hd' : '';
+      draftChannel.sub = '';
+      draftChannel.hd = '';
+      normalizeChannelStreams(draftChannel);
       markDirty(state.selCh); 
       renderChList();
       renderChForm(); 
@@ -9216,13 +11703,13 @@ function bind() {
     });
   }
 
-  // ADR-0024: Account / Global Kill-Switch (Superadmin only; backend re-checks the role)
+  // ADR-0024: Account / Global Kill-Switch (Admin / Superadmin; backend re-checks the role)
   [
     ['btnAcctStreamOff', 'stream_off', 'account'], ['btnAcctAiOff', 'ai_off', 'account'], ['btnAcctStreamOn', 'stream_on', 'account'],
     ['btnAllStreamOff', 'stream_off', 'all'], ['btnAllAiOff', 'ai_off', 'all'], ['btnAllStreamOn', 'stream_on', 'all'],
   ].forEach(([id, action, scope]) => {
     const b = $(id);
-    if (b) b.addEventListener('click', () => { if (userRole === 'superadmin') runGridKillSwitch(action, scope); });
+    if (b) b.addEventListener('click', () => { if (isKillSwitchAuthorized()) runGridKillSwitch(action, scope); });
   });
 
   const btnSysStream = $('btnSysStream');
@@ -9284,24 +11771,38 @@ function bind() {
   $('btnChEnabled').addEventListener('click', async () => {
     const d = (state.draft || cfg.channels)[state.selCh]; if (!d || !d.src) return;
     const chNum = chLabel(state.selCh);
-    if (!state.userProfile) state.userProfile = { hidden_channels: [], visible_channels: [] };
-    if (!state.userProfile.hidden_channels) state.userProfile.hidden_channels = [];
+    const imp = state.impersonatingUser;
+    const targetProf = imp ? (state.allUserProfilesCache?.[imp] || {}) : (state.userProfile || (state.userProfile = { hidden_channels: [], visible_channels: [] }));
+    if (!targetProf.hidden_channels) targetProf.hidden_channels = [];
     
-    const hiddenSet = new Set(state.userProfile.hidden_channels);
+    const hiddenSet = new Set(targetProf.hidden_channels);
     const isHidden = !!(d.src && hiddenSet.has(d.src));
     
     if (!isHidden) {
-      if (d.src && !state.userProfile.hidden_channels.includes(d.src)) state.userProfile.hidden_channels.push(d.src);
+      if (d.src && !targetProf.hidden_channels.includes(d.src)) targetProf.hidden_channels.push(d.src);
     } else {
-      state.userProfile.hidden_channels = state.userProfile.hidden_channels.filter(x => x !== d.src);
+      targetProf.hidden_channels = targetProf.hidden_channels.filter(x => x !== d.src);
     }
     
-    await saveUserProfile();
+    if (imp) {
+      if (state.allUserProfilesCache) state.allUserProfilesCache[imp] = targetProf;
+      try {
+        await fetch('/api/nas-bot/admin/user-profile/' + encodeURIComponent(imp), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(targetProf)
+        });
+      } catch (e) {}
+    } else {
+      await saveUserProfile();
+    }
     renderChList();
     renderChForm();
-    applyAutoLayout(true);
-    rebuildGrid();
-    if (window.bppToast) window.bppToast(!isHidden ? `ซ่อน ${chNum} จากหน้าจอของคุณแล้ว` : `แสดง ${chNum} บนหน้าจอของคุณแล้ว`);
+    if (!imp) {
+      applyAutoLayout(true);
+      rebuildGrid();
+    }
+    if (window.bppToast) window.bppToast(!isHidden ? `ซ่อน ${chNum} จากหน้าจอแล้ว` : `แสดง ${chNum} บนหน้าจอแล้ว`);
   });
   const btnChDetect = $('btnChDetect');
   if (btnChDetect) {
@@ -9312,7 +11813,8 @@ function bind() {
       // the camera's total demand across accounts changes between none and some.
       const imp = state.impersonatingUser;
       const targetProf = imp ? (state.allUserProfilesCache?.[imp] || {}) : (state.userProfile || {});
-      const currentOn = d.detect === true;
+      const disabledAiSet = new Set(targetProf.disabled_ai_cameras || []);
+      const currentOn = (d.detect === true) && !disabledAiSet.has(d.src);
       const targetOn = !currentOn;
 
       const applyOwnFlag = (val) => {
@@ -9358,7 +11860,8 @@ function bind() {
 
       const counts = await fetchAiDemandCounts();
       const wantFrigate = counts ? (counts[d.src] || 0) > 0 : targetOn;
-      if (wantFrigate === liveFrigateAiOn(d.src)) {
+      // Always enforce setFrigateAi when wantFrigate is false (to self-heal out-of-sync Frigate runtime state) or when state differs
+      if (wantFrigate && wantFrigate === liveFrigateAiOn(d.src)) {
         const others = counts ? Math.max(0, (counts[d.src] || 0) - (targetOn ? 1 : 0)) : 0;
         if (window.bppToast) {
           window.bppToast(targetOn
@@ -9368,9 +11871,10 @@ function bind() {
       } else {
         const r = await setFrigateAi(d.src, wantFrigate);
         if (r.ok) {
+          const others = counts ? Math.max(0, (counts[d.src] || 0) - (targetOn ? 1 : 0)) : 0;
           if (window.bppToast) {
             window.bppToast(wantFrigate
-              ? `เปิด AI ${chNum} (${d.src}) แล้ว`
+              ? (targetOn ? `เปิด AI ${chNum} (${d.src}) แล้ว` : `ปิด AI ${chNum} (${d.src}) ของบัญชีนี้แล้ว — Frigate ยังเปิดอยู่เพราะอีก ${others} บัญชีใช้งาน`)
               : `ปิด AI ${chNum} (${d.src}) ใน Frigate แล้ว (ไม่มีบัญชีใดใช้งาน)`);
           }
         } else {
@@ -9387,6 +11891,7 @@ function bind() {
       renderChList();
       renderChForm();
       renderObjGrid();
+      renderMyAlertsMatrix();
     });
   }
 
@@ -9446,6 +11951,74 @@ function bind() {
     });
   }
 
+  const btnChFace = $('btnChFace');
+  if (btnChFace) {
+    btnChFace.addEventListener('click', async () => {
+      const d = (state.draft || cfg.channels)[state.selCh]; if (!d || !d.src) return;
+      const chNum = chLabel(state.selCh);
+      const targetProf = state.impersonatingUser ? (state.allUserProfilesCache?.[state.impersonatingUser] || {}) : (state.userProfile || {});
+      if (!targetProf.disabled_face_cameras) targetProf.disabled_face_cameras = [];
+      if (!state.disabledFaceCams) state.disabledFaceCams = new Set();
+
+      const disabledAiSet = new Set(targetProf.disabled_ai_cameras || []);
+      const isSysAiOn = (d.detect === true) && !disabledAiSet.has(d.src);
+      const isFaceDisabled = state.disabledFaceCams.has(d.src) || targetProf.disabled_face_cameras.includes(d.src);
+      const currentOn = isSysAiOn && !isFaceDisabled;
+      const targetOn = !currentOn;
+
+      if (targetOn) {
+        // Ensure AI (person detect) is also enabled on this camera
+        d.detect = true;
+        if (Array.isArray(targetProf.disabled_ai_cameras)) {
+          targetProf.disabled_ai_cameras = targetProf.disabled_ai_cameras.filter(x => x !== d.src);
+        }
+        state.disabledFaceCams.delete(d.src);
+        targetProf.disabled_face_cameras = targetProf.disabled_face_cameras.filter(x => x !== d.src);
+      } else {
+        state.disabledFaceCams.add(d.src);
+        if (!targetProf.disabled_face_cameras.includes(d.src)) {
+          targetProf.disabled_face_cameras.push(d.src);
+        }
+      }
+
+      // Persist to Face Engine via API
+      try {
+        await fetch('/api/watchlist/faces/cameras', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            camera: d.src,
+            enabled: targetOn,
+            disabled_cameras: Array.from(state.disabledFaceCams),
+          }),
+        });
+      } catch (e) {
+        console.warn('saveFaceCameras error:', e);
+      }
+
+      // Save user profile
+      if (state.impersonatingUser) {
+        try {
+          await fetch('/api/nas-bot/admin/user-profile/' + encodeURIComponent(state.impersonatingUser), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(targetProf),
+          });
+        } catch (e) {}
+      } else {
+        await saveUserProfile();
+      }
+
+      renderChForm();
+      renderChList();
+      if (window.bppToast) {
+        window.bppToast(targetOn
+          ? `เปิดระบบตรวจจับใบหน้า & เทียบหมายจับ ${chNum} (${d.src}) เรียบร้อย`
+          : `ปิดระบบตรวจจับใบหน้า ${chNum} (${d.src}) เรียบร้อย`);
+      }
+    });
+  }
+
 
   const btnCloseLz = $('btnCloseLz'); if(btnCloseLz) btnCloseLz.addEventListener('click', closeLprZone);
   $('btnChLprZone').addEventListener('click', () => {
@@ -9477,10 +12050,10 @@ function bind() {
       // Tab visible → ตรวจสอบ + resume ทันที (stagger เล็กน้อย 0-200ms)
       if (modalSuspensionDepth > 0) return; // ไม่ resume หากเปิดหน้าต่าง Modal ค้างอยู่
       state.tiles.forEach(t => {
-        if (t.cam && !t.cam.suspended) {
+        if (t.cam && !t.cam.suspended && !t.cam.viewerPaused) {
           const delay = Math.random() * 200;
           setTimeout(() => {
-            if (modalSuspensionDepth === 0 && t.cam && !t.cam.suspended) t.cam.resume();
+            if (modalSuspensionDepth === 0 && t.cam && !t.cam.suspended && !t.cam.viewerPaused) t.cam.resume();
           }, delay);
         }
       });
@@ -9641,72 +12214,343 @@ async function loadFederationNodes() {
 }
 
 let watchlistSSE = null;
-function connectWatchlistSSE() {
-  if (watchlistSSE) {
-    watchlistSSE.close();
-  }
-  watchlistSSE = new EventSource('/api/watchlist/stream');
-  watchlistSSE.onmessage = (e) => {
-    if (e.data === 'new_vigi_event') {
-      console.log('[BPP-VMS] Received real-time VIGI event. Refreshing events...');
-      fetchEvents();
+let frigateRealtimeWS = null;
+let frigateWsRetryT = null;
+let _rtEventRefreshT = null;
+let _rtPendingLpr = false;
+
+function scheduleRealtimeEventRefresh(opts = {}) {
+  if (opts.includeLpr) _rtPendingLpr = true;
+  if (_rtEventRefreshT) return;
+  _rtEventRefreshT = setTimeout(async () => {
+    _rtEventRefreshT = null;
+    const wantLpr = _rtPendingLpr;
+    _rtPendingLpr = false;
+    if (wantLpr) {
+      lastLprFetchTs = Date.now() / 1000;
+      fetchEmgrLprIndex();
     }
-  };
-  watchlistSSE.onerror = () => {
-    console.warn('[BPP-VMS] Watchlist SSE disconnected. Reconnecting in 5s...');
-    watchlistSSE.close();
-    setTimeout(connectWatchlistSSE, 5000);
-  };
+    await fetchEvents();
+  }, 350);
+}
+
+function connectWatchlistSSE() {
+  if (cfg.demo) return;
+  if (watchlistSSE) {
+    try { watchlistSSE.close(); } catch (e) {}
+  }
+  try {
+    watchlistSSE = new EventSource('/api/watchlist/stream');
+    watchlistSSE.onmessage = (e) => {
+      const raw = String(e.data || '').trim();
+      if (!raw || raw === 'ping' || raw === 'keepalive') return;
+      if (raw === 'new_vigi_event' || raw.includes('lpr') || raw.includes('event') || raw.includes('plate') || raw.startsWith('{')) {
+        scheduleRealtimeEventRefresh({ includeLpr: true });
+      }
+    };
+    watchlistSSE.onerror = () => {
+      try { watchlistSSE.close(); } catch (e) {}
+      setTimeout(connectWatchlistSSE, 5000);
+    };
+  } catch (e) {}
+}
+
+function connectFrigateRealtimeWS() {
+  if (cfg.demo) return;
+  clearTimeout(frigateWsRetryT);
+  if (frigateRealtimeWS) {
+    frigateRealtimeWS.onclose = frigateRealtimeWS.onerror = frigateRealtimeWS.onmessage = null;
+    try { frigateRealtimeWS.close(); } catch (e) {}
+    frigateRealtimeWS = null;
+  }
+  try {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${proto}//${window.location.host}/nvr/ws`);
+    frigateRealtimeWS = ws;
+    ws.onmessage = (ev) => {
+      if (typeof ev.data !== 'string') return;
+      try {
+        const msg = JSON.parse(ev.data);
+        const topic = String(msg.topic || '');
+        if (topic === 'events' || topic.endsWith('/events')) {
+          scheduleRealtimeEventRefresh({ includeLpr: true });
+        }
+      } catch (e) {}
+    };
+    ws.onclose = () => {
+      frigateWsRetryT = setTimeout(connectFrigateRealtimeWS, 5000);
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (e) {}
+    };
+  } catch (e) {
+    frigateWsRetryT = setTimeout(connectFrigateRealtimeWS, 8000);
+  }
+}
+
+let _wakeLockSentinel = null;
+async function acquireScreenWakeLock() {
+  if (!('wakeLock' in navigator) || document.hidden) return;
+  try {
+    if (_wakeLockSentinel) return;
+    _wakeLockSentinel = await navigator.wakeLock.request('screen');
+    _wakeLockSentinel.addEventListener('release', () => {
+      _wakeLockSentinel = null;
+    });
+  } catch (e) {}
+}
+
+function run24x7HealthScrubber() {
+  // 1. Re-verify Screen WakeLock for 24/7 wallboard monitors
+  acquireScreenWakeLock();
+
+  // 2. Trim MSE buffers & nudge drifted live streams back to live edge
+  const activeCams = [];
+  if (Array.isArray(state.tiles)) {
+    state.tiles.forEach(t => { if (t && t.cam) activeCams.push(t.cam); });
+  }
+  if (state.viewerCam) activeCams.push(state.viewerCam);
+
+  activeCams.forEach(cam => {
+    if (!cam || cam.dead || cam.paused || cam.viewerPaused || cam.suspended) return;
+    const v = cam.video;
+    if (cam.sb && !cam.sb.updating && cam.sb.buffered && cam.sb.buffered.length > 0) {
+      try {
+        const start0 = cam.sb.buffered.start(0);
+        const end = cam.sb.buffered.end(cam.sb.buffered.length - 1);
+        if (end - start0 > 10) {
+          cam.sb.remove(start0, end - 6);
+        }
+        if (v && end - v.currentTime > 3.5) {
+          v.currentTime = Math.max(0, end - 0.6);
+        }
+      } catch (e) {}
+    }
+  });
+
+  // 3. Bound in-memory caches so 24/7 tabs never leak RAM over weeks of uptime
+  try {
+    if (typeof pb !== 'undefined' && pb) {
+      if (pb.evCache instanceof Map && pb.evCache.size > 30) {
+        const keys = Array.from(pb.evCache.keys());
+        keys.slice(0, keys.length - 20).forEach(k => pb.evCache.delete(k));
+      }
+      if (pb.recCache instanceof Map && pb.recCache.size > 30) {
+        const keys = Array.from(pb.recCache.keys());
+        keys.slice(0, keys.length - 20).forEach(k => pb.recCache.delete(k));
+      }
+    }
+    const emgrOpen = Boolean($('eventMgrOverlay') && !$('eventMgrOverlay').hidden);
+    if (!emgrOpen && Array.isArray(state.emgrEvents) && state.emgrEvents.length > 500) {
+      state.emgrEvents.length = 500;
+    }
+  } catch (e) {}
+}
+
+let _lastNamesDigest = '';
+async function syncRealtimeConfigDigest() {
+  if (cfg.demo || state.editLayout) return;
+  const settingsOpen = Boolean($('settingsOverlay') && !$('settingsOverlay').hidden);
+  if (settingsOpen) return;
+  try {
+    const res = await fetch('/settings/camera_names?t=' + Date.now(), { cache: 'no-store', signal: timeoutSignal(5000) });
+    if (res.ok) {
+      const names = await res.json();
+      if (names && typeof names === 'object') {
+        const digest = JSON.stringify(names);
+        if (_lastNamesDigest && _lastNamesDigest !== digest) {
+          state.cameraNames = names;
+          syncGridDiffSmoothly();
+          renderEvents();
+        }
+        _lastNamesDigest = digest;
+      }
+    }
+  } catch (e) {}
+}
+
+let _currentCssVer = null;
+let _currentJsVer = null;
+let _pendingJsReload = false;
+
+function isAnyModalOrViewerActive() {
+  if (state.viewerOpen || state.editLayout || modalSuspensionDepth > 0) return true;
+  const overlays = ['settingsOverlay', 'eventMgrOverlay', 'playerOverlay', 'playbackOverlay', 'edOverlay', 'watchlistOverlay'];
+  return overlays.some(id => {
+    const el = $(id);
+    return el && !el.hidden;
+  });
+}
+
+function performWarmSoftReload() {
+  try {
+    const map = {};
+    (state.tiles || []).forEach((t, i) => {
+      const ch = cfg.channels[i];
+      if (ch && ch.src && t && t.video) {
+        const snap = captureVideoPoster(t.video, 480);
+        if (snap) map[ch.src] = snap;
+      }
+    });
+    sessionStorage.setItem('bpp_warm_posters', JSON.stringify({ ts: Date.now(), map }));
+  } catch (e) {}
+  window.location.reload();
+}
+
+function initLiveAssetVersionWatcher() {
+  const cssLink = document.querySelector('link[href*="assets/app.css"]');
+  const jsScript = document.querySelector('script[src*="assets/app.js"]');
+  if (cssLink) {
+    const m = (cssLink.getAttribute('href') || '').match(/app\.css\?v=([^&"']+)/);
+    if (m) _currentCssVer = m[1];
+  }
+  if (jsScript) {
+    const m = (jsScript.getAttribute('src') || '').match(/app\.js\?v=([^&"']+)/);
+    if (m) _currentJsVer = m[1];
+  }
+
+  setInterval(async () => {
+    if (_pendingJsReload && !isAnyModalOrViewerActive()) {
+      performWarmSoftReload();
+      return;
+    }
+    try {
+      const res = await fetch('/index.html?_hc=' + Date.now(), { cache: 'no-store', signal: timeoutSignal(6000) });
+      if (!res.ok) return;
+      const html = await res.text();
+      const cssMatch = html.match(/assets\/app\.css\?v=([^&"'>\s]+)/);
+      const jsMatch = html.match(/assets\/app\.js\?v=([^&"'>\s]+)/);
+
+      if (cssMatch && _currentCssVer && cssMatch[1] !== _currentCssVer) {
+        _currentCssVer = cssMatch[1];
+        const linkEl = document.querySelector('link[href*="assets/app.css"]');
+        if (linkEl) {
+          linkEl.setAttribute('href', `assets/app.css?v=${_currentCssVer}&_t=${Date.now()}`);
+          console.log('[BPP-VMS] Hot-reloaded app.css to v=' + _currentCssVer);
+        }
+      }
+      if (jsMatch && _currentJsVer && jsMatch[1] !== _currentJsVer) {
+        _currentJsVer = jsMatch[1];
+        _pendingJsReload = true;
+        if (!isAnyModalOrViewerActive()) {
+          performWarmSoftReload();
+        }
+      }
+    } catch (e) {}
+  }, 45000);
 }
 
 async function init() {
+  // Immediately hide events rail on mobile and bind UI controls so the screen
+  // is never blocked by the drawer while startup API requests are in flight.
+  if (window.innerWidth <= 899) {
+    setEventsOpen(false);
+  }
+  bind();
+
+  // Restore cached camera names & user profile from localStorage so 0ms initial render is accurate
+  if (cfg._cachedCameraNames && typeof cfg._cachedCameraNames === 'object') {
+    state.cameraNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...state.cameraNames, ...cfg._cachedCameraNames };
+  }
+  if (cfg._cachedUserProfile && typeof cfg._cachedUserProfile === 'object' && !state.userProfile) {
+    state.userProfile = cfg._cachedUserProfile;
+  }
+
+  // Render clock and camera grid immediately (0ms) so the screen is never blank while network APIs load
+  tickClock();
+  setInterval(tickClock, 1000);
+  state.manualLayoutOverride = false;
+  cfg.layout = getOptimalAutoLayout();
+  buildLayoutSwitch();
+  rebuildGrid();
+
   // Stop initialization when the authoritative server session is absent; this
   // avoids briefly issuing protected API calls while the login redirect runs.
   const session = await window.bppSessionPromise;
   if (!session) return;
-  
-  window.DYNAMIC_HLS_MAP = {};
-  try {
-    const hlsRes = await fetch('/api/public-config/hls-map');
-    if (hlsRes.ok) window.DYNAMIC_HLS_MAP = await hlsRes.json();
-  } catch (e) { console.error('Failed to load HLS map', e); }
 
-  try {
-    const gpsRes = await fetch('/settings/camera_gps?t=' + Date.now());
-    if (gpsRes.ok) {
-      window.cachedCameraGPS = await gpsRes.json();
-      if (window.cachedCameraGPS && typeof window.cachedCameraGPS === 'object') {
-        for (const [cid, cdata] of Object.entries(window.cachedCameraGPS)) {
-          if (cdata && cdata.url && !window.DYNAMIC_HLS_MAP[cid]) {
-            window.DYNAMIC_HLS_MAP[cid] = cdata.url;
-          }
+  window.DYNAMIC_HLS_MAP = window.DYNAMIC_HLS_MAP || {};
+
+  const hlsPromise = fetch('/api/public-config/hls-map', { signal: timeoutSignal(3500) })
+    .then(r => (r.ok ? r.json() : {}))
+    .then(data => {
+      if (data && typeof data === 'object') {
+        window.DYNAMIC_HLS_MAP = { ...window.DYNAMIC_HLS_MAP, ...data };
+      }
+    })
+    .catch(e => console.error('Failed to load HLS map', e));
+
+  if (!window.bppCameraGpsPromise) {
+    window.bppCameraGpsPromise = fetch('/settings/camera_gps?t=' + Date.now(), { signal: timeoutSignal(6000) })
+      .then(r => (r.ok ? r.json() : null))
+      .catch(e => {
+        console.warn('Failed to preload camera_gps in app.js', e);
+        return null;
+      });
+  }
+  // Load 161KB camera_gps in background without blocking initial camera grid render
+  window.bppCameraGpsPromise.then(gpsData => {
+    if (gpsData && typeof gpsData === 'object') {
+      window.cachedCameraGPS = gpsData;
+      let addedHls = false;
+      for (const [cid, cdata] of Object.entries(gpsData)) {
+        if (cdata && cdata.url && !window.DYNAMIC_HLS_MAP[cid]) {
+          window.DYNAMIC_HLS_MAP[cid] = cdata.url;
+          addedHls = true;
         }
       }
+      if (addedHls && typeof syncGridDiffSmoothly === 'function') {
+        syncGridDiffSmoothly();
+      }
     }
-  } catch (e) { console.warn('Failed to preload camera_gps in app.js', e); }
+  });
 
-  // Shared channel mappings are authoritative across browsers; localStorage is
-  // retained only when the server copy cannot be read.
-  await loadServerChannels();
-  await loadUserProfile();
+  // Fire profile fetch in parallel with loadServerChannels, then apply in order
+  // (system master channels first, personal user profile override second).
+  const profileFetchPromise = (!cfg.demo && SAME_ORIGIN)
+    ? fetch('/api/nas-bot/user/profile', { signal: timeoutSignal(3500) }).catch(() => null)
+    : null;
+
+  await Promise.race([
+    (async () => {
+      await loadServerChannels();
+      await loadUserProfile(profileFetchPromise);
+    })(),
+    new Promise(r => setTimeout(r, 3500))
+  ]);
+  await Promise.race([
+    hlsPromise,
+    new Promise(r => setTimeout(r, 600))
+  ]);
   loadNvrCameras().catch(e => console.warn('Failed to load NVR cameras on init:', e));
 
   // คำนวณและปรับขนาดกริดอัตโนมัติตามจำนวนกล้องที่เปิดจริงทุกครั้งที่โหลด/รีเฟรชหน้าแดชบอร์ด
   state.manualLayoutOverride = false;
   cfg.layout = getOptimalAutoLayout();
+  if (window.innerWidth <= 899) {
+    setEventsOpen(false);
+  } else {
+    setEventsOpen(Boolean(cfg.eventsOpen));
+  }
   saveCfg();
 
-  bind();
   buildLayoutSwitch();
   rebuildGrid();
   syncNvrRecordStatus();
   fetchEvents();
   fetchFrigatePreCapture(); // ดึง pre_capture สำหรับ auto-seek วิดีโอ — ไม่ต้อง await
-  setInterval(tickClock, 1000);
   setInterval(fetchEvents, 15000);
   connectWatchlistSSE();
+  connectFrigateRealtimeWS();
+  acquireScreenWakeLock();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) acquireScreenWakeLock();
+  });
+  setInterval(run24x7HealthScrubber, 5 * 60 * 1000);
+  setInterval(syncRealtimeConfigDigest, 30000);
+  initLiveAssetVersionWatcher();
   if (typeof loadFederationNodes === 'function') loadFederationNodes();
-    loadBranding();
+  loadBranding();
   initUserHeartbeat();
 }
 
@@ -9764,7 +12608,8 @@ async function sendPresenceHeartbeat() {
   try {
     const res = await fetch('/auth/heartbeat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true
     });
     if (res.ok) {
       const data = await res.json();
@@ -9777,28 +12622,31 @@ async function sendPresenceHeartbeat() {
       } else {
         lastAnnouncedMissionId = null;
       }
-      // Sync local button state
+      // Sync local button state strictly with server's sharing_enabled / force_all_enabled
       if (window.bppLocationTracker) {
-        if (data.force_location_off) {
-          data.location_sharing = false;
-        }
-        const wasSharing = window.bppLocationTracker.isSharing;
-        window.bppLocationTracker.isSharing = !!data.location_sharing;
-        window.bppLocationTracker.updateUI();
-
-        // If server says location_sharing is ON but this browser instance isn't watching geolocation, resume watching
-        if (data.location_sharing && window.bppLocationTracker.watchId === null && !window.bppLocationTracker._watchAttempted) {
-          window.bppLocationTracker._watchAttempted = true;
-          window.bppLocationTracker.start(null, true, false);
-        }
-
-        // Auto-activate location if Admin force-enabled it via /auth/location/force-all
-        if (data.force_location_off) {
-          console.log('[Heartbeat] Superadmin force_location_off detected — auto-disabling GPS');
-          window.bppLocationTracker.stop(false, '📍 ระบบส่วนกลางบังคับปิดแชร์พิกัดของคุณ');
-        } else if (data.force_location && !wasSharing) {
-          console.log('[Heartbeat] Superadmin force_location detected — auto-enabling GPS');
-          window.bppLocationTracker.start('📍 ระบบส่วนกลางบังคับเปิดแชร์พิกัดของคุณ');
+        const localWasEnabled = (localStorage.getItem('bpp_gps_user_enabled') === '1' && localStorage.getItem('bpp_gps_user_disabled') !== '1');
+        if (!data.location_sharing && !data.force_all_enabled) {
+          try {
+            localStorage.removeItem('bpp_gps_user_enabled');
+            localStorage.removeItem('bpp_gps_auto_persist');
+          } catch (_) {}
+          if (window.bppLocationTracker.isSharing) {
+            console.log('[Heartbeat] Server location_sharing is off — stopping local tracker');
+            window.bppLocationTracker.stop(false, 'ระบบส่วนกลางปิดแชร์พิกัดของคุณ');
+          } else {
+            window.bppLocationTracker.updateUI();
+          }
+        } else if ((data.location_sharing && localWasEnabled) || (data.force_all_enabled && localStorage.getItem('bpp_gps_user_disabled') !== '1')) {
+          window.bppLocationTracker._userDisabled = false;
+          try {
+            localStorage.removeItem('bpp_gps_user_disabled');
+            localStorage.setItem('bpp_gps_user_enabled', '1');
+          } catch (_) {}
+          if (!window.bppLocationTracker.isSharing || window.bppLocationTracker.watchId === null) {
+            window.bppLocationTracker.start(null, true, false).catch(() => {});
+          } else {
+            window.bppLocationTracker.updateUI();
+          }
         }
       }
     }
@@ -9867,75 +12715,710 @@ function handleMissionAlert(mission) {
 
 window.bppLocationTracker = {
   watchId: null,
+  watchIdLow: null,
   isSharing: false,
   lastPostedAt: 0,
-  minIntervalMs: 1000, // Real-time 1s interval (Incident 2.51)
+  lastFreshPostAt: 0,
+  lastFixReceivedAt: 0,
+  _lastTickProcessedAt: 0,
+  _gpsRequestInFlight: false,
+  _gpsRequestStartedAt: 0,
+  _lastWatchRestartAt: 0,
+  minIntervalMs: 1000, // Real-time 1s interval (Incident 2.51 / 2.149)
   lastCoords: null,
+  _watchAttempted: false,
+  _userDisabled: false,
+  _wakeLock: null,
+  _webLockRelease: null,
+  _audioKeepalive: null,
+  _audioBlobUrl: null,
+  _audioCtx: null,
+  _oscillator: null,
+  _scriptNode: null,
+  _mediaStreamDest: null,
+  _audioArmed: false,
+  _rtcPc1: null,
+  _rtcPc2: null,
+  _rtcDc1: null,
+  _rtcDc2: null,
+  _rtcAudioEl: null,
+  _rtcPulseTimer: null,
+  _worker: null,
+  _workerTickTimer: null,
+  _lifecycleInitialized: false,
+  _stealthOverlay: null,
 
+  // 1. Screen Wake Lock & Web Locks API (Prevents tab freeze/discard by mobile OS)
+  async acquireWakeLock() {
+    if ('wakeLock' in navigator && !this._wakeLock) {
+      try {
+        this._wakeLock = await navigator.wakeLock.request('screen');
+        this._wakeLock.addEventListener('release', () => {
+          this._wakeLock = null;
+        });
+      } catch (e) {}
+    }
+    this.acquireWebLock();
+  },
+
+  releaseWakeLock() {
+    if (this._wakeLock) {
+      try { this._wakeLock.release(); } catch (e) {}
+      this._wakeLock = null;
+    }
+    this.releaseWebLock();
+  },
+
+  acquireWebLock() {
+    if (this._webLockRelease) return;
+    if (navigator.locks && typeof navigator.locks.request === 'function') {
+      try {
+        navigator.locks.request('bpp_life360_gps_keepalive', { mode: 'exclusive' }, () => {
+          return new Promise((resolve) => {
+            this._webLockRelease = resolve;
+          });
+        }).catch(() => {});
+      } catch (e) {}
+    }
+  },
+
+  releaseWebLock() {
+    if (this._webLockRelease) {
+      try { this._webLockRelease(); } catch (e) {}
+      this._webLockRelease = null;
+    }
+  },
+
+  // 2. Zero-Widget Stealth Background Keepalive (WebAudio Hardware DMA + WebRTC DataChannel + SSE Network Stream + Motion Sensors)
+  // NEVER creates an HTML5 <audio> element or MediaSession metadata, so iOS/Android Lock Screen NEVER shows a music player widget!
+  startAudioKeepalive() {
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+      } catch (e) {}
+    }
+    if ('audioSession' in navigator && navigator.audioSession) {
+      try {
+        navigator.audioSession.type = 'transient';
+      } catch (e) {
+        try { navigator.audioSession.type = 'auto'; } catch (_) {}
+      }
+    }
+
+    this.startWebAudioKeepalive();
+    this.startWebRtcKeepalive();
+    this.startStreamKeepalive();
+    this.startSensorKeepalive();
+  },
+
+  stopAudioKeepalive() {
+    if (this._audioKeepalive) {
+      try {
+        const a = this._audioKeepalive;
+        this._audioKeepalive = null;
+        a.pause();
+        a.src = '';
+      } catch (e) {}
+    }
+    this.stopStreamKeepalive();
+    this.stopSensorKeepalive();
+    this.stopWebRtcKeepalive();
+    this.stopWebAudioKeepalive();
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      } catch (e) {}
+    }
+  },
+
+  startStreamKeepalive() {
+    if (!this.isSharing || this._userDisabled) return;
+    if (this._sseKeepalive || typeof EventSource === 'undefined') return;
+    try {
+      const es = new EventSource('/auth/location/stream-keepalive');
+      es.onmessage = (ev) => {
+        if (!this.isSharing || this._userDisabled) {
+          this.stopStreamKeepalive();
+          return;
+        }
+        try {
+          const d = JSON.parse(ev.data || '{}');
+          if (d && d.type === 'STOP') {
+            this.stop(false, 'ระบบส่วนกลางได้สั่งปิดการแชร์พิกัดแล้ว');
+            return;
+          }
+        } catch (_) {}
+        this.onWorkerTick(true);
+      };
+      es.onerror = () => {
+        this.stopStreamKeepalive();
+        if (this.isSharing && !this._userDisabled) {
+          this._sseReconnectTimer = setTimeout(() => {
+            if (this.isSharing && !this._userDisabled) this.startStreamKeepalive();
+          }, 2500);
+        }
+      };
+      this._sseKeepalive = es;
+    } catch (e) {}
+  },
+
+  stopStreamKeepalive() {
+    if (this._sseReconnectTimer) {
+      clearTimeout(this._sseReconnectTimer);
+      this._sseReconnectTimer = null;
+    }
+    if (this._sseKeepalive) {
+      try { this._sseKeepalive.close(); } catch (_) {}
+      this._sseKeepalive = null;
+    }
+  },
+
+  startSensorKeepalive() {
+    if (this._sensorListenerBound) return;
+    this._sensorListenerBound = true;
+    this._onSensorMotion = () => {
+      if (this.isSharing) {
+        this.onWorkerTick();
+      }
+    };
+    try {
+      window.addEventListener('devicemotion', this._onSensorMotion, { passive: true });
+      window.addEventListener('deviceorientation', this._onSensorMotion, { passive: true });
+    } catch (_) {}
+  },
+
+  stopSensorKeepalive() {
+    if (!this._sensorListenerBound) return;
+    this._sensorListenerBound = false;
+    try {
+      if (this._onSensorMotion) {
+        window.removeEventListener('devicemotion', this._onSensorMotion);
+        window.removeEventListener('deviceorientation', this._onSensorMotion);
+      }
+    } catch (_) {}
+  },
+
+  startWebAudioKeepalive() {
+    try {
+      if ('audioSession' in navigator && navigator.audioSession) {
+        try {
+          navigator.audioSession.type = 'transient';
+        } catch (_) {
+          try { navigator.audioSession.type = 'auto'; } catch (__) {}
+        }
+      }
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!this._audioCtx) {
+        this._audioCtx = new AudioCtx();
+        this._audioCtx.addEventListener('statechange', () => {
+          if (this.isSharing && this._audioCtx && this._audioCtx.state === 'suspended') {
+            this._audioCtx.resume().catch(() => {});
+          }
+        });
+      }
+      if (this._audioCtx.state !== 'running') {
+        this._audioCtx.resume().catch(() => {});
+      }
+      if (!this._oscillator) {
+        const osc = this._audioCtx.createOscillator();
+        const gain = this._audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(18, this._audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.00001, this._audioCtx.currentTime);
+        osc.connect(gain);
+
+        // Attach ScriptProcessorNode on the real-time hardware audio thread (~10x/sec callback without Lock Screen UI)
+        if (typeof this._audioCtx.createScriptProcessor === 'function' && !this._scriptNode) {
+          const sp = this._audioCtx.createScriptProcessor(4096, 1, 1);
+          sp.onaudioprocess = (ev) => {
+            try {
+              const out = ev.outputBuffer.getChannelData(0);
+              for (let i = 0; i < out.length; i++) {
+                // Sub-LSB -114dB non-zero dither prevents iOS CoreAudio & Android AudioTrack silence detector from suspending DMA
+                out[i] = (i & 1) ? 0.000002 : -0.000002;
+              }
+            } catch (_) {}
+            if (this.isSharing) {
+              this.onWorkerTick();
+            }
+          };
+          gain.connect(sp);
+          sp.connect(this._audioCtx.destination);
+          if (typeof this._audioCtx.createMediaStreamDestination === 'function') {
+            this._mediaStreamDest = this._audioCtx.createMediaStreamDestination();
+            sp.connect(this._mediaStreamDest);
+          }
+          this._scriptNode = sp;
+        } else {
+          gain.connect(this._audioCtx.destination);
+          if (typeof this._audioCtx.createMediaStreamDestination === 'function') {
+            this._mediaStreamDest = this._audioCtx.createMediaStreamDestination();
+            gain.connect(this._mediaStreamDest);
+          }
+        }
+
+        osc.start();
+        this._oscillator = osc;
+      }
+    } catch (e) {}
+  },
+
+  stopWebAudioKeepalive() {
+    if (this._scriptNode) {
+      try { this._scriptNode.disconnect(); } catch (e) {}
+      this._scriptNode.onaudioprocess = null;
+      this._scriptNode = null;
+    }
+    if (this._oscillator) {
+      try { this._oscillator.stop(); } catch (e) {}
+      this._oscillator = null;
+    }
+    this._mediaStreamDest = null;
+    if (this._audioCtx) {
+      try { this._audioCtx.close(); } catch (e) {}
+      this._audioCtx = null;
+    }
+  },
+
+  // 3B. In-Memory WebRTC Active-Call Loopback (Elevates tab priority to Active VoIP Call on iOS Safari & Android Chrome)
+  async startWebRtcKeepalive() {
+    if (this._rtcPc1 || typeof RTCPeerConnection === 'undefined') return;
+    try {
+      const pc1 = new RTCPeerConnection({ iceServers: [] });
+      const pc2 = new RTCPeerConnection({ iceServers: [] });
+      this._rtcPc1 = pc1;
+      this._rtcPc2 = pc2;
+
+      pc1.onicecandidate = (e) => {
+        if (e.candidate && this._rtcPc2) {
+          this._rtcPc2.addIceCandidate(e.candidate).catch(() => {});
+        }
+      };
+      pc2.onicecandidate = (e) => {
+        if (e.candidate && this._rtcPc1) {
+          this._rtcPc1.addIceCandidate(e.candidate).catch(() => {});
+        }
+      };
+
+      // Connect remote WebRTC stream to an in-memory <audio playsinline> element (RealtimeMediaSource)
+      // WebKit/Blink grants full VoIP/RTC background location & process priority without showing a Lock Screen music widget!
+      pc2.ontrack = (ev) => {
+        try {
+          if (ev.streams && ev.streams[0]) {
+            if (!this._rtcAudioEl) {
+              const a = document.createElement('audio');
+              a.playsInline = true;
+              a.setAttribute('playsinline', '');
+              a.setAttribute('webkit-playsinline', '');
+              a.autoplay = true;
+              a.volume = 0.01;
+              this._rtcAudioEl = a;
+            }
+            this._rtcAudioEl.srcObject = ev.streams[0];
+            const p = this._rtcAudioEl.play();
+            if (p && typeof p.then === 'function') {
+              p.then(() => {
+                if ('mediaSession' in navigator) {
+                  try {
+                    navigator.mediaSession.metadata = null;
+                    navigator.mediaSession.playbackState = 'none';
+                  } catch (_) {}
+                }
+              }).catch(() => {});
+            }
+          }
+        } catch (_) {}
+      };
+
+      // Attach WebAudio MediaStreamTrack so OS sees an active WebRTC voice call
+      if (this._mediaStreamDest && this._mediaStreamDest.stream) {
+        this._mediaStreamDest.stream.getTracks().forEach((track) => {
+          pc1.addTrack(track, this._mediaStreamDest.stream);
+        });
+      }
+
+      // DataChannel 1Hz C++ network thread wakeup pulse
+      const dc1 = pc1.createDataChannel('bpp-life360-gps');
+      this._rtcDc1 = dc1;
+      pc2.ondatachannel = (ev) => {
+        const dc2 = ev.channel;
+        this._rtcDc2 = dc2;
+        dc2.onmessage = () => {
+          if (this.isSharing) {
+            this.onWorkerTick();
+          }
+        };
+      };
+
+      const offer = await pc1.createOffer();
+      await pc1.setLocalDescription(offer);
+      await pc2.setRemoteDescription(offer);
+      const answer = await pc2.createAnswer();
+      await pc2.setLocalDescription(answer);
+      await pc1.setRemoteDescription(answer);
+
+      if (this._rtcPulseTimer) clearInterval(this._rtcPulseTimer);
+      this._rtcPulseTimer = setInterval(() => {
+        if (!this.isSharing) return;
+        if (this._rtcDc1 && this._rtcDc1.readyState === 'open') {
+          try { this._rtcDc1.send('1'); } catch (_) {}
+        }
+      }, 1000);
+    } catch (e) {
+      this.stopWebRtcKeepalive();
+    }
+  },
+
+  stopWebRtcKeepalive() {
+    if (this._rtcPulseTimer) {
+      clearInterval(this._rtcPulseTimer);
+      this._rtcPulseTimer = null;
+    }
+    if (this._rtcAudioEl) {
+      try {
+        this._rtcAudioEl.pause();
+        this._rtcAudioEl.srcObject = null;
+      } catch (_) {}
+      this._rtcAudioEl = null;
+    }
+    if (this._rtcDc1) {
+      try { this._rtcDc1.close(); } catch (_) {}
+      this._rtcDc1 = null;
+    }
+    if (this._rtcDc2) {
+      try { this._rtcDc2.close(); } catch (_) {}
+      this._rtcDc2 = null;
+    }
+    if (this._rtcPc1) {
+      try { this._rtcPc1.close(); } catch (_) {}
+      this._rtcPc1 = null;
+    }
+    if (this._rtcPc2) {
+      try { this._rtcPc2.close(); } catch (_) {}
+      this._rtcPc2 = null;
+    }
+  },
+
+  // 4. Dedicated Web Worker Timer & Secondary Fallback Ticker
+  startWorkerTimer() {
+    if (!this._worker) {
+      try {
+        const workerScript = `
+          var timer = null;
+          self.onmessage = function(e) {
+            if (e.data === 'START') {
+              if (timer) clearInterval(timer);
+              timer = setInterval(function() {
+                self.postMessage('TICK');
+              }, 900);
+            } else if (e.data === 'STOP') {
+              if (timer) clearInterval(timer);
+              timer = null;
+            }
+          };
+        `;
+        const blob = new Blob([workerScript], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        const worker = new Worker(workerUrl);
+        worker.onmessage = (e) => {
+          if (e.data === 'TICK' && this.isSharing) {
+            this.onWorkerTick();
+          }
+        };
+        worker.postMessage('START');
+        this._worker = worker;
+      } catch (e) {}
+    }
+
+    if (this._workerTickTimer) clearInterval(this._workerTickTimer);
+    this._workerTickTimer = setInterval(() => {
+      if (this.isSharing) {
+        this.onWorkerTick();
+      }
+    }, 950);
+  },
+
+  stopWorkerTimer() {
+    if (this._worker) {
+      try {
+        this._worker.postMessage('STOP');
+        this._worker.terminate();
+      } catch (e) {}
+      this._worker = null;
+    }
+    if (this._workerTickTimer) {
+      clearInterval(this._workerTickTimer);
+      this._workerTickTimer = null;
+    }
+  },
+
+  syncWithServiceWorker() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SYNC_STATE',
+          isSharing: this.isSharing,
+          coords: this.lastCoords,
+          lastFixAt: this.lastFixReceivedAt,
+          lastPostedAt: this.lastFreshPostAt
+        });
+      } catch (e) {}
+    }
+  },
+
+  _restartGeoWatchers(silent = true, forceClear = false) {
+    if (!navigator.geolocation) return;
+    // CRITICAL WebKit/iOS Rule: NEVER call clearWatch() while document.hidden is true!
+    // Calling clearWatch() in background destroys the foreground-authorized watcher, and WebKit blocks new watchPosition() calls initiated while hidden.
+    if (document.hidden && !forceClear && (this.watchId !== null || this.watchIdLow !== null)) {
+      return;
+    }
+    this._lastWatchRestartAt = Date.now();
+    if (forceClear || !document.hidden) {
+      if (this.watchId !== null) {
+        try { navigator.geolocation.clearWatch(this.watchId); } catch (_) {}
+        this.watchId = null;
+      }
+      if (this.watchIdLow !== null) {
+        try { navigator.geolocation.clearWatch(this.watchIdLow); } catch (_) {}
+        this.watchIdLow = null;
+      }
+    }
+    if (this.watchId === null) {
+      try {
+        this.watchId = navigator.geolocation.watchPosition(
+          (pos) => this.onPosition(pos),
+          (err) => {
+            if (err && err.code === 1) {
+              if (this.watchId !== null) {
+                try { navigator.geolocation.clearWatch(this.watchId); } catch (_) {}
+                this.watchId = null;
+              }
+              if (!silent && typeof toast === 'function') {
+                toast('⚠️ กรุณาอนุญาตการเข้าถึงพิกัด (GPS) ในเบราว์เซอร์');
+              }
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 20000
+          }
+        );
+      } catch (e) {}
+    }
+
+    if (this.watchIdLow === null) {
+      try {
+        this.watchIdLow = navigator.geolocation.watchPosition(
+          (pos) => {
+            // When backgrounded (document.hidden), accept every Fused/Wi-Fi/Cell fix immediately
+            if (document.hidden || (Date.now() - (this.lastFixReceivedAt || 0) >= 3000)) {
+              this.onPosition(pos);
+            }
+          },
+          () => {},
+          {
+            enableHighAccuracy: false,
+            maximumAge: 0,
+            timeout: 15000
+          }
+        );
+      } catch (e) {}
+    }
+  },
+
+  // Handles periodic tick from ScriptProcessorNode, SSE stream, WebRTC DataChannel, WebWorker, Motion Sensors, and ServiceWorker
+  onWorkerTick(forcePulse = false) {
+    if (!this.isSharing) return;
+    const now = Date.now();
+    if (!forcePulse && (now - this._lastTickProcessedAt < 500)) {
+      return;
+    }
+    this._lastTickProcessedAt = now;
+
+    if (this._audioCtx && this._audioCtx.state === 'suspended') {
+      this._audioCtx.resume().catch(() => {});
+    }
+    if (this._rtcAudioEl && this._rtcAudioEl.paused) {
+      this._rtcAudioEl.play().catch(() => {});
+    }
+    if (!this._sseKeepalive) {
+      this.startStreamKeepalive();
+    }
+
+    // Clear any in-flight request that was dropped by OS during app switch (prevents deadlock without cutting off active fixes)
+    if (this._gpsRequestInFlight && (now - (this._gpsRequestStartedAt || 0) > 4000)) {
+      this._gpsRequestInFlight = false;
+    }
+
+    const elapsedSincePost = now - this.lastPostedAt;
+    const elapsedSinceFreshPost = now - (this.lastFreshPostAt || 0);
+    const elapsedSinceFix = now - (this.lastFixReceivedAt || 0);
+
+    // Only re-bind watchers if both were cleared (NEVER tear down active watchers while document.hidden is true!)
+    if (this.watchId === null && this.watchIdLow === null && (now - (this._lastWatchRestartAt || 0) >= 3500)) {
+      this._restartGeoWatchers(true, false);
+    }
+
+    // Dual-Accuracy Active GPS Pulse:
+    // Poll OS Location Service; fuse GNSS + FusedLocationProvider (WiFi/Cell) so indoor & folded/backgrounded screens still return real coordinates
+    if ((forcePulse || elapsedSinceFix >= 1800) && !this._gpsRequestInFlight && navigator.geolocation && navigator.geolocation.getCurrentPosition) {
+      this._gpsRequestInFlight = true;
+      this._gpsRequestStartedAt = now;
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            this._gpsRequestInFlight = false;
+            this.onPosition(pos);
+          },
+          () => {
+            navigator.geolocation.getCurrentPosition(
+              (posLow) => {
+                this._gpsRequestInFlight = false;
+                this.onPosition(posLow);
+              },
+              () => {
+                this._gpsRequestInFlight = false;
+              },
+              { enableHighAccuracy: false, timeout: 3500, maximumAge: 0 }
+            );
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 3000,
+            maximumAge: 0
+          }
+        );
+      } catch (e) {
+        this._gpsRequestInFlight = false;
+      }
+    }
+
+    // Transmit whenever a new GPS fix was received (tracked via lastFreshPostAt so cached keepalives never block fresh fixes!)
+    if (this.lastCoords && this.lastFixReceivedAt > 0) {
+      if (this.lastFixReceivedAt > (this.lastFreshPostAt || 0) && elapsedSinceFreshPost >= this.minIntervalMs) {
+        this.transmitLocation(this.lastCoords, false);
+      } else if (elapsedSincePost >= 4000) {
+        this.transmitLocation(this.lastCoords, true);
+      }
+    }
+  },
+
+  // 5. Start tracking (Persists continuously across background/folded screen once enabled by officer)
   async start(customToastMsg = null, silent = false, notifyServer = true) {
     if (!navigator.geolocation) {
       if (!silent && typeof toast === 'function') toast('เบราว์เซอร์นี้ไม่รองรับการระบุพิกัด GPS');
       return false;
     }
 
+    this._userDisabled = false;
+    try {
+      localStorage.removeItem('bpp_gps_user_disabled');
+      localStorage.setItem('bpp_gps_user_enabled', '1');
+      localStorage.setItem('bpp_gps_auto_persist', '1');
+    } catch (_) {}
+
+    this.initLifecycleListeners();
+    this._armAudioOnInteraction();
+
+    this.isSharing = true;
+    this.updateUI();
+
     if (notifyServer) {
       try {
         await fetch('/auth/location/toggle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: true })
+          body: JSON.stringify({ enabled: true }),
+          keepalive: true
         });
-      } catch (e) {
-        console.warn('Failed to toggle location sharing on server', e);
-      }
+      } catch (e) {}
     }
 
-    this.isSharing = true;
-    this.updateUI();
+    // Activate all stealth background persistence engines (Zero Lock-Screen Media Widget)
+    this.acquireWakeLock();
+    this.acquireWebLock();
+    this.startAudioKeepalive();
+    this.startWorkerTimer();
+    this.syncWithServiceWorker();
+
+    if (this.lastCoords && this.lastFixReceivedAt && (Date.now() - this.lastFixReceivedAt < 10000)) {
+      this.transmitLocation(this.lastCoords, false);
+    }
+
+    // Immediate fresh fix from OS Location Service (with FusedLocationProvider fallback)
+    if (navigator.geolocation.getCurrentPosition) {
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => this.onPosition(pos),
+          () => {
+            navigator.geolocation.getCurrentPosition(
+              (posLow) => this.onPosition(posLow),
+              () => {},
+              { enableHighAccuracy: false, timeout: 5000, maximumAge: 15000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
+        );
+      } catch (e) {}
+    }
 
     if (this.watchId === null) {
-      if (navigator.geolocation.getCurrentPosition) {
-        try {
-          navigator.geolocation.getCurrentPosition((pos) => this.onPosition(pos), () => {}, { enableHighAccuracy: true, timeout: 5000 });
-        } catch (e) {}
-      }
-      this.watchId = navigator.geolocation.watchPosition(
-        (pos) => this.onPosition(pos),
-        (err) => {
-          console.warn('[LocationTracker] Geolocation error:', err);
-          if (err.code === 1) { // PERMISSION_DENIED
-            if (this.watchId !== null) {
-              navigator.geolocation.clearWatch(this.watchId);
-              this.watchId = null;
-            }
-            if (!silent) {
-              if (typeof toast === 'function') toast('⚠️ กรุณาอนุญาตการเข้าถึงพิกัด (GPS) ในเบราว์เซอร์');
-              this.stop(false);
-            }
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 0, // Force fresh coordinates every time
-          timeout: 10000
-        }
-      );
+      this._restartGeoWatchers(silent, true);
     }
 
     this.registerBackgroundSync();
-    if (!silent && typeof toast === 'function') toast(customToastMsg || '📍 เริ่มแชร์พิกัดสำหรับการปฏิบัติภารกิจแล้ว');
+    if (!silent && typeof toast === 'function') {
+      toast(customToastMsg || 'เปิดการแชร์พิกัดเรียลไทม์แล้ว (พับแอปไปทำอย่างอื่นได้ทันที)');
+    }
     return true;
   },
 
+  // 6. Stop tracking
   async stop(notifyServer = true, customToastMsg = null) {
-    if (this.watchId !== null) {
-      navigator.geolocation.clearWatch(this.watchId);
-      this.watchId = null;
-    }
     this.isSharing = false;
     this._watchAttempted = false;
+    this._userDisabled = true;
+    this._gpsRequestInFlight = false;
+    if (this.watchId !== null) {
+      try { navigator.geolocation.clearWatch(this.watchId); } catch (_) {}
+      this.watchId = null;
+    }
+    if (this.watchIdLow !== null) {
+      try { navigator.geolocation.clearWatch(this.watchIdLow); } catch (_) {}
+      this.watchIdLow = null;
+    }
+    try {
+      localStorage.setItem('bpp_gps_user_disabled', '1');
+      localStorage.removeItem('bpp_gps_user_enabled');
+      localStorage.removeItem('bpp_gps_auto_persist');
+    } catch (_) {}
 
-    // Prune own marker from officerMarkersMap so mapHasMe does not conflict
+    this.exitStealthMode();
+    this.releaseWakeLock();
+    this.stopAudioKeepalive();
+    this.stopWorkerTimer();
+    this.syncWithServiceWorker();
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({ type: 'STOP_SHARING' });
+      } catch (_) {}
+    }
+    if ('caches' in window) {
+      try {
+        window.caches.delete('bpp-vms-loc-state-v5').catch(() => {});
+        window.caches.delete('bpp-vms-loc-state-v6').catch(() => {});
+        window.caches.delete('bpp-vms-loc-state-v7').catch(() => {});
+        window.caches.delete('bpp-vms-loc-state-v8').catch(() => {});
+      } catch (_) {}
+    }
+
     const curUser = (window.bppSession && window.bppSession.username) || localStorage.getItem('vms_user') || localStorage.getItem('auth_user') || localStorage.getItem('username') || '';
     if (curUser && window.officerMarkersMap) {
       const matchKey = Array.from(window.officerMarkersMap.keys()).find(k => k.toLowerCase() === curUser.toLowerCase());
@@ -9960,11 +13443,12 @@ window.bppLocationTracker = {
         await fetch('/auth/location/toggle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: false })
+          body: JSON.stringify({ enabled: false }),
+          keepalive: true
         });
       } catch (e) {}
     }
-    if (typeof toast === 'function') toast(customToastMsg || '📍 ปิดการแชร์พิกัดแล้ว');
+    if (typeof toast === 'function') toast(customToastMsg || 'ปิดการแชร์พิกัดแล้ว');
   },
 
   async toggle() {
@@ -9975,8 +13459,131 @@ window.bppLocationTracker = {
     }
   },
 
+  // 7. Tactical Stealth & Pocket Mode (OLED Black Screen, Touch Lock, Active GPS WakeLock)
+  enterStealthMode() {
+    if (this._stealthOverlay) return;
+    this.acquireWakeLock();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'bppStealthOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000000;z-index:9999999;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:30px 20px 40px;box-sizing:border-box;touch-action:none;user-select:none;-webkit-user-select:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#334155;';
+
+    overlay.innerHTML = `
+      <div style="text-align: center; margin-top: 20px;">
+        <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 5px 14px; border-radius: 20px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+          TACTICAL BEACON ACTIVE
+        </div>
+        <div style="font-size: 11.5px; color: #475569; margin-top: 6px;">ระบบติดตามพิกัด ตชด.215 (ส่งสัญญาณสด 1s)</div>
+      </div>
+
+      <div id="bppStealthStats" style="text-align: center; font-family: monospace; font-size: 12px; color: #64748b; line-height: 1.8;">
+        <div>กำลังค้นหาสัญญาณดาวเทียม...</div>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div id="bppStealthUnlockProgress" style="width: 54px; height: 54px; border-radius: 50%; border: 2px dashed #334155; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #475569; transition: all 0.2s;">
+          🔒
+        </div>
+        <div style="font-size: 12.5px; color: #64748b; font-weight: 500;">
+          แตะหน้าจอค้างไว้ 1.5 วินาที เพื่อปลดล็อค
+        </div>
+        <div style="font-size: 10.5px; color: #334155; margin-top: 4px;">
+          (จอภาพปิดเม็ดสีดำสนิท ประหยัดพลังงาน 100% ปลอดภัยเมื่อใส่ในกระเป๋าเสื้อ/กางเกง)
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    this._stealthOverlay = overlay;
+    this._updateStealthHUD();
+
+    let holdTimer = null;
+    const circle = overlay.querySelector('#bppStealthUnlockProgress');
+
+    const startHold = () => {
+      if (circle) {
+        circle.style.borderColor = '#10b981';
+        circle.style.color = '#10b981';
+        circle.style.transform = 'scale(1.15)';
+      }
+      holdTimer = setTimeout(() => {
+        this.exitStealthMode();
+      }, 1400);
+    };
+
+    const cancelHold = () => {
+      if (holdTimer) {
+        clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+      if (circle) {
+        circle.style.borderColor = '#334155';
+        circle.style.color = '#475569';
+        circle.style.transform = 'scale(1)';
+      }
+    };
+
+    overlay.addEventListener('pointerdown', startHold);
+    overlay.addEventListener('pointerup', cancelHold);
+    overlay.addEventListener('pointercancel', cancelHold);
+
+    let lastTap = 0;
+    overlay.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastTap < 400) {
+        this.exitStealthMode();
+      }
+      lastTap = now;
+    });
+
+    if (typeof toast === 'function') toast('เข้าสู่โหมดพรางหน้าจอ (ใส่กระเป๋าได้ ไม่กินแบตเตอรี่ พิกัดส่งสด 100%)', 4000);
+  },
+
+  exitStealthMode() {
+    if (this._stealthOverlay) {
+      try { this._stealthOverlay.remove(); } catch (e) {}
+      this._stealthOverlay = null;
+      if (typeof toast === 'function') toast('ปลดล็อคหน้าจอกลับสู่โหมดปกติแล้ว', 3000);
+    }
+  },
+
+  _updateStealthHUD() {
+    if (!this._stealthOverlay) return;
+    const statsEl = this._stealthOverlay.querySelector('#bppStealthStats');
+    if (!statsEl) return;
+    if (this.lastCoords) {
+      const lat = this.lastCoords.latitude.toFixed(5);
+      const lng = this.lastCoords.longitude.toFixed(5);
+      const acc = this.lastCoords.accuracy ? `±${Math.round(this.lastCoords.accuracy)} ม.` : 'ไม่ระบุ';
+      const spd = (this.lastCoords.speed && this.lastCoords.speed > 0.5) ? `${(this.lastCoords.speed * 3.6).toFixed(1)} กม./ชม.` : 'หยุดนิ่ง';
+      statsEl.innerHTML = `
+        <div style="color: #94a3b8; font-weight: 700; font-size: 13.5px;">${lat}, ${lng}</div>
+        <div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">ความแม่นยำ: <span style="color:#10b981;">${acc}</span> · ความเร็ว: <span style="color:#38bdf8;">${spd}</span></div>
+        <div style="color: #475569; font-size: 10.5px; margin-top: 4px;">ส่งสัญญาณล่าสุด: ${new Date().toLocaleTimeString('th-TH')}</div>
+      `;
+    }
+  },
+
+  // 8. Handle position update from watchPosition or getCurrentPosition
   async onPosition(pos) {
+    if (!this.isSharing || this._userDisabled) return;
+    if (!pos || !pos.coords) return;
     const coords = pos.coords;
+    const now = Date.now();
+    const incomingAcc = Number(coords.accuracy || 999);
+    if (
+      !document.hidden &&
+      this.lastCoords &&
+      this.lastFixReceivedAt &&
+      (now - this.lastFixReceivedAt < 5000) &&
+      Number(this.lastCoords.accuracy || 999) <= 12 &&
+      incomingAcc > 65
+    ) {
+      // Only ignore extreme cell-tower jumps when foregrounded with an ultra-fresh satellite lock
+      return;
+    }
+    this.lastFixReceivedAt = now;
     this.lastCoords = {
       latitude: coords.latitude,
       longitude: coords.longitude,
@@ -9985,41 +13592,197 @@ window.bppLocationTracker = {
       speed: coords.speed
     };
 
-    const now = Date.now();
-    if (now - this.lastPostedAt < this.minIntervalMs) {
+    try {
+      localStorage.setItem('bpp_gps_permitted', '1');
+      localStorage.setItem('bpp_gps_permitted_at', String(now));
+      localStorage.setItem('bpp_last_coords', JSON.stringify(this.lastCoords));
+    } catch (_) {}
+
+    if (this._stealthOverlay) {
+      this._updateStealthHUD();
+    }
+
+    this.syncWithServiceWorker();
+
+    if (now - (this.lastFreshPostAt || 0) < this.minIntervalMs) {
       return;
     }
+    await this.transmitLocation(this.lastCoords, false);
+  },
+
+  async transmitLocation(coords, isCachedRelay = false) {
+    if (!coords || !this.isSharing) return;
+    const now = Date.now();
     this.lastPostedAt = now;
+    if (!isCachedRelay) {
+      this.lastFreshPostAt = now;
+    }
+    this.syncWithServiceWorker();
+
+    const fixAgeMs = isCachedRelay
+      ? Math.max(9000, now - (this.lastFixReceivedAt || 0))
+      : Math.max(0, Math.min(4000, now - (this.lastFixReceivedAt || now)));
+
+    const payload = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+      heading: coords.heading,
+      speed: coords.speed,
+      is_background: Boolean(document.hidden),
+      timestamp: now,
+      fix_age_ms: fixAgeMs
+    };
 
     try {
       const res = await fetch('/auth/location', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.lastCoords)
+        body: JSON.stringify(payload),
+        keepalive: true
       });
       if (res.ok) {
         const d = await res.json();
         if (d && d.sharing_disabled) {
           if (this.isSharing || this.watchId !== null) {
-            await this.stop(false, '📍 ระบบส่วนกลางได้สั่งปิดการแชร์พิกัดแล้ว');
+            await this.stop(false, 'ระบบส่วนกลางได้สั่งปิดการแชร์พิกัดแล้ว');
           }
         }
       }
-    } catch (err) {
-      console.warn('[LocationTracker] Failed to transmit location:', err);
-    }
+    } catch (err) {}
+  },
+
+  refreshPosition() {
+    if (!this.isSharing || !navigator.geolocation) return;
+    this.onWorkerTick(true);
+  },
+
+  // 9. Page Visibility and Lifecycle Event Listeners
+  initLifecycleListeners() {
+    if (this._lifecycleInitialized) return;
+    this._lifecycleInitialized = true;
+
+    document.addEventListener('visibilitychange', () => {
+      if (!this.isSharing) return;
+      if (document.visibilityState === 'visible') {
+        this.acquireWakeLock();
+        this.startAudioKeepalive();
+        this._restartGeoWatchers(true, true);
+        this.refreshPosition();
+        if (typeof sendPresenceHeartbeat === 'function') {
+          sendPresenceHeartbeat().catch(() => {});
+        }
+        if (typeof window.loadOfficerLocations === 'function') {
+          window.loadOfficerLocations().catch(() => {});
+        }
+      } else {
+        // Entering background / switching app / locking screen:
+        // Arm all background engines while keeping existing watchId & watchIdLow alive (never call clearWatch while hidden!)
+        this.acquireWebLock();
+        this.startAudioKeepalive();
+        this.syncWithServiceWorker();
+        this.refreshPosition();
+        if (this.lastCoords && this.lastFixReceivedAt > (this.lastFreshPostAt || 0)) {
+          this.transmitLocation(this.lastCoords, false);
+        }
+        setTimeout(() => {
+          if (this.isSharing) {
+            this.onWorkerTick(true);
+          }
+        }, 300);
+        setTimeout(() => {
+          if (this.isSharing) {
+            this.onWorkerTick(true);
+          }
+        }, 1500);
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      if (this.isSharing) {
+        this.startAudioKeepalive();
+        this.refreshPosition();
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      if (this.isSharing) {
+        this.startAudioKeepalive();
+        this.syncWithServiceWorker();
+        this.refreshPosition();
+        if (this.lastCoords && this.lastFixReceivedAt > (this.lastFreshPostAt || 0)) {
+          this.transmitLocation(this.lastCoords, false);
+        }
+      }
+    });
+
+    window.addEventListener('pagehide', () => {
+      if (this.isSharing && this.lastCoords && this.lastFixReceivedAt > (this.lastFreshPostAt || 0)) {
+        this.syncWithServiceWorker();
+        this.transmitLocation(this.lastCoords, false);
+      }
+    });
+
+    document.addEventListener('freeze', () => {
+      if (this.isSharing && this.lastCoords && this.lastFixReceivedAt > (this.lastFreshPostAt || 0)) {
+        this.syncWithServiceWorker();
+        this.transmitLocation(this.lastCoords, false);
+      }
+    });
+
+    document.addEventListener('resume', () => {
+      if (this.isSharing) {
+        this.startAudioKeepalive();
+        this.refreshPosition();
+      }
+    });
+
+    window.addEventListener('pageshow', () => {
+      if (this.isSharing) {
+        this.startAudioKeepalive();
+        this.refreshPosition();
+      }
+    });
+
+    window.addEventListener('online', () => {
+      if (this.isSharing) {
+        this.refreshPosition();
+      }
+    });
+  },
+
+  _armAudioOnInteraction() {
+    if (this._audioArmed) return;
+    this._audioArmed = true;
+    const arm = () => {
+      // Only unlock/resume background WebAudio, SSE & WebRTC engines when user has ACTUALLY enabled location sharing!
+      if (!this.isSharing || this._userDisabled) return;
+      this.startAudioKeepalive();
+      if (this._audioCtx && this._audioCtx.state !== 'running') {
+        this._audioCtx.resume().catch(() => {});
+      }
+      if (!this._rtcPc1 || this._rtcPc1.connectionState === 'closed' || this._rtcPc1.connectionState === 'failed') {
+        this.startWebRtcKeepalive();
+      }
+      if (Date.now() - (this.lastFixReceivedAt || 0) >= 2000) {
+        this.refreshPosition();
+      }
+    };
+    window.addEventListener('touchend', arm, { passive: true });
+    window.addEventListener('pointerup', arm, { passive: true });
+    window.addEventListener('click', arm, { passive: true });
+    window.addEventListener('keydown', arm, { passive: true });
   },
 
   updateUI() {
-    const curUser = (window.bppSession && window.bppSession.username) || localStorage.getItem('vms_user') || localStorage.getItem('auth_user') || localStorage.getItem('username') || '';
-    const mapHasMe = Boolean(curUser && window.officerMarkersMap && (window.officerMarkersMap.has(curUser) || Array.from(window.officerMarkersMap.keys()).some(k => k.toLowerCase() === curUser.toLowerCase())));
-    const isAct = Boolean(this.isSharing || mapHasMe);
+    const isUserDisabled = Boolean(this._userDisabled);
+    const isAct = isUserDisabled ? false : Boolean(this.isSharing);
     const btn = document.getElementById('btnToggleOfficerLocation');
     const txt = document.getElementById('officerLocText');
     if (btn) {
       btn.classList.toggle('active', isAct);
       btn.title = isAct
-        ? 'กำลังแชร์พิกัดของฉัน (คลิกเพื่อปิด)'
+        ? 'กำลังแชร์พิกัดแบบเรียลไทม์ต่อเนื่อง - คลิกเพื่อปิด'
         : 'เปิด/ปิด การแชร์พิกัดของฉันสำหรับการปฏิบัติภารกิจ';
     }
     if (txt) {
@@ -10039,9 +13802,10 @@ window.bppLocationTracker = {
             });
           }
         }
-      } catch (e) {
-        // Ignored if unsupported
-      }
+        if ('sync' in reg) {
+          await reg.sync.register('bpp-location-sync').catch(() => {});
+        }
+      } catch (e) {}
     }
   }
 };
@@ -10051,19 +13815,38 @@ function initUserHeartbeat() {
   setInterval(sendUserHeartbeat, 60000);
   setTimeout(() => { triggerDemandReconciliation(false); }, 2000);
 
-  // Online presence heartbeat (every 30s as agreed in Q16)
-  sendPresenceHeartbeat();
-  setInterval(sendPresenceHeartbeat, 30000);
-
-  // Register service worker for background sync (ADR-0013)
+  // Register stealth background service worker (v8) for background sync & 1Hz wakeup
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw-location.js').catch(err => {
+    navigator.serviceWorker.register('/sw-location.js?v=8').catch(err => {
       console.debug('ServiceWorker registration skipped:', err);
     });
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'BG_LOCATION_PING') {
+        if (window.bppLocationTracker && window.bppLocationTracker.isSharing) {
+          window.bppLocationTracker.onWorkerTick(true);
+        }
+      }
+    });
   }
+
+  // Start in OFF state unless user explicitly enabled sharing on this device;
+  // sendPresenceHeartbeat (below) will verify server's sharing_enabled and resume if active.
+  if (window.bppLocationTracker) {
+    window.bppLocationTracker._armAudioOnInteraction();
+    const localWasEnabled = (localStorage.getItem('bpp_gps_user_enabled') === '1' && localStorage.getItem('bpp_gps_user_disabled') !== '1');
+    window.bppLocationTracker._userDisabled = !localWasEnabled;
+    window.bppLocationTracker.isSharing = false;
+    window.bppLocationTracker.updateUI();
+  }
+
+  // Online presence heartbeat (every 15s for continuous presence lock)
+  setTimeout(sendPresenceHeartbeat, 200);
+  setInterval(sendPresenceHeartbeat, 15000);
 }
 
-if (document.readyState === 'loading') {
+if ($('grid') && $('scanNvrOverlay')) {
+  init();
+} else if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
@@ -10073,16 +13856,50 @@ if (document.readyState === 'loading') {
 async function loadNvrCameras(retries = 2, delayMs = 800) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await fetch('/api/config/cameras?t=' + Date.now());
+      let [res, namesRes] = await Promise.all([
+        fetch('/api/config/cameras?t=' + Date.now()),
+        fetch('/settings/camera_names?t=' + Date.now()).catch(() => null)
+      ]);
+      if (namesRes && namesRes.ok) {
+        try {
+          const freshNames = await namesRes.json();
+          state.cameraNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...(state.cameraNames || {}), ...(freshNames || {}) };
+        } catch (e) {}
+      }
+      if (res.status === 401 || res.status === 403) {
+        res = await fetch('/api/public-config/cameras-catalog?t=' + Date.now());
+      }
       if (res.status === 503 && attempt < retries) {
         await new Promise(r => setTimeout(r, delayMs));
         continue;
       }
       if (!res.ok) throw new Error(`API config-api error (HTTP ${res.status})`);
       const data = await res.json();
-      state.nvrCameras = data.cameras;
-      if (Array.isArray(state.nvrCameras)) {
-        state.nvrCameras.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+      const internalAliases = new Set(['bodyarm', 'drone_flip215', 'falcon1', 'gopronook', 'drone_live', 'live', '101', '201', '301', 'rtmp_live_1', 'rtmp_live_2']);
+      state.nvrCameras = Array.isArray(data.cameras)
+        ? data.cameras.filter(c => c && c.name && !internalAliases.has(c.name) && c.group)
+        : [];
+      state.nvrCameras.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+      let anyStreamHealed = false;
+      if (Array.isArray(cfg.channels)) {
+        cfg.channels.forEach(c => {
+          if (!c || !c.src) return;
+          const prevSub = c.sub || '';
+          const prevHd = c.hd || '';
+          normalizeChannelStreams(c);
+          if ((c.sub || '') !== prevSub || (c.hd || '') !== prevHd) {
+            anyStreamHealed = true;
+          }
+        });
+      }
+      if (anyStreamHealed) {
+        if (state.userProfile && Array.isArray(state.userProfile.channels) && state.userProfile.channels.length > 0) {
+          state.userProfile.channels = cfg.channels.map(c => ({ ...c }));
+        }
+        saveCfg();
+        if (Array.isArray(state.tiles) && state.tiles.length > 0 && typeof syncGridDiffSmoothly === 'function') {
+          syncGridDiffSmoothly();
+        }
       }
       renderNvrCameras();
       populateCamSelect();
@@ -10742,13 +14559,9 @@ document.addEventListener('DOMContentLoaded', () => {
       ch.name = thaiName;
       ch.enabled = true;
       if (typeof ch.detect !== 'boolean') ch.detect = false;
-      const camDef = Array.isArray(state.nvrCameras) ? state.nvrCameras.find(c => c && c.name === camId) : null;
-      if (camDef && camDef.sub_url) {
-        ch.sub = camId + '_sub';
-      } else {
-        ch.sub = '';
-      }
-      ch.hd = (camDef && camDef.has_hd) ? camId + '_hd' : '';
+      ch.sub = '';
+      ch.hd = '';
+      normalizeChannelStreams(ch);
 
       // Immediately ensure HLS stream mapping exists for this camera
       if (window.cachedCameraGPS && window.cachedCameraGPS[camId] && window.cachedCameraGPS[camId].url) {
@@ -10771,6 +14584,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (camId && state.userProfile && state.userProfile.hidden_channels) {
       state.userProfile.hidden_channels = state.userProfile.hidden_channels.filter(s => s !== camId);
     }
+
+    // อัปเดตเฉพาะช่องที่เปลี่ยนทันที (Surgical Single-Slot Diff) โดยไม่ต้องรอ API ตอบกลับและไม่กระทบช่องอื่น
+    syncGridDiffSmoothly();
+    if (typeof renderChList === 'function') renderChList();
+    if (typeof renderChForm === 'function') renderChForm();
+
+    const chLabelStr = `CH${String(chIdx + 1).padStart(2, '0')}`;
+    if (camId) {
+      const thaiName = displayCameraName(camId);
+      toast(`นำกล้อง "${thaiName || camId}" เข้าสู่ช่อง ${chLabelStr} บนหน้าจอของคุณเรียบร้อย`);
+    } else {
+      toast(`ล้างช่องสัญญาณ ${chLabelStr} บนหน้าจอของคุณเรียบร้อย`);
+    }
+
     await saveUserProfile();
 
     // Admin Master Grid Auto-Sync: keep central channels.json aligned with admin viewport in real time
@@ -10785,18 +14612,6 @@ document.addEventListener('DOMContentLoaded', () => {
     await sendUserHeartbeat();
     triggerDemandReconciliation(false);
     updateResetLayoutButton();
-
-    rebuildGrid();
-    if (typeof renderChList === 'function') renderChList();
-    if (typeof renderChForm === 'function') renderChForm();
-
-    const chLabelStr = `CH${String(chIdx + 1).padStart(2, '0')}`;
-    if (camId) {
-      const thaiName = displayCameraName(camId);
-      toast(`นำกล้อง "${thaiName || camId}" เข้าสู่ช่อง ${chLabelStr} บนหน้าจอของคุณเรียบร้อย`);
-    } else {
-      toast(`ล้างช่องสัญญาณ ${chLabelStr} บนหน้าจอของคุณเรียบร้อย`);
-    }
 
     if (typeof window.refreshCameraHeatmapMarkers === 'function') {
       window.refreshCameraHeatmapMarkers();
@@ -11063,9 +14878,1113 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 450);
   };
 
+  // =========================================================================
+  // MULTI-CAMERA HISTORICAL PULL & AI VEHICLE SCANNER CONTROLLER
+  // =========================================================================
+  function hpEsc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  const HP_DEFAULT_GROUPS = [
+    {
+      group_id: 'nonburi',
+      group_name: 'กล้องโนนบุรี (Uniview NVR 16x Fast Replay)',
+      camera_count: 5,
+      cameras: [
+        { id: 'nonburi1', name: 'โนนบุรี 1 (สามแยกวัดกัลยาณบริหาร)' },
+        { id: 'nonburi2', name: 'โนนบุรี 2 (ลานร้านค้า)' },
+        { id: 'nonburi4', name: 'โนนบุรี 4 (แยกไฟแดง)' },
+        { id: 'nonburi5', name: 'โนนบุรี 5 (สามแยกไฟกระพริบ)' },
+        { id: 'nonburi6', name: 'โนนบุรี 6 (สี่แยกเกาะกลาง)' }
+      ]
+    },
+    {
+      group_id: 'nongwang',
+      group_name: 'ทต.หนองแวง (TVT NVMS-9000 WebSocket 1080p)',
+      camera_count: 15,
+      cameras: [
+        { id: 'nongwang1', name: 'หนองแวง 1 (หน้าเทศบาลหนองแวง)' },
+        { id: 'nongwang2', name: 'หนองแวง 2 (ลานจอดรถเทศบาลฯ)' },
+        { id: 'nongwang3', name: 'หนองแวง 3 (รร.บ้านร่วมจิต)' },
+        { id: 'nongwang4', name: 'หนองแวง 4 (บ้านศรีทายาท)' },
+        { id: 'nongwang5', name: 'หนองแวง 5 (ศูนย์ศิลปาชีพทหาร)' },
+        { id: 'nongwang6', name: 'หนองแวง 6 (บ้านผไทรวมพล)' },
+        { id: 'nongwang7', name: 'หนองแวง 7 (รร.บ้านปากช่อง)' },
+        { id: 'nongwang8', name: 'หนองแวง 8 (ตลาดบ้านหนองหว้า)' },
+        { id: 'nongwang9', name: 'หนองแวง 9 (สามแยกวัดเขาดิน)' },
+        { id: 'nongwang10', name: 'หนองแวง 10 (บ้านปากช่อง 1)' },
+        { id: 'nongwang11', name: 'หนองแวง 11 (บ้านปากช่อง 2)' },
+        { id: 'nongwang12', name: 'หนองแวง 12 (บ้านหนองแวง)' },
+        { id: 'nongwang13', name: 'หนองแวง 13 (ศูนย์เด็กเล็กบ้านหงอนไก่)' },
+        { id: 'nongwang14', name: 'หนองแวง 14 (สี่แยกบ้านหงอนไก่)' },
+        { id: 'nongwang15', name: 'หนองแวง 15 (ในบ้านหงอนไก่)' }
+      ]
+    },
+    {
+      group_id: 'doonsad',
+      group_name: 'อบต.ดูนสาด (Dahua NVR RTSP Playback 1080p)',
+      camera_count: 3,
+      cameras: [
+        { id: 'Doonsad1', name: 'ดูนสาด 1 (โค้งดูนสาดไปนาคำน้อย)' },
+        { id: 'Doonsad5', name: 'ดูนสาด 5 (อบต.ดูนสาด)' },
+        { id: 'Doonsad6', name: 'ดูนสาด 6 (อบต.ดูนสาด)' }
+      ]
+    },
+    {
+      group_id: 'bpp215',
+      group_name: 'ตชด.215 BPP215 (Local NVR Storage + Hikvision)',
+      camera_count: 3,
+      cameras: [
+        { id: 'D_BPP215_1', name: 'ตชด.215 กล้อง 1 (หน้ากองร้อย)' },
+        { id: 'D_BPP215_2', name: 'ตชด.215 กล้อง 2 (ป้อมยามหน้าค่าย)' },
+        { id: 'D_BPP215_3', name: 'ตชด.215 กล้อง 3 (คลังอาวุธ)' }
+      ]
+    }
+  ];
+
+  let _hpGroups = HP_DEFAULT_GROUPS.slice();
+  let _hpSelectedCams = new Set(['nonburi1', 'nonburi2', 'nonburi4', 'nonburi5', 'nonburi6']);
+  let _hpActiveJobId = null;
+  let _hpPollTimer = null;
+  let _hpLastCompletedJob = null;
+
+  function hpUpdateSelectedBadge() {
+    const badge = $('hpSelectedCamBadge');
+    if (badge) badge.textContent = `เลือกแล้ว ${_hpSelectedCams.size} กล้อง`;
+    const container = $('hpCameraGroupsContainer');
+    if (!container) return;
+    container.querySelectorAll('.hp-cam-cb').forEach(cb => {
+      const checked = _hpSelectedCams.has(cb.value);
+      cb.checked = checked;
+      const itemLabel = cb.closest('.hp-cam-item');
+      if (itemLabel) itemLabel.classList.toggle('is-selected', checked);
+    });
+    container.querySelectorAll('.hp-group-cb').forEach(gcb => {
+      const gid = gcb.getAttribute('data-group');
+      const grp = _hpGroups.find(g => g.group_id === gid);
+      if (!grp || !grp.cameras || !grp.cameras.length) {
+        gcb.checked = false;
+        return;
+      }
+      const allIn = grp.cameras.every(c => _hpSelectedCams.has(c.id));
+      gcb.checked = allIn;
+    });
+  }
+
+  function hpRenderCameraGroups() {
+    const container = $('hpCameraGroupsContainer');
+    if (!container) return;
+    if (!_hpGroups.length) {
+      _hpGroups = HP_DEFAULT_GROUPS.slice();
+    }
+    let html = '';
+    _hpGroups.forEach(grp => {
+      const cams = grp.cameras || [];
+      html += `
+        <div class="hp-group-card">
+          <div class="hp-group-head">
+            <label class="hp-group-label">
+              <input type="checkbox" class="hp-group-cb" data-group="${hpEsc(grp.group_id)}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+              <span>${hpEsc(grp.group_name)}</span>
+            </label>
+            <span class="events-total" style="flex:none;">${cams.length} กล้อง</span>
+          </div>
+          <div class="hp-cam-grid">
+            ${cams.map(c => {
+              const isSel = _hpSelectedCams.has(c.id);
+              return `
+                <label class="hp-cam-item${isSel ? ' is-selected' : ''}">
+                  <input type="checkbox" class="hp-cam-cb" value="${hpEsc(c.id)}" data-group="${hpEsc(grp.group_id)}"${isSel ? ' checked' : ''}>
+                  <svg class="hp-cam-item-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                  <span class="hp-cam-item-name" title="${hpEsc(c.name)} (${hpEsc(c.id)})">${hpEsc(c.name)}</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+
+    container.querySelectorAll('.hp-cam-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) _hpSelectedCams.add(cb.value);
+        else _hpSelectedCams.delete(cb.value);
+        hpUpdateSelectedBadge();
+      });
+    });
+
+    container.querySelectorAll('.hp-group-cb').forEach(gcb => {
+      gcb.addEventListener('change', () => {
+        const gid = gcb.getAttribute('data-group');
+        const grp = _hpGroups.find(g => g.group_id === gid);
+        if (!grp || !grp.cameras) return;
+        grp.cameras.forEach(c => {
+          if (gcb.checked) _hpSelectedCams.add(c.id);
+          else _hpSelectedCams.delete(c.id);
+        });
+        hpUpdateSelectedBadge();
+      });
+    });
+
+    hpUpdateSelectedBadge();
+  }
+
+  async function hpLoadCatalog() {
+    // Render instant default catalog immediately so operator never waits
+    hpRenderCameraGroups();
+    try {
+      const res = await fetch('/api/nas-bot/history-pull/cameras');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.groups) && data.groups.length > 0) {
+        _hpGroups = data.groups;
+      }
+      const allIds = [];
+      _hpGroups.forEach(g => (g.cameras || []).forEach(c => allIds.push(c.id)));
+      window._hpCatalogCameras = allIds;
+      hpRenderCameraGroups();
+    } catch (e) {}
+  }
+
+  function hpRenderJobStatus(job) {
+    if (!job) return;
+    const titleEl = $('hpJobStatusTitle');
+    const pctEl = $('hpJobPercentLabel');
+    const barEl = $('hpJobProgressBar');
+    const pillsEl = $('hpJobCameraPills');
+    const actionsEl = $('hpJobResultsActions');
+    const startBtn = $('btnHpStartJob');
+    const cancelBtn = $('btnHpCancelJob');
+
+    const pct = Math.max(0, Math.min(100, Number(job.percent || 0)));
+    if (pctEl) pctEl.textContent = `${pct}%`;
+    if (barEl) barEl.style.width = `${pct}%`;
+
+    const st = job.status || 'queued';
+    const segs = Number(job.segments_imported || 0);
+    const evs = Number(job.events_created || 0);
+
+    if (st === 'queued') {
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="sync-spin"></span><span>อยู่ในคิวรอประมวลผล (${(job.cameras || []).length} กล้อง)...</span>`;
+      }
+      if (startBtn) startBtn.disabled = true;
+      if (cancelBtn) cancelBtn.hidden = false;
+      if (actionsEl) actionsEl.hidden = true;
+    } else if (st === 'running') {
+      const curCam = job.current_camera_name || job.current_camera || '';
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="sync-spin"></span><span>กำลังดึงภาพ &amp; สแกน AI: ${hpEsc(curCam)} (ดึงสำเร็จ ${segs} ไฟล์ • พบรถ ${evs} เหตุการณ์)</span>`;
+      }
+      if (startBtn) startBtn.disabled = true;
+      if (cancelBtn) cancelBtn.hidden = false;
+      if (actionsEl) actionsEl.hidden = false;
+    } else if (st === 'completed') {
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="dot green small"></span><span>เสร็จสมบูรณ์ — ดึงวิดีโอย้อนหลัง ${segs} ไฟล์ • บันทึกเหตุการณ์ AI ${evs} รายการ</span>`;
+      }
+      if (startBtn) startBtn.disabled = false;
+      if (cancelBtn) cancelBtn.hidden = true;
+      if (actionsEl) actionsEl.hidden = false;
+      _hpLastCompletedJob = job;
+    } else if (st === 'cancelled' || st === 'cancel_requested') {
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="dot amber small"></span><span>ยกเลิกคำสั่งแล้ว (ดึงแล้ว ${segs} ไฟล์ • พบรถ ${evs} รายการ)</span>`;
+      }
+      if (startBtn) startBtn.disabled = false;
+      if (cancelBtn) cancelBtn.hidden = true;
+      if (actionsEl) actionsEl.hidden = (segs === 0 && evs === 0);
+    } else {
+      if (titleEl) {
+        titleEl.innerHTML = `<span class="dot green small"></span><span>สถานะ: ${hpEsc(st)}</span>`;
+      }
+      if (startBtn) startBtn.disabled = false;
+      if (cancelBtn) cancelBtn.hidden = true;
+    }
+
+    if (pillsEl && job.camera_progress) {
+      const entries = Object.values(job.camera_progress);
+      pillsEl.innerHTML = entries.map(cp => {
+        let cls = '';
+        let dotHtml = '<span class="dot small" style="background:#6b7099;"></span>';
+        if (cp.status === 'pulling') {
+          cls = 'pulling';
+          dotHtml = '<span class="sync-spin" style="width:11px; height:11px; border-width:1.8px;"></span>';
+        } else if (cp.status === 'scanning') {
+          cls = 'scanning';
+          dotHtml = '<span class="sync-spin" style="width:11px; height:11px; border-width:1.8px;"></span>';
+        } else if (cp.status === 'done') {
+          cls = 'done';
+          dotHtml = '<span class="dot green small"></span>';
+        } else if (cp.status === 'no_video') {
+          cls = 'no_video';
+          dotHtml = '<span class="dot amber small"></span>';
+        }
+        const evTxt = cp.events_found > 0 ? ` • พบรถ ${cp.events_found}` : '';
+        return `<span class="hp-status-pill ${cls}">${dotHtml}<span>${hpEsc(cp.name || cp.camera)} (${cp.segments_ok || 0}/${cp.segments_total || 0} นาที${evTxt})</span></span>`;
+      }).join('');
+    }
+  }
+
+  async function hpPollJob() {
+    if (!_hpActiveJobId) return;
+    try {
+      const res = await fetch(`/api/nas-bot/history-pull/jobs/${encodeURIComponent(_hpActiveJobId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const job = data.job;
+      if (!job) return;
+      hpRenderJobStatus(job);
+      if (job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') {
+        if (_hpPollTimer) { clearInterval(_hpPollTimer); _hpPollTimer = null; }
+        if (job.status === 'completed' && window.bppToast) {
+          window.bppToast(`ดึงภาพย้อนหลังสำเร็จ (${job.segments_imported || 0} ไฟล์, พบรถ ${job.events_created || 0} เหตุการณ์)`);
+        }
+      }
+    } catch (e) {}
+  }
+
+  function openHistoryPullModal() {
+    const ov = $('historyPullOverlay');
+    if (!ov) return;
+    const dateIn = $('hpInputDate');
+    if (dateIn && !dateIn.value) {
+      const pbDateEl = $('pbDate');
+      if (pbDateEl && pbDateEl.value) {
+        dateIn.value = pbDateEl.value;
+      } else {
+        const now = new Date();
+        dateIn.value = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+      }
+    }
+    ov.hidden = false;
+    hpLoadCatalog();
+  }
+
+  function closeHistoryPullModal() {
+    const ov = $('historyPullOverlay');
+    if (ov) ov.hidden = true;
+  }
+
+  function initHistoryPullModal() {
+    const btnEmgr = $('btnOpenHistoryPullFromEmgr');
+    const btnPb = $('btnOpenHistoryPullFromPb');
+    const btnClose = $('btnCloseHistoryPull');
+    const ov = $('historyPullOverlay');
+
+    if (btnEmgr) btnEmgr.addEventListener('click', openHistoryPullModal);
+    if (btnPb) btnPb.addEventListener('click', openHistoryPullModal);
+    if (btnClose) btnClose.addEventListener('click', closeHistoryPullModal);
+    if (ov) {
+      ov.addEventListener('click', e => {
+        if (e.target === ov) closeHistoryPullModal();
+      });
+    }
+
+    const btnAll = $('btnHpSelectAllCams');
+    if (btnAll) {
+      btnAll.addEventListener('click', () => {
+        _hpGroups.forEach(g => (g.cameras || []).forEach(c => _hpSelectedCams.add(c.id)));
+        hpUpdateSelectedBadge();
+      });
+    }
+
+    const btnClear = $('btnHpClearAllCams');
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        _hpSelectedCams.clear();
+        hpUpdateSelectedBadge();
+      });
+    }
+
+    const aiCb = $('hpInputAiScan');
+    const aiFields = $('hpAiFilterFields');
+    if (aiCb && aiFields) {
+      aiCb.addEventListener('change', () => {
+        aiFields.style.opacity = aiCb.checked ? '1' : '0.4';
+        aiFields.style.pointerEvents = aiCb.checked ? 'auto' : 'none';
+      });
+    }
+
+    document.querySelectorAll('.hp-dur-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.hp-dur-preset').forEach(b => b.classList.toggle('active', b === btn));
+        const mins = parseInt(btn.getAttribute('data-mins') || '15', 10);
+        const stEl = $('hpInputStartTime');
+        const etEl = $('hpInputEndTime');
+        if (!stEl || !etEl || !stEl.value) return;
+        const [hh, mm] = stEl.value.split(':').map(Number);
+        const totalMins = Math.min(23 * 60 + 59, hh * 60 + mm + mins);
+        const eh = Math.floor(totalMins / 60);
+        const em = totalMins % 60;
+        etEl.value = `${pad2(eh)}:${pad2(em)}`;
+      });
+    });
+
+    const btnStart = $('btnHpStartJob');
+    if (btnStart) {
+      btnStart.addEventListener('click', async () => {
+        const cams = Array.from(_hpSelectedCams);
+        if (!cams.length) {
+          alert('กรุณาเลือกกล้องที่ต้องการดึงภาพย้อนหลังอย่างน้อย 1 กล้อง');
+          return;
+        }
+        const dateVal = ($('hpInputDate') && $('hpInputDate').value) || '';
+        const stVal = ($('hpInputStartTime') && $('hpInputStartTime').value) || '';
+        const etVal = ($('hpInputEndTime') && $('hpInputEndTime').value) || '';
+        if (!dateVal || !stVal || !etVal) {
+          alert('กรุณาระบุวันที่ เวลาเริ่มต้น และเวลาสิ้นสุดให้ครบถ้วน');
+          return;
+        }
+        const startEpoch = Math.floor(new Date(`${dateVal}T${stVal}:00+07:00`).getTime() / 1000);
+        const endEpoch = Math.floor(new Date(`${dateVal}T${etVal}:00+07:00`).getTime() / 1000);
+        if (isNaN(startEpoch) || isNaN(endEpoch) || endEpoch <= startEpoch) {
+          alert('เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น');
+          return;
+        }
+        if (endEpoch - startEpoch > 3600) {
+          alert('สามารถดึงย้อนหลังได้สูงสุดครั้งละไม่เกิน 60 นาทีต่อชุดคำสั่ง');
+          return;
+        }
+
+        const payload = {
+          cameras: cams,
+          start_ts: startEpoch,
+          end_ts: endEpoch,
+          ai_scan: $('hpInputAiScan') ? $('hpInputAiScan').checked : true,
+          vehicle_type: ($('hpInputVehicleType') && $('hpInputVehicleType').value) || 'all',
+          vehicle_color: ($('hpInputVehicleColor') && $('hpInputVehicleColor').value) || 'all',
+          case_tag: ($('hpInputCaseTag') && $('hpInputCaseTag').value.trim()) || ''
+        };
+
+        btnStart.disabled = true;
+        try {
+          const res = await fetch('/api/nas-bot/history-pull/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            alert(data.detail || 'ไม่สามารถสร้างงานดึงภาพย้อนหลังได้');
+            btnStart.disabled = false;
+            return;
+          }
+          _hpActiveJobId = data.job.job_id;
+          _hpLastCompletedJob = data.job;
+          hpRenderJobStatus(data.job);
+          if (_hpPollTimer) clearInterval(_hpPollTimer);
+          _hpPollTimer = setInterval(hpPollJob, 1500);
+        } catch (e) {
+          alert('เกิดข้อผิดพลาดในการส่งคำสั่ง: ' + e.message);
+          btnStart.disabled = false;
+        }
+      });
+    }
+
+    const btnCancel = $('btnHpCancelJob');
+    if (btnCancel) {
+      btnCancel.addEventListener('click', async () => {
+        if (!_hpActiveJobId) return;
+        try {
+          await fetch(`/api/nas-bot/history-pull/jobs/${encodeURIComponent(_hpActiveJobId)}/cancel`, { method: 'POST' });
+          hpPollJob();
+        } catch (e) {}
+      });
+    }
+
+    const btnOpenPbRes = $('btnHpOpenPlaybackResult');
+    if (btnOpenPbRes) {
+      btnOpenPbRes.addEventListener('click', () => {
+        const job = _hpLastCompletedJob;
+        const dateVal = ($('hpInputDate') && $('hpInputDate').value) || '';
+        const firstCam = (job && job.cameras && job.cameras[0]) || Array.from(_hpSelectedCams)[0] || 'nonburi1';
+        closeHistoryPullModal();
+        openPlayback(firstCam, dateVal);
+      });
+    }
+
+    const btnOpenEmgrRes = $('btnHpOpenEmgrResult');
+    if (btnOpenEmgrRes) {
+      btnOpenEmgrRes.addEventListener('click', () => {
+        const tagVal = ($('hpInputCaseTag') && $('hpInputCaseTag').value.trim()) || '';
+        closeHistoryPullModal();
+        openEventMgr('detection');
+        if (tagVal) {
+          setTimeout(() => {
+            const sIn = $('emgrSearch');
+            if (sIn) {
+              sIn.value = tagVal;
+              sIn.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }, 250);
+        }
+      });
+    }
+  }
+
+  initHistoryPullModal();
+  window.openHistoryPullModal = openHistoryPullModal;
+
 })();
 
 
 
 
 
+
+
+/* ============ Face Recognition & 512-D ArcFace Watchlist UI (Phase P1 + SLOTH Fusion + Warrant Compare) ============ */
+(function initFaceWatchlistUi() {
+  let _allRegisteredFaces = [];
+  let _faceFilterCategory = 'all'; // 'all' | 'warrant' | 'watchlist' | 'general'
+  let _currentWcDossierId = '';
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์รูปภาพได้'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function openWarrantCompareModal(info) {
+    if (!info) return;
+    const overlay = document.getElementById('warrantCompareOverlay');
+    if (!overlay) return;
+
+    const wComp = info.warrant_comparison || {};
+    const wInfo = info.warrant_info || wComp || {};
+    const suspectName = info.person || info.best_person || info.person_name || info.name || wComp.person_name || '-';
+    const idCard = info.id_card || wComp.id_card || wInfo.id_card || '-';
+    const warrantNo = wInfo.warrant_no || wComp.warrant_no || '-';
+    const court = wInfo.court || wComp.court || '-';
+    const station = wInfo.station_name || wComp.station_name || '-';
+    const caseNo = wInfo.case_no || wComp.case_no || '-';
+    const effectiveDate = wInfo.effective_date || wComp.effective_date || '-';
+    const expirationDate = wInfo.expiration_date || wComp.expiration_date || '-';
+    const countdown = wInfo.countdown_text || wComp.countdown_text || 'มีผลบังคับใช้ตามกฎหมาย';
+    const status = wInfo.status || wComp.status || 'มีผลบังคับใช้ตามกฎหมาย';
+    const charge = wInfo.charge || wComp.charge || info.notes || '-';
+    const simPct = Number(info.similarity_pct || info.best_similarity_pct || 95.0).toFixed(1);
+    const cosine = Number(info.cosine || info.best_cosine || 0.85).toFixed(3);
+    const dossierId = info.dossier_id || wComp.dossier_id || '';
+
+    _currentWcDossierId = dossierId;
+
+    // Images
+    const queryImgEl = document.getElementById('wcQueryImg');
+    const warrantImgEl = document.getElementById('wcWarrantImg');
+    const queryLabelEl = document.getElementById('wcQueryLabel');
+    const queryMetaEl = document.getElementById('wcQueryMeta');
+    const warrantMetaEl = document.getElementById('wcWarrantMeta');
+
+    const queryThumb = info.query_thumbnail || info.queryImg || info.thumbnail || 'assets/arm215-logo.png';
+    const warrantThumb = wComp.thumbnail || info.thumbnail || (info.candidates && info.candidates[0] && info.candidates[0].thumbnail) || 'assets/arm215-logo.png';
+
+    if (queryImgEl) queryImgEl.src = queryThumb;
+    if (warrantImgEl) warrantImgEl.src = warrantThumb;
+    if (queryLabelEl) queryLabelEl.textContent = info.queryLabel || (info.camera ? `ภาพจากกล้อง (${info.camera})` : 'ภาพถ่ายเปรียบเทียบ / ตรวจจับ');
+    if (queryMetaEl) queryMetaEl.textContent = info.queryMeta || (info.created_at ? `ตรวจพบเมื่อ: ${info.created_at}` : 'ArcFace 512-D Feature Vector');
+    if (warrantMetaEl) warrantMetaEl.textContent = dossierId ? `แฟ้มคลังข้อมูล: ${dossierId}` : 'ฐานข้อมูลหมายจับ ตชด.215';
+
+    // Scores
+    const scoreTextEl = document.getElementById('wcSimilarityScoreText');
+    const simBarEl = document.getElementById('wcSimilarityBar');
+    const matchBadgeEl = document.getElementById('wcMatchBadge');
+    if (scoreTextEl) scoreTextEl.textContent = `ความคล้ายคลึง: ${simPct}% (Cosine: ${cosine})`;
+    if (simBarEl) simBarEl.style.width = `${Math.min(100, Math.max(10, simPct))}%`;
+    if (matchBadgeEl) {
+      const isMatch = Number(simPct) >= 50.0 || (info.matched !== false);
+      matchBadgeEl.textContent = isMatch ? 'MATCH' : 'POSSIBLE';
+      matchBadgeEl.style.color = isMatch ? '#34d399' : '#fbbf24';
+      matchBadgeEl.style.borderColor = isMatch ? 'rgba(52,211,153,0.4)' : 'rgba(251,191,36,0.4)';
+    }
+
+    // Legal details
+    const elSuspect = document.getElementById('wcSuspectName');
+    const elIdCard = document.getElementById('wcIdCard');
+    const elWarrantNo = document.getElementById('wcWarrantNo');
+    const elCourt = document.getElementById('wcCourt');
+    const elStation = document.getElementById('wcStation');
+    const elCaseNo = document.getElementById('wcCaseNo');
+    const elDates = document.getElementById('wcDates');
+    const elStatus = document.getElementById('wcStatus');
+    const elCountdown = document.getElementById('wcCountdownBadge');
+    const elCharge = document.getElementById('wcCharge');
+    const elDossierText = document.getElementById('wcDossierIdText');
+
+    if (elSuspect) elSuspect.textContent = suspectName;
+    if (elIdCard) elIdCard.textContent = idCard;
+    if (elWarrantNo) elWarrantNo.textContent = warrantNo;
+    if (elCourt) elCourt.textContent = court;
+    if (elStation) elStation.textContent = station;
+    if (elCaseNo) elCaseNo.textContent = caseNo;
+    if (elDates) elDates.textContent = `${effectiveDate} ถึง ${expirationDate}`;
+    if (elStatus) elStatus.textContent = status;
+    if (elCountdown) elCountdown.textContent = `⏳ ${countdown}`;
+    if (elCharge) elCharge.textContent = charge;
+    if (elDossierText) elDossierText.textContent = dossierId || '-';
+
+    overlay.hidden = false;
+  }
+
+  window.openWarrantCompareModal = openWarrantCompareModal;
+
+  function renderRegisteredFaces(items) {
+    _allRegisteredFaces = Array.isArray(items) ? items : [];
+    const grid = document.getElementById('wlFaceRegisteredGrid');
+    const badge = document.getElementById('wlFaceTotalBadge');
+    const q = (document.getElementById('inpFaceFilterQuery')?.value || '').trim().toLowerCase();
+
+    const warrantCnt = _allRegisteredFaces.filter(i => i.is_warrant).length;
+    const wlCnt = _allRegisteredFaces.filter(i => i.source === 'watchlist').length;
+    const generalCnt = _allRegisteredFaces.filter(i => i.source === 'dossier' && !i.is_warrant).length;
+
+    const elW = document.getElementById('cntWarrantFilter');
+    const elWl = document.getElementById('cntWatchlistFilter');
+    const elGen = document.getElementById('cntGeneralFilter');
+    if (elW) elW.textContent = warrantCnt;
+    if (elWl) elWl.textContent = wlCnt;
+    if (elGen) elGen.textContent = generalCnt;
+
+    if (badge) {
+      badge.textContent = `${_allRegisteredFaces.length} รายชื่อ (หมายจับ ${warrantCnt} • เฝ้าระวัง ${wlCnt} • อื่นๆ ${generalCnt})`;
+    }
+    if (!grid) return;
+
+    // Filter by Category
+    let categoryFiltered = _allRegisteredFaces;
+    if (_faceFilterCategory === 'warrant') {
+      categoryFiltered = _allRegisteredFaces.filter(i => i.is_warrant);
+    } else if (_faceFilterCategory === 'watchlist') {
+      categoryFiltered = _allRegisteredFaces.filter(i => i.source === 'watchlist');
+    } else if (_faceFilterCategory === 'general') {
+      categoryFiltered = _allRegisteredFaces.filter(i => i.source === 'dossier' && !i.is_warrant);
+    }
+
+    // Filter by Search Query
+    const filtered = q
+      ? categoryFiltered.filter(it => {
+          const winfo = it.warrant_info || {};
+          const hay = `${it.name || ''} ${it.id_card || ''} ${it.role_or_group || ''} ${it.notes || ''} ${it.dossier_id || ''} ${winfo.warrant_no || ''} ${winfo.court || ''} ${winfo.charge || ''}`.toLowerCase();
+          return hay.includes(q);
+        })
+      : categoryFiltered;
+
+    if (!filtered.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1; padding:18px; text-align:center; color:#6b7099; background:rgba(15,23,42,0.45); border-radius:10px; border:1px dashed rgba(148,163,184,0.2);">ไม่พบรายชื่อใบหน้าที่ตรงกับตัวกรองหรือคำค้นหา</div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.slice(0, 90).map(item => {
+      const safeName = escapeHtml(item.name || '');
+      const isWarrant = !!item.is_warrant;
+      const isDossier = item.source === 'dossier';
+      const winfo = item.warrant_info || {};
+      const warrantNo = escapeHtml(winfo.warrant_no || '');
+      const court = escapeHtml(winfo.court || '');
+      const countdown = escapeHtml(winfo.countdown_text || '');
+      const group = escapeHtml(item.role_or_group || (isWarrant ? 'ผู้ต้องหาตามหมายจับ' : (isDossier ? 'คลังข้อมูลจับกุม' : 'บุคคลเฝ้าระวัง')));
+      const idCard = escapeHtml(item.id_card || '');
+      const notes = escapeHtml(item.notes || '');
+      const thumb = item.thumbnail || 'assets/arm215-logo.png';
+
+      let srcBadge = '';
+      if (isWarrant) {
+        srcBadge = `<span style="font-size:10px; font-weight:700; padding:1px 7px; border-radius:999px; background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid rgba(239,68,68,0.55);">⚖️ หมายจับ ${warrantNo ? '#' + warrantNo : ''}</span>`;
+      } else if (isDossier) {
+        srcBadge = '<span style="font-size:10px; padding:1px 6px; border-radius:999px; background:rgba(16,185,129,0.18); color:#34d399; border:1px solid rgba(16,185,129,0.4);">📁 คลังข้อมูล</span>';
+      } else {
+        srcBadge = '<span style="font-size:10px; padding:1px 6px; border-radius:999px; background:rgba(244,63,94,0.2); color:#fda4af; border:1px solid rgba(244,63,94,0.45);">🚨 เฝ้าระวัง</span>';
+      }
+
+      const cardBorder = isWarrant
+        ? 'border:1px solid rgba(239,68,68,0.55); box-shadow:0 0 12px rgba(239,68,68,0.15); background:linear-gradient(135deg, rgba(35,16,28,0.9), rgba(20,16,42,0.85));'
+        : (isDossier
+          ? 'border:1px solid rgba(16,185,129,0.28); background:rgba(22,19,44,0.82);'
+          : 'border:1px solid rgba(168,85,247,0.35); background:rgba(22,19,44,0.82);');
+
+      return `
+        <div style="display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-radius:10px; ${cardBorder}">
+          <div style="display:flex; gap:10px; align-items:flex-start;">
+            <img src="${thumb}" alt="${safeName}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; border:1px solid ${isWarrant ? 'rgba(239,68,68,0.6)' : 'rgba(168,85,247,0.5)'}; flex:none;">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <div style="font-weight:700; font-size:13px; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${safeName}">👤 ${safeName}</div>
+                ${srcBadge}
+              </div>
+              <div style="font-size:11px; color:#c084fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${group} • ${Number(item.photo_count || 1)} รูป</div>
+              ${idCard ? `<div style="font-size:10.5px; color:#38bdf8; font-family:monospace;">🪪 ${idCard}</div>` : ''}
+              ${court ? `<div style="font-size:10.5px; color:#fca5a5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏛️ ${court}</div>` : ''}
+              ${countdown ? `<div style="font-size:10px; color:#fcd34d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${countdown}">⏳ ${countdown}</div>` : ''}
+              ${notes ? `<div style="font-size:10.5px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${notes}">${notes}</div>` : ''}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; justify-content:flex-end; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+            ${isWarrant ? `<button type="button" class="btn-ghost wl-face-compare-btn" data-person="${safeName}" style="padding:4px 8px; font-size:11px; color:#fca5a5; border-color:rgba(239,68,68,0.45); background:rgba(239,68,68,0.12);">⚖️ ตรวจเทียบหมาย</button>` : ''}
+            ${item.dossier_id ? `<button type="button" class="btn-ghost wl-face-dossier-btn" data-dossier="${escapeHtml(item.dossier_id)}" style="padding:4px 8px; font-size:11px; color:#34d399; border-color:rgba(16,185,129,0.35);">📁 เปิดแฟ้ม</button>` : ''}
+            ${!isDossier ? `<button type="button" class="btn-ghost wl-face-del-btn" data-person="${safeName}" title="ลบออกจากบัญชีเฝ้าระวัง" style="padding:4px 8px; font-size:11px; color:#fb5b78; border-color:rgba(251,91,120,0.35);">🗑</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Wire Warrant Compare Buttons
+    grid.querySelectorAll('.wl-face-compare-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pname = btn.getAttribute('data-person');
+        const item = _allRegisteredFaces.find(i => i.name === pname);
+        if (item) openWarrantCompareModal(item);
+      });
+    });
+
+    // Wire Dossier Open Buttons
+    grid.querySelectorAll('.wl-face-dossier-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const did = btn.getAttribute('data-dossier');
+        if (did && window.openDossierDetail) {
+          const wlOverlay = document.getElementById('watchlistOverlay');
+          if (wlOverlay) wlOverlay.hidden = true;
+          window.openDossierDetail(did, 'personal');
+        }
+      });
+    });
+
+    // Wire Delete Buttons
+    grid.querySelectorAll('.wl-face-del-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pname = btn.getAttribute('data-person') || '';
+        if (!pname) return;
+        const ok = window.bppConfirm ? await window.bppConfirm(`ต้องการลบใบหน้าของ "${pname}" ออกจากบัญชีเฝ้าระวังหรือไม่?`) : confirm(`ลบ "${pname}"?`);
+        if (!ok) return;
+        try {
+          const res = await fetch('/api/watchlist/faces/' + encodeURIComponent(pname), { method: 'DELETE' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || data.error || ('HTTP ' + res.status));
+          toast(`ลบรายชื่อ "${pname}" เรียบร้อยแล้ว`);
+          loadFaceWatchlistData();
+        } catch (err) {
+          toast('ลบรายชื่อไม่สำเร็จ: ' + (err.message || err), true);
+        }
+      });
+    });
+  }
+
+  function renderRecentFaceDetections(items) {
+    const grid = document.getElementById('wlFaceRecentGrid');
+    if (!grid) return;
+    if (!Array.isArray(items) || !items.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1; padding:14px; text-align:center; color:#6b7099; background:rgba(15,23,42,0.45); border-radius:10px; border:1px dashed rgba(148,163,184,0.2);">ยังไม่มีรายการตรวจจับใบหน้าล่าสุดจากกล้อง</div>';
+      return;
+    }
+    grid.innerHTML = items.slice(0, 16).map((det, idx) => {
+      const matched = !!det.matched;
+      const isWarrant = !!det.is_warrant;
+      const person = escapeHtml(det.person || 'บุคคลไม่ทราบชื่อ');
+      const cam = escapeHtml(displayCameraName(det.camera || '') || det.camera || 'กล้อง');
+      const simPct = Number(det.similarity_pct || 0).toFixed(1);
+      const thumb = det.thumbnail || '';
+      const winfo = det.warrant_info || {};
+      const wNo = escapeHtml(winfo.warrant_no || '');
+
+      let badgeStyle = 'background:rgba(56,189,248,0.16); color:#7dd3fc; border:1px solid rgba(56,189,248,0.35);';
+      let badgeText = '👤 ตรวจพบใบหน้า';
+      let cardBorder = 'border:1px solid rgba(148,163,184,0.2);';
+
+      if (isWarrant) {
+        badgeStyle = 'background:rgba(239,68,68,0.28); color:#fca5a5; border:1px solid rgba(239,68,68,0.6); box-shadow:0 0 8px rgba(239,68,68,0.2);';
+        badgeText = `🚨 ตรงกับหมายจับ: ${person} (${simPct}%) ${wNo ? '#' + wNo : ''}`;
+        cardBorder = 'border:1px solid rgba(239,68,68,0.55); box-shadow:0 0 10px rgba(239,68,68,0.15); background:linear-gradient(135deg, rgba(35,16,28,0.9), rgba(20,16,42,0.85));';
+      } else if (matched) {
+        badgeStyle = 'background:rgba(244,63,94,0.22); color:#fda4af; border:1px solid rgba(244,63,94,0.5);';
+        badgeText = `🚨 พบเป้าหมาย: ${person} (${simPct}%)`;
+        cardBorder = 'border:1px solid rgba(244,63,94,0.45);';
+      }
+
+      return `
+        <div style="display:flex; flex-direction:column; gap:6px; padding:10px; border-radius:10px; background:rgba(18,16,36,0.82); ${cardBorder}">
+          <div style="display:flex; gap:9px; align-items:center;">
+            ${thumb ? `<img src="${thumb}" alt="${person}" style="width:48px; height:48px; border-radius:8px; object-fit:cover; flex:none; border:1px solid ${isWarrant ? 'rgba(239,68,68,0.6)' : 'rgba(56,189,248,0.4)'};">` : ''}
+            <div style="flex:1; min-width:0;">
+              <span style="font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; ${badgeStyle}">${badgeText}</span>
+              <div style="font-size:11px; color:#cbd5e1; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">📹 ${cam}</div>
+              <div style="font-size:10.5px; color:#64748b;">${escapeHtml(det.created_at || '')}</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; margin-top:4px;">
+            ${isWarrant ? `<button type="button" class="btn-ghost wl-face-wc-det-btn" data-idx="${idx}" style="flex:1; padding:4px 8px; font-size:11px; color:#fca5a5; border-color:rgba(239,68,68,0.5); background:rgba(239,68,68,0.15);">⚖️ ตรวจเทียบหมาย</button>` : ''}
+            ${thumb ? `<button type="button" class="btn-ghost wl-face-quick-enroll" data-idx="${idx}" style="flex:1; padding:4px 8px; font-size:11px;">➕ เพิ่มเฝ้าระวัง</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Wire Warrant Compare on Recent Detection
+    grid.querySelectorAll('.wl-face-wc-det-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.getAttribute('data-idx') || 0);
+        const det = items[idx];
+        if (det) {
+          openWarrantCompareModal({
+            ...det,
+            queryImg: det.thumbnail,
+            queryLabel: `ภาพที่ตรวจพบจากกล้อง (${det.camera || ''})`,
+            queryMeta: `เวลาที่บันทึก: ${det.created_at || ''}`,
+          });
+        }
+      });
+    });
+
+    // Wire Quick Enroll
+    grid.querySelectorAll('.wl-face-quick-enroll').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = Number(btn.getAttribute('data-idx') || 0);
+        const det = items[idx];
+        if (!det || !det.thumbnail) return;
+        const name = prompt('ระบุชื่อ-สกุล หรือฉายาของบุคคลเฝ้าระวัง:', det.person || '');
+        if (!name || !name.trim()) return;
+        try {
+          const res = await fetch('/api/watchlist/faces/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: name.trim(),
+              image_b64: det.thumbnail,
+              group: 'บุคคลเฝ้าระวัง',
+              notes: `บันทึกจากกล้อง ${det.camera || ''} (${det.created_at || ''})`,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || data.error || ('HTTP ' + res.status));
+          toast(`✅ ลงทะเบียนใบหน้า "${name.trim()}" สำเร็จ`);
+          loadFaceWatchlistData();
+        } catch (err) {
+          toast('ลงทะเบียนใบหน้าไม่สำเร็จ: ' + (err.message || err), true);
+        }
+      });
+    });
+  }
+
+  async function loadFaceWatchlistData() {
+    try {
+      const res = await fetch('/api/watchlist/faces');
+      if (!res.ok) return;
+      const data = await res.json();
+      renderRegisteredFaces(data.items || []);
+      renderRecentFaceDetections(data.recent_detections || []);
+    } catch (err) {
+      console.warn('loadFaceWatchlistData error:', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnTabPlates = document.getElementById('btnWlTabPlates');
+    const btnTabFaces = document.getElementById('btnWlTabFaces');
+    const panePlates = document.getElementById('wlPanePlates');
+    const paneFaces = document.getElementById('wlPaneFaces');
+
+    if (btnTabPlates && btnTabFaces && panePlates && paneFaces) {
+      btnTabPlates.addEventListener('click', () => {
+        panePlates.style.display = 'flex';
+        paneFaces.style.display = 'none';
+        btnTabPlates.style.background = 'rgba(168,85,247,0.18)';
+        btnTabPlates.style.color = '#fff';
+        btnTabPlates.style.borderColor = 'rgba(168,85,247,0.45)';
+        btnTabFaces.style.background = 'transparent';
+        btnTabFaces.style.color = '#9aa0bd';
+        btnTabFaces.style.borderColor = 'transparent';
+      });
+      btnTabFaces.addEventListener('click', () => {
+        panePlates.style.display = 'none';
+        paneFaces.style.display = 'flex';
+        btnTabFaces.style.background = 'rgba(168,85,247,0.18)';
+        btnTabFaces.style.color = '#fff';
+        btnTabFaces.style.borderColor = 'rgba(168,85,247,0.45)';
+        btnTabPlates.style.background = 'transparent';
+        btnTabPlates.style.color = '#9aa0bd';
+        btnTabPlates.style.borderColor = 'transparent';
+        loadFaceWatchlistData();
+      });
+    }
+
+    // Category Filter Buttons
+    const btnFilterAll = document.getElementById('btnFaceFilterAll');
+    const btnFilterWarrant = document.getElementById('btnFaceFilterWarrant');
+    const btnFilterWatchlist = document.getElementById('btnFaceFilterWatchlist');
+    const btnFilterGeneral = document.getElementById('btnFaceFilterGeneral');
+
+    const updateFilterStyles = (activeBtn) => {
+      [btnFilterAll, btnFilterWarrant, btnFilterWatchlist, btnFilterGeneral].forEach(b => {
+        if (!b) return;
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+      });
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        if (activeBtn === btnFilterWarrant) {
+          activeBtn.style.background = 'rgba(239,68,68,0.25)';
+        } else if (activeBtn === btnFilterWatchlist) {
+          activeBtn.style.background = 'rgba(168,85,247,0.25)';
+        } else if (activeBtn === btnFilterGeneral) {
+          activeBtn.style.background = 'rgba(16,185,129,0.25)';
+        } else {
+          activeBtn.style.background = 'rgba(168,85,247,0.22)';
+        }
+      }
+    };
+
+    if (btnFilterAll) {
+      btnFilterAll.addEventListener('click', () => {
+        _faceFilterCategory = 'all';
+        updateFilterStyles(btnFilterAll);
+        renderRegisteredFaces(_allRegisteredFaces);
+      });
+    }
+    if (btnFilterWarrant) {
+      btnFilterWarrant.addEventListener('click', () => {
+        _faceFilterCategory = 'warrant';
+        updateFilterStyles(btnFilterWarrant);
+        renderRegisteredFaces(_allRegisteredFaces);
+      });
+    }
+    if (btnFilterWatchlist) {
+      btnFilterWatchlist.addEventListener('click', () => {
+        _faceFilterCategory = 'watchlist';
+        updateFilterStyles(btnFilterWatchlist);
+        renderRegisteredFaces(_allRegisteredFaces);
+      });
+    }
+    if (btnFilterGeneral) {
+      btnFilterGeneral.addEventListener('click', () => {
+        _faceFilterCategory = 'general';
+        updateFilterStyles(btnFilterGeneral);
+        renderRegisteredFaces(_allRegisteredFaces);
+      });
+    }
+
+    // Close Warrant Compare Modal Buttons
+    const btnCloseWc = document.getElementById('btnCloseWarrantCompare');
+    const btnWcClose = document.getElementById('btnWcClose');
+    const wcOverlay = document.getElementById('warrantCompareOverlay');
+    if (btnCloseWc && wcOverlay) btnCloseWc.addEventListener('click', () => { wcOverlay.hidden = true; });
+    if (btnWcClose && wcOverlay) btnWcClose.addEventListener('click', () => { wcOverlay.hidden = true; });
+
+    // Open full dossier from Warrant Compare Modal
+    const btnWcOpenDossier = document.getElementById('btnWcOpenDossier');
+    if (btnWcOpenDossier) {
+      btnWcOpenDossier.addEventListener('click', () => {
+        if (_currentWcDossierId && window.openDossierDetail) {
+          if (wcOverlay) wcOverlay.hidden = true;
+          const wlOverlay = document.getElementById('watchlistOverlay');
+          if (wlOverlay) wlOverlay.hidden = true;
+          window.openDossierDetail(_currentWcDossierId, 'personal');
+        } else {
+          toast('ไม่พบรหัสแฟ้มคลังข้อมูลสำหรับรายการนี้', true);
+        }
+      });
+    }
+
+    const btnReload = document.getElementById('btnFaceReloadAll');
+    if (btnReload) btnReload.addEventListener('click', loadFaceWatchlistData);
+
+    const inpFilter = document.getElementById('inpFaceFilterQuery');
+    if (inpFilter) {
+      inpFilter.addEventListener('input', () => renderRegisteredFaces(_allRegisteredFaces));
+    }
+
+    const btnSyncDossiers = document.getElementById('btnFaceSyncDossiers');
+    if (btnSyncDossiers) {
+      btnSyncDossiers.addEventListener('click', async () => {
+        try {
+          btnSyncDossiers.disabled = true;
+          toast('กำลังซิงค์ใบหน้าและหมายจับจากคลังข้อมูลจับกุม (Arrest Vault)…');
+          const res = await fetch('/api/watchlist/faces/sync-dossiers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: false }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || data.error || ('HTTP ' + res.status));
+          toast(`✅ ซิงค์คลังข้อมูลสำเร็จ: ${data.dossier_persons || 0} แฟ้มบุคคล (${data.total_photos || 0} รูปใบหน้า)`);
+          loadFaceWatchlistData();
+        } catch (err) {
+          toast('ซิงค์คลังข้อมูลไม่สำเร็จ: ' + (err.message || err), true);
+        } finally {
+          btnSyncDossiers.disabled = false;
+        }
+      });
+    }
+
+    const btnReg = document.getElementById('btnFaceRegisterSubmit');
+    if (btnReg) {
+      btnReg.addEventListener('click', async () => {
+        const nameEl = document.getElementById('inpFacePersonName');
+        const groupEl = document.getElementById('inpFacePersonGroup');
+        const notesEl = document.getElementById('inpFacePersonNotes');
+        const fileEl = document.getElementById('inpFaceRegisterFile');
+        const name = (nameEl?.value || '').trim();
+        if (!name) {
+          toast('กรุณาระบุชื่อ-สกุล หรือฉายาของบุคคล', true);
+          return;
+        }
+        const file = fileEl?.files?.[0];
+        if (!file) {
+          toast('กรุณาเลือกรูปใบหน้าที่ชัดเจน', true);
+          return;
+        }
+        try {
+          btnReg.disabled = true;
+          toast('กำลังสกัดอัตลักษณ์ใบหน้า 512 มิติ…');
+          const b64 = await readFileAsDataUrl(file);
+          const res = await fetch('/api/watchlist/faces/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              group: (groupEl?.value || 'บุคคลเฝ้าระวัง').trim(),
+              notes: (notesEl?.value || '').trim(),
+              image_b64: b64,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || data.error || ('HTTP ' + res.status));
+          toast(`✅ ลงทะเบียนใบหน้า "${data.person}" สำเร็จ (${data.photo_count} รูป)`);
+          if (nameEl) nameEl.value = '';
+          if (notesEl) notesEl.value = '';
+          if (fileEl) fileEl.value = '';
+          loadFaceWatchlistData();
+        } catch (err) {
+          toast('ลงทะเบียนใบหน้าไม่สำเร็จ: ' + (err.message || err), true);
+        } finally {
+          btnReg.disabled = false;
+        }
+      });
+    }
+
+    const btnSearch1N = document.getElementById('btnFaceSearch1N');
+    if (btnSearch1N) {
+      btnSearch1N.addEventListener('click', async () => {
+        const f1 = document.getElementById('inpFaceSearchFile1')?.files?.[0];
+        const resBox = document.getElementById('wlFaceSearchResultBox');
+        if (!f1) {
+          toast('กรุณาเลือกรูปใบหน้าในช่องที่ 1 เพื่อค้นหา', true);
+          return;
+        }
+        try {
+          btnSearch1N.disabled = true;
+          if (resBox) resBox.textContent = 'กำลังค้นหาอัตลักษณ์ 512 มิติในฐานข้อมูล…';
+          const b64 = await readFileAsDataUrl(f1);
+          const res = await fetch('/api/watchlist/faces/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_b64: b64 }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || data.error || ('HTTP ' + res.status));
+          const cands = Array.isArray(data.candidates) ? data.candidates : [];
+          if (!cands.length) {
+            resBox.innerHTML = `<div style="display:flex; align-items:center; gap:10px;"><img src="${data.query_thumbnail || ''}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;"><span>ตรวจพบใบหน้าแล้ว แต่ยังไม่มีรายชื่อในฐานข้อมูล (${data.latency_ms || 0} ms)</span></div>`;
+            return;
+          }
+          const top = cands[0];
+          const isWarrant = !!(data.is_warrant || top.is_warrant);
+          const verdictColor = isWarrant ? '#f87171' : (data.matched ? '#34d399' : '#fbbf24');
+          const winfo = data.warrant_info || top.warrant_info || {};
+          const wNo = winfo.warrant_no ? ` [หมายจับ #${winfo.warrant_no}]` : '';
+
+          let warrantBanner = '';
+          if (isWarrant) {
+            warrantBanner = `
+              <div style="margin-top:8px; padding:8px 10px; border-radius:8px; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                <div style="color:#fecaca; font-size:11.5px; font-weight:700;">🚨 ตรงกับผู้ต้องหาตามหมายจับ! (ศาล: ${escapeHtml(winfo.court || '-')})</div>
+                <button type="button" id="btnWcFromSearch" class="btn-primary" style="padding:4px 10px; font-size:11.5px; background:linear-gradient(135deg, #ef4444, #dc2626); border-color:#ef4444;">⚖️ ตรวจเทียบหมายจับฉบับเต็ม</button>
+              </div>
+            `;
+          }
+
+          resBox.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <img src="${data.query_thumbnail || ''}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid #38bdf8;" title="รูปค้นหา">
+                <span>➜</span>
+                <img src="${top.thumbnail || ''}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid ${verdictColor};" title="${escapeHtml(top.person || '')}">
+                <div style="flex:1; min-width:180px;">
+                  <div style="font-weight:700; color:${verdictColor};">${data.matched ? `✅ ตรงกับเป้าหมาย: ${escapeHtml(top.person)}${wNo}` : `ใกล้เคียงที่สุด: ${escapeHtml(top.person)} (ต่ำกว่าเกณฑ์)`}</div>
+                  <div style="font-size:12px; color:#cbd5e1;">ความคล้ายคลึง: <b>${top.similarity_pct}%</b> (Cosine: ${top.cosine}) • ใช้เวลา ${data.latency_ms} ms</div>
+                </div>
+              </div>
+              ${warrantBanner}
+            </div>
+          `;
+
+          const btnWcSearch = document.getElementById('btnWcFromSearch');
+          if (btnWcSearch) {
+            btnWcSearch.addEventListener('click', () => {
+              openWarrantCompareModal({
+                ...data,
+                ...top,
+                queryImg: data.query_thumbnail,
+                queryLabel: 'ภาพที่อัปโหลดค้นหา (1:N Search)',
+                queryMeta: `AI Cosine: ${top.cosine} (${top.similarity_pct}%)`,
+              });
+            });
+          }
+        } catch (err) {
+          if (resBox) resBox.textContent = 'ค้นหาไม่สำเร็จ: ' + (err.message || err);
+        } finally {
+          btnSearch1N.disabled = false;
+        }
+      });
+    }
+
+    const btnCompare11 = document.getElementById('btnFaceCompare11');
+    if (btnCompare11) {
+      btnCompare11.addEventListener('click', async () => {
+        const f1 = document.getElementById('inpFaceSearchFile1')?.files?.[0];
+        const f2 = document.getElementById('inpFaceSearchFile2')?.files?.[0];
+        const resBox = document.getElementById('wlFaceSearchResultBox');
+        if (!f1 || !f2) {
+          toast('กรุณาเลือกรูปทั้งช่องที่ 1 และช่องที่ 2 เพื่อเปรียบเทียบ 1:1', true);
+          return;
+        }
+        try {
+          btnCompare11.disabled = true;
+          if (resBox) resBox.textContent = 'กำลังเปรียบเทียบอัตลักษณ์ใบหน้า 512 มิติทั้ง 2 รูป…';
+          const [b1, b2] = await Promise.all([readFileAsDataUrl(f1), readFileAsDataUrl(f2)]);
+          const res = await fetch('/api/watchlist/faces/compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image1_b64: b1, image2_b64: b2 }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || data.error || ('HTTP ' + res.status));
+          const col = data.is_match ? '#34d399' : '#fb5b78';
+          resBox.innerHTML = `
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <img src="${data.face1_crop || ''}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid ${col};">
+              <span style="font-weight:700; color:${col};">VS</span>
+              <img src="${data.face2_crop || ''}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid ${col};">
+              <div style="flex:1; min-width:180px;">
+                <div style="font-weight:700; color:${col};">${data.is_match ? '✅ เป็นบุคคลคนเดียวกัน (MATCH)' : '❌ คนละบุคคล (NOT MATCH)'}</div>
+                <div style="font-size:12px; color:#cbd5e1;">ความคล้ายคลึง: <b>${data.similarity_percent}%</b> (Cosine: ${data.cosine_similarity}) • ใช้เวลา ${data.latency_ms} ms</div>
+              </div>
+            </div>
+          `;
+        } catch (err) {
+          if (resBox) resBox.textContent = 'เปรียบเทียบไม่สำเร็จ: ' + (err.message || err);
+        } finally {
+          btnCompare11.disabled = false;
+        }
+      });
+    }
+  });
+})();

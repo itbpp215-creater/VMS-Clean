@@ -1771,6 +1771,7 @@ function escapeHtml(str) {
       }
       
       // Refresh
+      fetch('/api/watchlist/faces/sync-dossiers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: false }) }).catch(() => {});
       window.openDossierDetail(dossierId, 'attachments');
     };
 
@@ -2490,6 +2491,7 @@ function escapeHtml(str) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (typeof window.bppAlert === 'function') {
+        fetch('/api/watchlist/faces/sync-dossiers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: false }) }).catch(() => {});
         window.bppAlert(`${data.message}`, 'อัปโหลดสำเร็จ');
       } else {
         alert(`${data.message}`);

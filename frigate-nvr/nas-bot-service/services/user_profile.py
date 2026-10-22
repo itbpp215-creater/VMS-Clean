@@ -3,7 +3,32 @@ import json
 import os
 import threading
 import time
+import re
 from typing import Dict, Any, List, Set, Optional
+
+_SPLIT_SUB_RE = re.compile(r"^(Banmuang|D_BPP215|Doonsad|KK\d|nonburi|nongwang)", re.IGNORECASE)
+_SPLIT_HD_RE = re.compile(r"^(Banmuang|D_BPP215|Doonsad|KK\d|nonburi|nongwang|prasat)", re.IGNORECASE)
+
+
+def _normalize_channel_streams(ch: Dict[str, Any]) -> bool:
+    """Ensure split-stream cameras always carry their playable _sub / _hd stream names (Incident 2.182)."""
+    if not isinstance(ch, dict):
+        return False
+    src = str(ch.get("src") or "").strip()
+    if not src:
+        return False
+    changed = False
+    if _SPLIT_SUB_RE.match(src):
+        expected_sub = f"{src}_sub"
+        if not ch.get("sub") or ch.get("sub") == src:
+            ch["sub"] = expected_sub
+            changed = True
+    if _SPLIT_HD_RE.match(src):
+        expected_hd = f"{src}_hd"
+        if not ch.get("hd") or ch.get("hd") == src:
+            ch["hd"] = expected_hd
+            changed = True
+    return changed
 
 class UserProfileManager:
     """
@@ -22,6 +47,22 @@ class UserProfileManager:
                 try:
                     with open(self.storage_path, "r", encoding="utf-8") as f:
                         self.profiles = json.load(f)
+                        dirty = False
+                        for p in self.profiles.values():
+                            if not isinstance(p, dict):
+                                continue
+                            prof_healed = False
+                            for key in ("channels", "active_channels"):
+                                ch_list = p.get(key)
+                                if isinstance(ch_list, list):
+                                    for ch in ch_list:
+                                        if _normalize_channel_streams(ch):
+                                            prof_healed = True
+                            if prof_healed:
+                                p["grid_revision"] = int(p.get("grid_revision", 0)) + 1
+                                dirty = True
+                        if dirty:
+                            self._save()
                 except Exception as e:
                     print(f"Error loading user_profiles.json: {e}")
                     self.profiles = {}
@@ -101,6 +142,17 @@ class UserProfileManager:
                     current["channels"] = None
                 elif isinstance(data["channels"], list):
                     current["channels"] = [dict(x) for x in data["channels"] if isinstance(x, dict)]
+                    disabled_set = set(str(x) for x in (current.get("disabled_ai_cameras") or []))
+                    for ch in current["channels"]:
+                        _normalize_channel_streams(ch)
+                        src = str(ch.get("src") or "").strip()
+                        if not src:
+                            continue
+                        if ch.get("detect") is False:
+                            disabled_set.add(src)
+                        elif ch.get("detect") is True:
+                            disabled_set.discard(src)
+                    current["disabled_ai_cameras"] = sorted(disabled_set)
                 if by_admin:
                     current["grid_revision"] = int(current.get("grid_revision", 0)) + 1
                     self._mirror_active(current)
@@ -168,6 +220,8 @@ class UserProfileManager:
             stale = client_revision is not None and int(client_revision) < server_rev
             if channels is not None and not stale:
                 current["active_channels"] = [dict(x) for x in channels if isinstance(x, dict)]
+                for ch in current["active_channels"]:
+                    _normalize_channel_streams(ch)
             self._save()
             return {"grid_revision": server_rev, "stale": stale}
 
@@ -191,7 +245,7 @@ class UserProfileManager:
         """
         Demand-Driven Camera Provisioning (ADR-0020):
         Computes the Aggregated Camera Pool as the union set of active cameras
-        demanded by all currently online users.
+        demanded by all currently online users plus cameras with active AI demand.
         """
         with self._lock:
             now = time.time()
@@ -209,8 +263,11 @@ class UserProfileManager:
                         src = ch.get("src")
                         if src and ch.get("enabled", True) is not False:
                             cams.add(str(src))
+            ai_demand_map = self._demanded_cameras(self.profiles)
+            cams.update(ai_demand_map.keys())
             return {
                 "cameras": sorted(list(cams)),
+                "ai_demand_cameras": sorted(list(ai_demand_map.keys())),
                 "online_users": len(online_profiles),
                 "users": online_users
             }
@@ -232,14 +289,16 @@ class UserProfileManager:
 
     @staticmethod
     def _demanded_cameras(profiles: Dict[str, Dict[str, Any]]) -> Dict[str, List[str]]:
-        """camera -> accounts demanding AI (channel streaming AND detect == True)."""
+        """camera -> accounts demanding AI (channel streaming AND detect == True and not in disabled_ai_cameras)."""
         demand: Dict[str, List[str]] = {}
         for user, p in profiles.items():
+            disabled_ai = set(str(x) for x in (p.get("disabled_ai_cameras") or []))
             for c in (p.get("channels") or []):
                 if (
                     isinstance(c, dict) and c.get("src")
                     and c.get("enabled", True) is not False
                     and c.get("detect") is True
+                    and str(c["src"]) not in disabled_ai
                 ):
                     users = demand.setdefault(str(c["src"]), [])
                     if user not in users:
@@ -280,20 +339,39 @@ class UserProfileManager:
                         skipped.append(user)
                         continue
                     p["channels"] = [copy.deepcopy(c) for c in source_channels if isinstance(c, dict)]
+                    disabled_set = set(str(x) for x in (p.get("disabled_ai_cameras") or []))
+                    for c in p["channels"]:
+                        src = str(c.get("src") or "").strip()
+                        if not src:
+                            continue
+                        if c.get("detect") is False:
+                            disabled_set.add(src)
+                        elif c.get("detect") is True:
+                            disabled_set.discard(src)
+                    p["disabled_ai_cameras"] = sorted(disabled_set)
                 else:
                     chans = p.get("channels")
+                    if not isinstance(chans, list) and isinstance(p.get("active_channels"), list) and p["active_channels"]:
+                        chans = [copy.deepcopy(c) for c in p["active_channels"] if isinstance(c, dict)]
+                        p["channels"] = chans
                     if not isinstance(chans, list):
                         skipped.append(user)
                         continue
+                    disabled_set = set(str(x) for x in (p.get("disabled_ai_cameras") or []))
                     for c in chans:
                         if not isinstance(c, dict) or not c.get("src"):
                             continue
+                        src = str(c["src"]).strip()
                         if action == "stream_off":
                             c["enabled"] = False
                         elif action == "stream_on":
                             c["enabled"] = True
                         elif action == "ai_off":
                             c["detect"] = False
+                            if src:
+                                disabled_set.add(src)
+                    if action == "ai_off":
+                        p["disabled_ai_cameras"] = sorted(disabled_set)
                 p["grid_revision"] = int(p.get("grid_revision", 0)) + 1
                 self._mirror_active(p)
                 updated.append(user)

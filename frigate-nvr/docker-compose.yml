@@ -365,10 +365,17 @@
       WATCHLIST_SERVICE_SHARED_SECRET: ${WATCHLIST_SERVICE_SHARED_SECRET:?WATCHLIST_SERVICE_SHARED_SECRET is required}
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-vms.local}
       ALERT_PUBLIC_DOMAIN: ${ALERT_PUBLIC_DOMAIN:-${PUBLIC_DOMAIN:-vms.local}}
+      LPR_ATTR_MODE: ${LPR_ATTR_MODE:-primary}
+      LPR_ATTR_MODEL_DIR: ${LPR_ATTR_MODEL_DIR:-/models/attr}
     volumes:
       - ./lpr-service/app.py:/app/app.py:ro
       - ./lpr-service/vehicle_mmcr.py:/app/vehicle_mmcr.py:ro
+      - ./lpr-service/vehicle_attr_onnx.py:/app/vehicle_attr_onnx.py:ro
+      - ./lpr-service/thlprv2_onnx.py:/app/thlprv2_onnx.py:ro
+      - ./lpr-service/face_onnx.py:/app/face_onnx.py:ro
       - ./lpr-service/runtime_health.py:/app/runtime_health.py:ro
+      - ./config/faces:/config/faces
+      - nas-storage:/data/nas-storage:ro
       - ./LicensePlateRECOG/model:/models:ro
       - ./config/lpr:/lpr-config:ro
       - ./config/certs:/federation-certs:ro
@@ -488,6 +495,8 @@
       - ./config:/config
       - ./config-api/api.py:/app/api.py:ro
       - ./config-api/stream_probe.py:/app/stream_probe.py:ro
+      - ./config-api/system_updater.py:/app/system_updater.py:ro
+      - ..:/repo
       - ./config/lpr/lpr_cameras.txt:/lpr-settings/lpr_cameras.txt:ro
       - ./config/dashboard-settings:/settings-data:ro
       # The atomic writer needs the config directory itself; nested masks hide
@@ -783,6 +792,12 @@
             rm -f /workspace/config/lpr/train.trigger /workspace/config/train.trigger
             docker start lpr-trainer
             echo "lpr-trainer started."
+          fi
+          if [ -f /workspace/config/update_services.trigger ]; then
+            echo "System Update Trigger found. Restarting application services..."
+            rm -f /workspace/config/update_services.trigger
+            docker restart watchlist-api lpr-service analytics-engine chat-service config-api
+            echo "Application services restarted."
           fi
           sleep 5
         done

@@ -1,6 +1,5 @@
-# Use the same pinned Frigate release as the NVR so accepted configuration is
-# guaranteed to match the production parser rather than a hand-maintained schema.
-FROM ghcr.io/blakeblackshear/frigate:0.17.2-tensorrt@sha256:8a364092b03561b9c08ac00730206e363a53d07ea0304f7d543b403b65432b5e
+ARG FRIGATE_BASE_IMAGE=ghcr.io/blakeblackshear/frigate:0.18.2-tensorrt@sha256:1cafb6ebbaff0aaf275cc3f31951bcf7e29f3989f18a10ba9565091367d8736c
+FROM ${FRIGATE_BASE_IMAGE}
 
 COPY server.py /validator/server.py
 

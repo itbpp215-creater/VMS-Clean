@@ -1,62 +1,4 @@
 {
-  "nongwang1": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/nongwang1?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "person",
-        "bicycle",
-        "car",
-        "motorcycle",
-        "bus",
-        "truck",
-        "knife",
-        "backpack"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "pre_capture": 10,
-        "post_capture": 10,
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "pre_capture": 10,
-        "post_capture": 10,
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "enabled": false,
-      "motion": {
-        "days": 7
-      }
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
   "nongwang10": {
     "detect": {
       "enabled": true
@@ -108,101 +50,6 @@
       "dashboard": true
     }
   },
-  "nongwang11": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/nongwang11?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "motorcycle"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "continuous": {
-        "days": 0
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false,
-      "motion": {
-        "days": 0
-      }
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "nongwang12": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "input_args": "preset-rtsp-restream",
-          "path": "rtsp://127.0.0.1:8554/nongwang12?video",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck",
-        "bus"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    }
-  },
   "nongwang13": {
     "detect": {
       "enabled": true
@@ -245,50 +92,6 @@
         }
       },
       "enabled": true
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "nongwang14": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "input_args": "preset-rtsp-restream",
-          "path": "rtsp://127.0.0.1:8554/nongwang14?video",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "person"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false
     },
     "snapshots": {
       "bounding_box": true,
@@ -347,51 +150,6 @@
     },
     "ui": {
       "dashboard": true
-    }
-  },
-  "nongwang2": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "input_args": "preset-rtsp-restream",
-          "path": "rtsp://127.0.0.1:8554/nongwang2?video",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck",
-        "bus"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
     }
   },
   "nongwang3": {
@@ -526,134 +284,6 @@
       ]
     }
   },
-  "nongwang6": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/nongwang6?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck",
-        "bus"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    }
-  },
-  "nongwang7": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "input_args": "preset-rtsp-restream",
-          "path": "rtsp://127.0.0.1:8554/nongwang7?video",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": []
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    }
-  },
-  "nongwang8": {
-    "detect": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/nongwang8?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "objects": {
-      "track": [
-        "motorcycle"
-      ]
-    },
-    "record": {
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "enabled": false
-    },
-    "snapshots": {
-      "bounding_box": true,
-      "enabled": true
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
   "nongwang9": {
     "detect": {
       "enabled": false
@@ -697,132 +327,6 @@
     "ui": {
       "dashboard": true
     }
-  },
-  "KK01": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK01?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KK02": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK02?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KK03": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK03?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false
   },
   "KK04": {
     "enabled": false,
@@ -868,48 +372,6 @@
       ]
     }
   },
-  "KK05": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK05?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false
-  },
   "KK07": {
     "enabled": false,
     "ffmpeg": {
@@ -954,176 +416,8 @@
       ]
     }
   },
-  "KK08": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK08?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false
-  },
-  "KK09": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK09?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false
-  },
-  "KK010": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK010?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false
-  },
-  "KK011": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KK011?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false
-  },
   "KK06": {
-    "enabled": false,
+    "enabled": true,
     "ffmpeg": {
       "inputs": [
         {
@@ -1132,14 +426,21 @@
           "roles": [
             "record"
           ]
+        },
+        {
+          "path": "rtsp://127.0.0.1:8554/KK06_sub?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "detect"
+          ]
         }
       ]
     },
     "detect": {
-      "enabled": false
+      "enabled": true
     },
     "record": {
-      "enabled": false,
+      "enabled": true,
       "alerts": {
         "retain": {
           "days": 7,
@@ -1164,6 +465,9 @@
         "motorcycle",
         "truck"
       ]
+    },
+    "ui": {
+      "dashboard": true
     }
   },
   "D_BPP215_1": {
@@ -1307,3552 +611,11 @@
     },
     "force_active": true
   },
-  "D_BPP215_4": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/D_BPP215_4?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false,
-      "width": 640,
-      "height": 480
-    },
-    "record": {
-      "enabled": false,
-      "continuous": {
-        "days": 0
-      },
-      "motion": {
-        "days": 0
-      },
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen1": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen1?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen2": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen2?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen3": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen3?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen4": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen4?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen5": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen5?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen6": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen6?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen7": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen7?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen8": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen8?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen9": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen9?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen10": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen10?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen11": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen11?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen12": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen12?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen13": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen13?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen14": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen14?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen15": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen15?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen16": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen16?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "continuous": {
-        "days": 0
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen17": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen17?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    },
-    "objects": {
-      "track": [
-        "car"
-      ]
-    }
-  },
-  "KhonKaen18": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen18?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen19": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen19?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen20": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen20?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen21": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen21?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen22": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen22?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen23": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen23?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "KhonKaen24": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen24?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen25": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen25?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "KhonKaen26": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/KhonKaen26?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 3,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 3,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "enabled": false
-  },
-  "A18_Tautain": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A18_Tautain?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A20_Nongtao": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A20_Nongtao?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A05_Manorom": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A05_Manorom?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A19_Nakhonruang": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A19_Nakhonruang?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A17_CHYU": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A17_CHYU?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A11_Donnanghong": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A11_Donnanghong?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A06_Wanyai": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A06_Wanyai?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A04_Chanod": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A04_Chanod?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A09_Pakhuay": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A09_Pakhuay?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A08_Namkum": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A08_Namkum?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A14_Donpucha": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A14_Donpucha?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A12_Banhorm": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A12_Banhorm?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "A15_Yeakbannard": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A15_Yeakbannard?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "A08_Saimoon": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A08_Saimoon?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "longdo_doh_per_7_013": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_7_013?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_8_004": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_8_004?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "longdo_doh_per_11_004": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_11_004?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_15_001": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_15_001?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_9_013": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_9_013?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "bicycle",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "longdo_doh_per_9_009": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_9_009?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_15_007": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_15_007?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_13_015": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_13_015?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "longdo_doh_per_10_004": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_10_004?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "longdo_doh_per_11_001": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_11_001?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_17_009": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_17_009?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_13_009": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_13_009?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "longdo_doh_per_10_007": {
-    "enabled": false,
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_10_007?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_11_006": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_11_006?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "A08_Namgum": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/A08_Namgum?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "udon_api_38": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/udon_api_38?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "Falcon1": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/Falcon1?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "continuous": {
-        "days": 0
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "Bodyarm": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/Bodyarm?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_17_012": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_17_012?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "roiet_158": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_158?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_166": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_166?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0111": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0111?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "longdo_doh_per_11_009": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_11_009?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0122": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0122?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0015": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0015?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0009": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0009?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0019": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0019?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "doh_per_17_017": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-17/PER_17_017.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "roiet_139": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_139?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_149": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_149?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0185": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0185?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0106": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0106?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
   "ubon_l4_cam0101": {
     "ffmpeg": {
       "inputs": [
         {
           "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0101?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record",
-            "detect"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": true,
-    "detect": {
-      "enabled": true
-    },
-    "record": {
-      "enabled": true,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0037": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0037?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_144": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_144?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "doh_per_17_013": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_17_013?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0047": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0047?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0160": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0160?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l2_cam259": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l2_cam259?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "longdo_doh_per_4_003": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_4_003?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "longdo_doh_per_9_015": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_9_015?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "udon_api_14": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/udon_api_14?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0088": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0088?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "longdo_doh_per_12_003": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_12_003?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0072": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0072?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_170": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_170?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
             "record"
@@ -4941,45 +704,6 @@
       ]
     }
   },
-  "gopro_nook": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/gopro_nook?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "active_objects"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": true
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
   "Dji_flip": {
     "ffmpeg": {
       "inputs": [
@@ -5020,615 +744,11 @@
       "dashboard": true
     }
   },
-  "roiet_52": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_52?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_45": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_45?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_168": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_168?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_48": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_48?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "longdo_doh_per_12_008": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_12_008?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "kk01": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/kk01?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "Udon2": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/Udon2?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "longdo_doh_per_11_002": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/longdo_doh_per_11_002?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "a04_chanod": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/a04_chanod?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "doh_per_15_011": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-15/PER_15_011.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "doh_per_11_004": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_11_004?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_11_009": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-11/PER_11_009.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "doh_per_12_005": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-12/PER_12_005.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_13_011": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_13_011?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_17_005": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-17/PER_17_005.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "doh_per_15_002": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_15_002?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_12_008": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-12/PER_12_008.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
   "doh_per_11_008": {
     "ffmpeg": {
       "inputs": [
         {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-11/PER_11_008.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "doh_per_17_003": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_17_003?video",
+          "path": "rtsp://127.0.0.1:8554/doh_per_11_008?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
             "record"
@@ -5645,404 +765,6 @@
     "enabled": false,
     "ui": {
       "dashboard": true
-    }
-  },
-  "doh_per_15_012": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-15/PER_15_012.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "doh_per_17_015": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-17/PER_17_015.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "doh_per_13_010": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/doh_per_13_010?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false
-    },
-    "enabled": false,
-    "ui": {
-      "dashboard": true
-    }
-  },
-  "doh_per_15_013": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "https://streaming2.highwaytraffic.go.th/PER-15/PER_15_013.stream/playlist.m3u8",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": true
-    }
-  },
-  "a06_wanyai": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/a06_wanyai?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "roiet_1": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/roiet_1?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "a11_donnanghong": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/a11_donnanghong?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0005": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0005?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0089": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0089?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0091": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0091?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
-    },
-    "objects": {
-      "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
-      ]
-    }
-  },
-  "ubon_l4_cam0104": {
-    "ffmpeg": {
-      "inputs": [
-        {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0104?video",
-          "input_args": "preset-rtsp-restream",
-          "roles": [
-            "record"
-          ]
-        }
-      ]
-    },
-    "ui": {
-      "dashboard": true
-    },
-    "enabled": false,
-    "detect": {
-      "enabled": false
-    },
-    "record": {
-      "enabled": false,
-      "alerts": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      },
-      "detections": {
-        "retain": {
-          "days": 7,
-          "mode": "motion"
-        }
-      }
-    },
-    "snapshots": {
-      "enabled": true,
-      "bounding_box": false
     },
     "objects": {
       "track": [
@@ -6058,6 +780,141 @@
       "inputs": [
         {
           "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0194?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "A01": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A01?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A02": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A02?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A03": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A03?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
             "record",
@@ -6094,18 +951,60 @@
     },
     "objects": {
       "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
+        "car"
       ]
     }
   },
-  "ubon_l4_cam0102": {
+  "A04": {
     "ffmpeg": {
       "inputs": [
         {
-          "path": "rtsp://127.0.0.1:8554/ubon_l4_cam0102?video",
+          "path": "rtsp://127.0.0.1:8554/A04?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record",
+            "detect"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": true,
+    "detect": {
+      "enabled": true
+    },
+    "record": {
+      "enabled": true,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A05": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A05?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
             "record"
@@ -6141,18 +1040,15 @@
     },
     "objects": {
       "track": [
-        "person",
-        "car",
-        "motorcycle",
-        "truck"
+        "car"
       ]
     }
   },
-  "roiet_46": {
+  "A06": {
     "ffmpeg": {
       "inputs": [
         {
-          "path": "rtsp://127.0.0.1:8554/roiet_46?video",
+          "path": "rtsp://127.0.0.1:8554/A06?video",
           "input_args": "preset-rtsp-restream",
           "roles": [
             "record"
@@ -6188,11 +1084,1568 @@
     },
     "objects": {
       "track": [
+        "car"
+      ]
+    }
+  },
+  "A07": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A07?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A08": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A08?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A09": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A09?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A10": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A10?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A11": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A11?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A12": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A12?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A13": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A13?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A14": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A14?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A15": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A15?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "A16": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A16?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    }
+  },
+  "doh_per_7_015": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_7_015?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
         "person",
         "car",
         "motorcycle",
         "truck"
       ]
+    }
+  },
+  "doh_per_8_007": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_8_007?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "sjcam1": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/sjcam1?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record",
+            "detect"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": true
+    },
+    "record": {
+      "enabled": true,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "active_objects"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "active_objects"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "enabled": true,
+    "ui": {
+      "dashboard": true
+    }
+  },
+  "Doonsad1": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/Doonsad1?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    }
+  },
+  "Doonsad5": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/Doonsad5?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    }
+  },
+  "Doonsad6": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/Doonsad6?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "objects": {
+      "track": [
+        "car"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    }
+  },
+  "ubon_l2_cam287": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/ubon_l2_cam287?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "itic_kk07": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/itic_kk07?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_8_004": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_8_004?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_13_015": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_13_015?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "car",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_13_010": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_13_010?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_15_001": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_15_001?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_11_006": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_11_006?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_15_002": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_15_002?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "itic_kk01": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/itic_kk01?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_17_003": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_17_003?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "doh_per_13_011": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/doh_per_13_011?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "A18": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/A18?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "itic_kk25": {
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/itic_kk25?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "ui": {
+      "dashboard": true
+    },
+    "enabled": false,
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false,
+      "alerts": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      },
+      "detections": {
+        "retain": {
+          "days": 7,
+          "mode": "motion"
+        }
+      }
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": true
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    }
+  },
+  "nonburi6": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi6?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    }
+  },
+  "nonburi1": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi1?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    }
+  },
+  "nonburi2": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi2?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    }
+  },
+  "nonburi5": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi5?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    }
+  },
+  "nonburi7": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi7?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    }
+  },
+  "nonburi4": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi4?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
+    }
+  },
+  "nonburi3": {
+    "enabled": false,
+    "ui": {
+      "dashboard": true
+    },
+    "ffmpeg": {
+      "inputs": [
+        {
+          "path": "rtsp://127.0.0.1:8554/nonburi3?video",
+          "input_args": "preset-rtsp-restream",
+          "roles": [
+            "record"
+          ]
+        }
+      ]
+    },
+    "detect": {
+      "enabled": false
+    },
+    "record": {
+      "enabled": false
+    },
+    "objects": {
+      "track": [
+        "person",
+        "car",
+        "motorcycle",
+        "truck"
+      ]
+    },
+    "snapshots": {
+      "enabled": true,
+      "bounding_box": false
     }
   }
 }

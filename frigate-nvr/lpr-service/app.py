@@ -455,12 +455,56 @@ def is_valid_thai_plate(text, province="", score=1.0, vehicle_label=None):
     if not has_province and len(clean) < 3:
         return False
 
+    # ป้องกันคำย่อภาษาอังกฤษ/ลายน้ำกล้อง (เช่น ลายน้ำ IPC อ่านเพี้ยนเป็น บบ7) หรือป้ายเตือน 3 ตัวอักษรที่ไม่มีจังหวัด
+    # ทะเบียนไทยเลขตัวเดียว (VIP/ประมูล) หากไม่มีจังหวัดต้องมีความมั่นใจสูง (score >= 0.65) เท่านั้น
+    if not has_province and len(clean) == 3 and score < 0.65:
+        return False
+
     # ถ้าไม่มีจังหวัด ต้องมีทั้งอักษรไทยและตัวเลข (ป้ายทั่วไป) หรือ เป็นตัวเลขล้วน 4-6 หลัก (ป้ายรถบรรทุก)
     if not has_province:
         if not ((has_thai and has_digit) or (not has_thai and not has_english and has_digit and len(clean) >= 4)):
             return False
             
     return True
+
+
+OSD_BLOCKLIST_WORDS = {
+    "IPC", "CAM", "CAMERA", "DAHUA", "HIKVISION", "HIK", "VIGI", "IMOU", "EZVIZ",
+    "UNIVIEW", "TPLINK", "TP-LINK", "NVR", "DVR", "POLICE", "CH01", "CH02", "CH03",
+    "CH04", "CH05", "CH06", "CH07", "CH08", "CH09", "CH10", "CH11", "CH12", "CH13",
+    "CH14", "CH15", "CH16", "DOONSAD", "MAIN", "SUB"
+}
+
+
+def is_camera_osd_watermark(box, frame_w, frame_h):
+    """ตรวจสอบว่าพิกัดกล่องตรงกับตำแหน่ง OSD หรือ Watermark ประจำกล้องวงจรปิดหรือไม่
+    (Dahua, Hikvision, XM, VIGI, Uniview ฯลฯ)
+    - Top bar: ข้อความชื่อกล้อง, วันที่/เวลา, ข้อมูลระบบ (แถวบนสุด y < 10% หรือ y1 < 6%)
+    - Bottom-left corner: รหัสกล้อง/โลโก้ เช่น 'IPC', 'CAM01', Dahua (cy > 80% และ cx < 20%)
+    - Bottom-right corner: วันที่/เวลา, บิตเรต, โคเดก, โลโก้ (cy > 80% และ cx > 80%)
+    - Extreme bottom edge: ขอบล่างสุดของเฟรม (cy > 95% หรือ y2 > 97%)
+    """
+    x1, y1, x2, y2 = box
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
+    
+    # ขอบบน: Top 10%
+    if cy < frame_h * 0.10 or y1 < frame_h * 0.06:
+        return True
+        
+    # ขอบล่างมุมซ้าย: Bottom-left corner (เช่น ลายน้ำ IPC ของ Dahua)
+    if cy > frame_h * 0.80 and cx < frame_w * 0.20:
+        return True
+        
+    # ขอบล่างมุมขวา: Bottom-right corner (เช่น วันที่เวลา/บิตเรต)
+    if cy > frame_h * 0.80 and cx > frame_w * 0.80:
+        return True
+        
+    # ขอบล่างสุด: Bottom edge (cy > 95% หรือ y2 > 97%)
+    if cy > frame_h * 0.95 or y2 > frame_h * 0.97:
+        return True
+        
+    return False
 
 
 def is_valid_plate_box(w, h, max_w=None, max_h=None, crop_bgr=None, vehicle_label=None):
@@ -937,6 +981,18 @@ class LPREngine:
         # ชั้นอ่านตัวอักษร — 124 class: ตัวเลข 0-9, พยัญชนะ A01-A44, จังหวัด (~115ms/ป้าย CPU)
         log.info("loading char model %s (device=%s)", CHAR_MODEL_PATH, device)
         self.char_model = YOLO(CHAR_MODEL_PATH).to(device)
+        self.thlprv2_onnx = None
+        try:
+            from thlprv2_onnx import ThLprV2OnnxEngine
+            self.thlprv2_onnx = ThLprV2OnnxEngine(fallback_names=self.char_model.names)
+        except Exception as exc:
+            log.warning("thlprv2.onnx init skipped: %s", exc)
+        self.face_onnx = None
+        try:
+            from face_onnx import get_face_onnx_engine
+            self.face_onnx = get_face_onnx_engine()
+        except Exception as exc:
+            log.warning("face_onnx init skipped: %s", exc)
         self.line_ocr = None
         self.model_version = MODEL_VERSION
         if LINE_OCR_MODEL_PATH:
@@ -1023,8 +1079,9 @@ class LPREngine:
             for b in r.boxes:
                 x1, y1, x2, y2 = map(int, b.xyxy[0])
                 bw, bh = x2 - x1, y2 - y1
-                # 0. ตัดเฉพาะข้อความชื่อกล้อง/วันที่/OSD แถวบนสุด (Top 10% ของทั้งเฟรม)
-                if (y1 + ry1) < frame.shape[0] * 0.10:
+                # 0. ตัดข้อความชื่อกล้อง/วันที่/OSD แถวบน ขอบล่าง และมุมจอ (เช่น ลายน้ำ IPC/Dahua)
+                abs_box = (x1 + rx1, y1 + ry1, x2 + rx1, y2 + ry1)
+                if is_camera_osd_watermark(abs_box, w, h):
                     continue
                 # กรอง Aspect Ratio และขนาดของกรอบป้ายทะเบียนเทียบกับตัวรถ
                 sub_crop = crop[y1:y2, x1:x2]
@@ -1034,7 +1091,7 @@ class LPREngine:
                 boxes.append(
                     {
                         "box": pad_box(
-                            x1 + rx1, y1 + ry1, x2 + rx1, y2 + ry1,
+                            abs_box[0], abs_box[1], abs_box[2], abs_box[3],
                             w, h, BOX_PAD_RATIO,
                         ),
                         "confidence": float(b.conf[0]),
@@ -1054,7 +1111,8 @@ class LPREngine:
                     for b in r.boxes:
                         x1, y1, x2, y2 = map(int, b.xyxy[0])
                         bw, bh = x2 - x1, y2 - y1
-                        if (y1 + ry1) < frame.shape[0] * 0.10:
+                        abs_box = (x1 + rx1, y1 + ry1, x2 + rx1, y2 + ry1)
+                        if is_camera_osd_watermark(abs_box, w, h):
                             continue
                         sub_crop = enhanced_crop[y1:y2, x1:x2]
                         if not is_valid_plate_box(bw, bh, max_w=rw, max_h=rh, crop_bgr=sub_crop, vehicle_label=vehicle_label):
@@ -1062,7 +1120,7 @@ class LPREngine:
                         boxes.append(
                             {
                                 "box": pad_box(
-                                    x1 + rx1, y1 + ry1, x2 + rx1, y2 + ry1,
+                                    abs_box[0], abs_box[1], abs_box[2], abs_box[3],
                                     w, h, BOX_PAD_RATIO,
                                 ),
                                 "confidence": float(b.conf[0]),
@@ -1088,14 +1146,15 @@ class LPREngine:
                             sx1, sy1, sx2, sy2 = map(int, b.xyxy[0])
                             orig_x1 = max(0, int(sx1 - shear_factor * sy1))
                             orig_x2 = min(cw, int(sx2 - shear_factor * sy2))
-                            if (sy1 + ry1) < frame.shape[0] * 0.22:
+                            abs_box = (orig_x1 + rx1, sy1 + ry1, orig_x2 + rx1, sy2 + ry1)
+                            if is_camera_osd_watermark(abs_box, w, h):
                                 continue
                             if orig_x2 > orig_x1 and is_valid_plate_box(orig_x2 - orig_x1, sy2 - sy1, max_w=rw, max_h=rh, vehicle_label=vehicle_label):
                                 boxes.append(
                                     {
                                         "box": pad_box(
-                                            orig_x1 + rx1, sy1 + ry1,
-                                            orig_x2 + rx1, sy2 + ry1,
+                                            abs_box[0], abs_box[1],
+                                            abs_box[2], abs_box[3],
                                             w, h, BOX_PAD_RATIO,
                                         ),
                                         "confidence": float(b.conf[0]),
@@ -1323,6 +1382,19 @@ class LPREngine:
         except Exception:
             pass
 
+        # รอบที่ 4 (Phase P3 Hybrid Booster): thlprv2.onnx @ 384x640 (56.1% exact / 88.9% char sim on BPP-215)
+        if getattr(self, "thlprv2_onnx", None) is not None and self.thlprv2_onnx.is_ready:
+            try:
+                found_onnx = self.thlprv2_onnx.detect_char_boxes(crop, conf_thres=CHAR_CONF)
+                if found_onnx:
+                    plate_onnx, prov_onnx, score_onnx = self._parse_char_boxes(found_onnx, aspect_ratio=aspect_ratio)
+                    key_onnx = (len(normalize_plate(plate_onnx)), 1 if prov_onnx else 0, score_onnx)
+                    key_orig = (len(normalize_plate(plate_orig)), 1 if prov_orig else 0, score_orig)
+                    if key_onnx > key_orig:
+                        plate_orig, prov_orig, score_orig = plate_onnx, prov_onnx, score_onnx
+            except Exception as exc:
+                log.debug("thlprv2_onnx read failed: %s", exc)
+
         legacy_result = (plate_orig, prov_orig, score_orig)
         # Rely on the verified character detector (data_plate.pt) for accurate, zero-hallucination reads.
         # If line OCR is active and yields a confident multi-character result (score >= 0.70 and len >= 3),
@@ -1402,6 +1474,9 @@ class LPREngine:
 
         for detection in plate_detections:
             plate_box = detection["box"]
+            if is_camera_osd_watermark(plate_box, w, h):
+                log.debug("skip camera OSD watermark box: %s", plate_box)
+                continue
             px1, py1, px2, py2 = plate_box
             pw = px2 - px1
             ph = py2 - py1
@@ -1435,6 +1510,10 @@ class LPREngine:
 
             cv2.rectangle(annotated, plate_box[:2], plate_box[2:], (255, 255, 0), 2)
             plate, province, score = self._read_chars(frame, plate_box)
+            if any(w in (plate or "").upper() for w in OSD_BLOCKLIST_WORDS):
+                log.debug("skip OSD watermark keyword: plate=%s (box=%s)", plate, plate_box)
+                continue
+
             clean = normalize_plate(plate)
             c = frame[py1:py2, px1:px2]
             if c.size == 0:
@@ -1456,7 +1535,7 @@ class LPREngine:
             elif (
                 detection["confidence"] >= 0.70 
                 and bool(re.search(r"[\u0E01-\u0E2EA-Za-z]", plate or ""))
-                and not any(w in (plate or "").upper() for w in ["POLICE", "RANGER", "TRUCK", "DOSE", "FORD", "HILUX", "ISUZU", "TOYOTA"])
+                and not any(w in (plate or "").upper() for w in {"POLICE", "RANGER", "TRUCK", "DOSE", "FORD", "HILUX", "ISUZU", "TOYOTA"} | OSD_BLOCKLIST_WORDS)
             ):
                 status = "detected_unreadable"
             else:
@@ -1517,8 +1596,9 @@ class LPREngine:
 def fetch_active_events(cameras=None):
     """ดึง event ล่าสุดทั้งหมดจาก Frigate (ทั้ง in_progress และที่เพิ่งจบ) เพื่อให้ไม่ตกหล่น event ที่จบเร็ว"""
     try:
+        poll_labels = list(dict.fromkeys(list(LABELS) + ["bicycle", "knife", "backpack", "dog", "cat"]))
         params = {
-            "labels": ",".join(LABELS),
+            "labels": ",".join(poll_labels),
             "limit": 50,
         }
         if cameras:
@@ -2128,6 +2208,54 @@ def send_telegram_alert(message, image_bgr):
     ).start()
 
 
+def send_warrant_face_alert(fd: Dict[str, Any], camera: str, event_id: str, frame_bgr: Optional[np.ndarray]):
+    """ส่งแจ้งเตือนเร่งด่วนระดับสูงเมื่อ AI ตรวจจับใบหน้าตรงกับผู้ต้องหาตามหมายจับ (Warrant Match Alert)"""
+    person = fd.get("person") or "ผู้ต้องหาตามหมายจับ"
+    w_comp = fd.get("warrant_comparison") or {}
+    w_no = w_comp.get("warrant_no") or fd.get("warrant_info", {}).get("warrant_no") or "-"
+    court = w_comp.get("court") or fd.get("warrant_info", {}).get("court") or "-"
+    station = w_comp.get("station_name") or fd.get("warrant_info", {}).get("station_name") or "-"
+    charge = w_comp.get("charge") or fd.get("warrant_info", {}).get("charge") or "-"
+    countdown = w_comp.get("countdown_text") or fd.get("warrant_info", {}).get("countdown_text") or ""
+    exp_date = w_comp.get("expiration_date") or fd.get("warrant_info", {}).get("expiration_date") or ""
+    id_card = fd.get("id_card") or w_comp.get("id_card") or "-"
+    dossier_id = fd.get("dossier_id") or w_comp.get("dossier_id") or ""
+    sim_pct = float(fd.get("similarity_pct", 0.0))
+    cosine = float(fd.get("cosine", 0.0))
+    host = get_public_server_host()
+
+    msg_lines = [
+        "🚨🚨🚨 แจ้งเตือนตรวจพบบุคคลตามหมายจับ! (WARRANT FACE MATCH)",
+        f"👤 ผู้ต้องหา: {person}",
+        f"🪪 เลขบัตรประชาชน: {id_card}",
+        f"📋 หมายเลขหมายจับ: {w_no}",
+        f"🏛️ ศาลผู้ออกหมาย: {court}",
+        f"🏢 ท้องที่/สภ.: {station}",
+        f"⚖️ ข้อหา: {charge}",
+    ]
+    if countdown:
+        msg_lines.append(f"⏳ อายุความ: {countdown} (ถึง {exp_date})")
+    msg_lines.extend([
+        f"📹 กล้องที่ตรวจพบ: {camera}",
+        f"🎯 ความแม่นยำ AI: {sim_pct:.1f}% (Cosine: {cosine:.3f})",
+        f"🆔 Frigate Event: {event_id}",
+    ])
+    if dossier_id:
+        msg_lines.append(f"📁 แฟ้มคลังข้อมูล: {dossier_id}")
+        msg_lines.append(f"🔗 ลิงก์ตรวจสอบในคลังข้อมูล: https://{host}/#arrest-vault?dossier={dossier_id}")
+    msg = "\n".join(msg_lines)
+
+    log.warning("🚨 WARRANT FACE MATCH ALERT: %s (Warrant %s, Court %s) on %s", person, w_no, court, camera)
+    try:
+        send_telegram_alert(msg, frame_bgr)
+    except Exception as exc:
+        log.warning("Telegram warrant alert failed: %s", exc)
+    try:
+        send_discord_alert(msg, frame_bgr)
+    except Exception as exc:
+        log.warning("Discord warrant alert failed: %s", exc)
+
+
 OBJECT_ALERTS_FILE = os.environ.get("LPR_OBJECT_ALERTS_FILE", "/lpr-config/object_alerts.json")
 _last_object_alert_times = {}
 
@@ -2192,8 +2320,11 @@ def check_and_send_object_telegram_alert(event):
 
     label_th_map = {
         "person": "👤 บุคคล (Person)",
+        "knife": "🔪 มีด/อาวุธ (Knife)",
+        "backpack": "🎒 กระเป๋าสะพาย (Backpack)",
         "car": "🚗 รถยนต์ (Car)",
         "motorcycle": "🏍️ รถจักรยานยนต์ (Motorcycle)",
+        "bicycle": "🚲 รถจักรยาน (Bicycle)",
         "bus": "🚌 รถบัส (Bus)",
         "truck": "🚚 รถบรรทุก (Truck)",
         "dog": "🐕 สุนัข (Dog)",
@@ -3447,6 +3578,121 @@ def deliver_pending_alerts(post=None, max_per_call=5):
     return delivered
 
 
+def _start_face_rpc_server(face_engine):
+    """Run lightweight internal HTTP server on 0.0.0.0:5008 for watchlist-api face calls."""
+    if face_engine is None:
+        return
+    import base64
+    import threading
+    import urllib.parse
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class FaceRpcHandler(BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+
+        def _send_json(self, code, data):
+            raw = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self):
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path == "/faces":
+                items = face_engine.list_watchlist_faces()
+                recent = face_engine.get_recent_detections(40)
+                cam_cfg = face_engine.get_face_cameras_config()
+                self._send_json(200, {"ok": True, "items": items, "total": len(items), "recent_detections": recent, "camera_config": cam_cfg})
+            elif parsed.path == "/faces/recent":
+                recent = face_engine.get_recent_detections(40)
+                self._send_json(200, {"ok": True, "items": recent, "total": len(recent)})
+            elif parsed.path == "/faces/cameras":
+                cam_cfg = face_engine.get_face_cameras_config()
+                self._send_json(200, {"ok": True, **cam_cfg})
+            else:
+                self._send_json(404, {"ok": False, "error": "Not found"})
+
+        def do_DELETE(self):
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path.startswith("/faces/"):
+                pname = urllib.parse.unquote(parsed.path[len("/faces/"):])
+                res = face_engine.delete_person(pname)
+                self._send_json(200 if res.get("ok") else 404, res)
+            else:
+                self._send_json(404, {"ok": False, "error": "Not found"})
+
+        def do_POST(self):
+            parsed = urllib.parse.urlparse(self.path)
+            clen = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(clen).decode("utf-8")) if clen > 0 else {}
+            if parsed.path == "/faces/register":
+                name = str(body.get("name") or body.get("person") or "").strip()
+                b64 = str(body.get("image_b64") or "").strip()
+                if "," in b64:
+                    b64 = b64.split(",", 1)[1]
+                try:
+                    img_bytes = base64.b64decode(b64)
+                except Exception:
+                    self._send_json(400, {"ok": False, "error": "รูปภาพไม่ถูกต้อง"})
+                    return
+                res = face_engine.register_face_bytes(
+                    name,
+                    img_bytes,
+                    "face.jpg",
+                    str(body.get("notes") or ""),
+                    str(body.get("group") or "บุคคลเฝ้าระวัง"),
+                    str(body.get("danger_level") or "high"),
+                )
+                self._send_json(200 if res.get("ok") else 400, res)
+            elif parsed.path == "/faces/search":
+                b64 = str(body.get("image_b64") or "").strip()
+                if "," in b64:
+                    b64 = b64.split(",", 1)[1]
+                try:
+                    img_bytes = base64.b64decode(b64)
+                except Exception:
+                    self._send_json(400, {"ok": False, "error": "รูปภาพไม่ถูกต้อง"})
+                    return
+                res = face_engine.search_by_image_bytes(img_bytes)
+                self._send_json(200 if res.get("ok") else 400, res)
+            elif parsed.path == "/faces/compare":
+                b1 = str(body.get("image1_b64") or "").strip()
+                b2 = str(body.get("image2_b64") or "").strip()
+                if "," in b1:
+                    b1 = b1.split(",", 1)[1]
+                if "," in b2:
+                    b2 = b2.split(",", 1)[1]
+                try:
+                    img1_bytes = base64.b64decode(b1)
+                    img2_bytes = base64.b64decode(b2)
+                except Exception:
+                    self._send_json(400, {"ok": False, "error": "รูปภาพไม่ถูกต้อง"})
+                    return
+                res = face_engine.compare_two_images_bytes(img1_bytes, img2_bytes)
+                self._send_json(200 if res.get("ok") else 400, res)
+            elif parsed.path == "/faces/sync-dossiers":
+                res = face_engine.sync_dossiers(force_rescan=bool(body.get("force", False)))
+                self._send_json(200, res)
+            elif parsed.path == "/faces/cameras":
+                dis_cams = body.get("disabled_cameras") if isinstance(body.get("disabled_cameras"), list) else None
+                cam = str(body.get("camera") or "").strip() or None
+                en = body.get("enabled") if isinstance(body.get("enabled"), bool) else None
+                res = face_engine.update_face_cameras_config(disabled_cameras=dis_cams, camera=cam, enabled=en)
+                self._send_json(200, res)
+            else:
+                self._send_json(404, {"ok": False, "error": "Not found"})
+
+    try:
+        srv = ThreadingHTTPServer(("0.0.0.0", 5008), FaceRpcHandler)
+        threading.Thread(target=srv.serve_forever, name="lpr-face-rpc", daemon=True).start()
+        log.info("FaceOnnxEngine RPC server listening on 0.0.0.0:5008")
+    except Exception as exc:
+        log.warning("Failed to start Face RPC server on :5008: %s", exc)
+
+
 def main():
     """entrypoint: โหลดโมเดล แล้ววน poll -> process -> finalize ตลอดอายุ container
     ออกแบบให้ล้มเฉพาะจุด (ทุก network/IO call มี try ของตัวเอง) — loop หลักตายเฉพาะ
@@ -3461,6 +3707,8 @@ def main():
         FRIGATE_BASE, CAMERAS, LABELS, device, USE_FRIGATE_BOX,
     )
     engine = LPREngine(device)
+    _start_face_rpc_server(getattr(engine, "face_onnx", None))
+    processed_face_events = set()
     heartbeat.update(
         ready=True,
         upstream_ok=False,
@@ -3567,6 +3815,60 @@ def main():
         for event in events:
             # Check per-camera object alert preferences for all cameras
             check_and_send_object_telegram_alert(event)
+
+            # Face Detection & Recognition on person events (once per event)
+            if (
+                event.get("label") == "person"
+                and getattr(engine, "face_onnx", None) is not None
+                and event.get("id") not in processed_face_events
+                and engine.face_onnx.is_camera_face_enabled(event.get("camera") or "")
+            ):
+                p_eid = event.get("id")
+                p_start = event.get("start_time") or 0
+                if p_eid and (time.time() - p_start) <= 45:
+                    processed_face_events.add(p_eid)
+                    if len(processed_face_events) > 500:
+                        processed_face_events.clear()
+                    try:
+                        p_frame = fetch_event_snapshot(p_eid) or fetch_latest_frame(event.get("camera"), full_res=True)
+                        if p_frame is not None and engine.face_onnx.is_ready:
+                            f_dets = engine.face_onnx.analyze_camera_frame(
+                                p_frame, camera=event.get("camera") or "", event_id=p_eid
+                            )
+                            for fd in f_dets:
+                                if fd.get("matched") and fd.get("person"):
+                                    is_warrant = bool(fd.get("is_warrant"))
+                                    w_no = fd.get("warrant_info", {}).get("warrant_no") or ""
+                                    if is_warrant and w_no:
+                                        sub_label = f"[หมายจับ {w_no}] {fd['person']}"
+                                    elif is_warrant:
+                                        sub_label = f"[หมายจับ] {fd['person']}"
+                                    else:
+                                        sub_label = fd["person"]
+                                    sub_label = sub_label[:100]
+
+                                    try:
+                                        http.post(
+                                            f"{FRIGATE_BASE}/api/events/{p_eid}/sub_label",
+                                            json={"subLabel": sub_label, "subLabelScore": fd.get("cosine", 0.85)},
+                                            timeout=5,
+                                        )
+                                        if is_warrant:
+                                            http.post(f"{FRIGATE_BASE}/api/events/{p_eid}/retain", timeout=5)
+                                            send_warrant_face_alert(fd, event.get("camera") or "", p_eid, p_frame)
+                                        log.info(
+                                            "Face recognized on %s (event %s): %s (%.1f%%, warrant=%s)",
+                                            event.get("camera"),
+                                            p_eid,
+                                            sub_label,
+                                            fd.get("similarity_pct", 0.0),
+                                            is_warrant,
+                                        )
+                                    except Exception:
+                                        pass
+                                    break
+                    except Exception as f_exc:
+                        log.debug("person face check skipped for %s: %s", p_eid, f_exc)
 
             # Only perform LPR vehicle processing if label is vehicle and camera is in LPR enabled cameras
             if event.get("label") not in VEHICLE_LABELS:

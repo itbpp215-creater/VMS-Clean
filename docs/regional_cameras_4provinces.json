@@ -1,0 +1,3728 @@
+{
+  "Udon1": {
+    "id": "Udon1",
+    "name": "แยกเซ็นทรัล",
+    "province": "อุดรธานี",
+    "lat": 17.404346,
+    "lng": 102.799992,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_38.stream/chunklist_w1610502304.m3u8"
+  },
+  "Udon2": {
+    "id": "Udon2",
+    "name": "วงเวียนกรมหลวงประจักษ์ศิลปาคม SPD",
+    "province": "อุดรธานี",
+    "lat": 17.400333,
+    "lng": 102.795073,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_121.stream/chunklist_w2010918290.m3u8"
+  },
+  "Udon3": {
+    "id": "Udon3",
+    "name": "แยกหน้าสถานีรถไฟ",
+    "province": "อุดรธานี",
+    "lat": 17.404315,
+    "lng": 102.804048,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_33.stream/chunklist_w34733218.m3u8"
+  },
+  "Udon4": {
+    "id": "Udon4",
+    "name": "แยกสถานีรถไฟ ถนนประจักษ์",
+    "province": "อุดรธานี",
+    "lat": null,
+    "lng": null,
+    "status": "Source offline",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_34.stream/chunklist_w354640472.m3u8"
+  },
+  "Udon5": {
+    "id": "Udon5",
+    "name": "แยกคอกม้า",
+    "province": "อุดรธานี",
+    "lat": 17.409456,
+    "lng": 102.775091,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_52.stream/chunklist_w573818671.m3u8"
+  },
+  "Udon6": {
+    "id": "Udon6",
+    "name": "แยกอาชีวศึกษา ด้านถนนประชารักษา",
+    "province": "อุดรธานี",
+    "lat": 17.410141,
+    "lng": 102.777509,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_7.21.stream/chunklist_w1836293394.m3u8"
+  },
+  "Udon7": {
+    "id": "Udon7",
+    "name": "แยกอาชีวศึกษา ด้านถนนเพาะนิยม",
+    "province": "อุดรธานี",
+    "lat": 17.409703,
+    "lng": 102.778214,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_IP724.stream/chunklist_w741016741.m3u8"
+  },
+  "Udon8": {
+    "id": "Udon8",
+    "name": "แยกหน้าโรงเรียนอุดรพิทยานุกูล ถนนโพศรี",
+    "province": "อุดรธานี",
+    "lat": 17.407171,
+    "lng": 102.783172,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_IP727.stream/chunklist_w1204838826.m3u8"
+  },
+  "Udon9": {
+    "id": "Udon9",
+    "name": "แยก VTแหนมเนือง",
+    "province": "อุดรธานี",
+    "lat": 17.413518,
+    "lng": 102.777308,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Bosch_IP2.9.stream/chunklist_w1021328968.m3u8"
+  },
+  "Udon10": {
+    "id": "Udon10",
+    "name": "แยกต้อยลาบเป็ด",
+    "province": "อุดรธานี",
+    "lat": 17.403637,
+    "lng": 102.784028,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Bosch_IP2.17.stream/chunklist_w941487597.m3u8"
+  },
+  "roiet_1": {
+    "id": "roiet_1",
+    "name": "สะพานไหมไทยฝั่งใน(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064203,
+    "lng": 103.651338,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2124/s.m3u8"
+  },
+  "roiet_2": {
+    "id": "roiet_2",
+    "name": "สะพานไหมไทยฝั่งใน(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064203,
+    "lng": 103.651338,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2125/s.m3u8"
+  },
+  "roiet_3": {
+    "id": "roiet_3",
+    "name": "สะพานไหมไทยฝั่งใน(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064203,
+    "lng": 103.651338,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2126/s.m3u8"
+  },
+  "roiet_4": {
+    "id": "roiet_4",
+    "name": "สะพานไหมไทยฝั่งใน(4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064203,
+    "lng": 103.651338,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2127/s.m3u8"
+  },
+  "roiet_5": {
+    "id": "roiet_5",
+    "name": "สะพานไหมไทยฝั่งนอก(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064786,
+    "lng": 103.651398,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2134/s.m3u8"
+  },
+  "roiet_6": {
+    "id": "roiet_6",
+    "name": "สะพานไหมไทยฝั่งนอก(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064786,
+    "lng": 103.651398,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2135/s.m3u8"
+  },
+  "roiet_7": {
+    "id": "roiet_7",
+    "name": "สะพานไหมไทยฝั่งนอก(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.066425,
+    "lng": 103.650815,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2141/s.m3u8"
+  },
+  "roiet_8": {
+    "id": "roiet_8",
+    "name": "สะพานไหมไทยฝั่งนอก(4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.066425,
+    "lng": 103.650815,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2142/s.m3u8"
+  },
+  "roiet_9": {
+    "id": "roiet_9",
+    "name": "สะพานเทศบาลหนึ่ง(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064645,
+    "lng": 103.653613,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2128/s.m3u8"
+  },
+  "roiet_10": {
+    "id": "roiet_10",
+    "name": "สะพานเทศบาลหนึ่ง(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064645,
+    "lng": 103.653613,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2129/s.m3u8"
+  },
+  "roiet_11": {
+    "id": "roiet_11",
+    "name": "สะพานเทศบาลหนึ่ง(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064645,
+    "lng": 103.653613,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2130/s.m3u8"
+  },
+  "roiet_12": {
+    "id": "roiet_12",
+    "name": "ประตูระบายน้ำ",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065379,
+    "lng": 103.658466,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2136/s.m3u8"
+  },
+  "roiet_13": {
+    "id": "roiet_13",
+    "name": "สี่แยกวัดบูรพาภิราม(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.061442,
+    "lng": 103.659724,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2131/s.m3u8"
+  },
+  "roiet_14": {
+    "id": "roiet_14",
+    "name": "สี่แยกวัดบูรพาภิราม(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.061442,
+    "lng": 103.659724,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2132/s.m3u8"
+  },
+  "roiet_15": {
+    "id": "roiet_15",
+    "name": "สี่แยกวัดบูรพาภิราม(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.061442,
+    "lng": 103.659724,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2133/s.m3u8"
+  },
+  "roiet_16": {
+    "id": "roiet_16",
+    "name": "หน้าโรงเรียน ร.ว.(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053295,
+    "lng": 103.658158,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2101/s.m3u8"
+  },
+  "roiet_17": {
+    "id": "roiet_17",
+    "name": "หน้าโรงเรียน ร.ว.(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053295,
+    "lng": 103.658158,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2102/s.m3u8"
+  },
+  "roiet_18": {
+    "id": "roiet_18",
+    "name": "หน้าโรงเรียน ร.ว.(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053295,
+    "lng": 103.658158,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2103/s.m3u8"
+  },
+  "roiet_19": {
+    "id": "roiet_19",
+    "name": "สามแยกซอยจำลอง(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.050074,
+    "lng": 103.657392,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2137/s.m3u8"
+  },
+  "roiet_20": {
+    "id": "roiet_20",
+    "name": "สามแยกซอยจำลอง(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.050074,
+    "lng": 103.657392,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2138/s.m3u8"
+  },
+  "roiet_21": {
+    "id": "roiet_21",
+    "name": "สามแยกซอยจำลอง(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.050074,
+    "lng": 103.657392,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2139/s.m3u8"
+  },
+  "roiet_22": {
+    "id": "roiet_22",
+    "name": "สี่แยกมหาวิโร(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049805,
+    "lng": 103.653763,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2104/s.m3u8"
+  },
+  "roiet_23": {
+    "id": "roiet_23",
+    "name": "สี่แยกมหาวิโร(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049805,
+    "lng": 103.653763,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2105/s.m3u8"
+  },
+  "roiet_24": {
+    "id": "roiet_24",
+    "name": "สี่แยกมหาวิโร(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049805,
+    "lng": 103.653763,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2106/s.m3u8"
+  },
+  "roiet_25": {
+    "id": "roiet_25",
+    "name": "สี่แยกอุตสาหกรรม(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049625,
+    "lng": 103.651347,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2107/s.m3u8"
+  },
+  "roiet_26": {
+    "id": "roiet_26",
+    "name": "สี่แยกอุตสาหกรรม(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049625,
+    "lng": 103.651347,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2108/s.m3u8"
+  },
+  "roiet_27": {
+    "id": "roiet_27",
+    "name": "สี่แยกอุตสาหกรรม(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049625,
+    "lng": 103.651347,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2109/s.m3u8"
+  },
+  "roiet_28": {
+    "id": "roiet_28",
+    "name": "สี่แยกตรงมินทร์(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049411,
+    "lng": 103.647487,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2111/s.m3u8"
+  },
+  "roiet_29": {
+    "id": "roiet_29",
+    "name": "สี่แยกตรงมินทร์(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049411,
+    "lng": 103.647487,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2110/s.m3u8"
+  },
+  "roiet_30": {
+    "id": "roiet_30",
+    "name": "สี่แยกตรงมินทร์(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049411,
+    "lng": 103.647487,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2112/s.m3u8"
+  },
+  "roiet_31": {
+    "id": "roiet_31",
+    "name": "สามแยกสหพันธ์(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051518,
+    "lng": 103.642661,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2113/s.m3u8"
+  },
+  "roiet_32": {
+    "id": "roiet_32",
+    "name": "สามแยกสหพันธ์(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051518,
+    "lng": 103.642661,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2114/s.m3u8"
+  },
+  "roiet_33": {
+    "id": "roiet_33",
+    "name": "สามแยกสหพันธ์(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051518,
+    "lng": 103.642661,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2115/s.m3u8"
+  },
+  "roiet_34": {
+    "id": "roiet_34",
+    "name": "สี่แยก บขส(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054437,
+    "lng": 103.641627,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2116/s.m3u8"
+  },
+  "roiet_35": {
+    "id": "roiet_35",
+    "name": "สี่แยก บขส(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054437,
+    "lng": 103.641627,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2117/s.m3u8"
+  },
+  "roiet_36": {
+    "id": "roiet_36",
+    "name": "สี่แยก บขส(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054437,
+    "lng": 103.641627,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2118/s.m3u8"
+  },
+  "roiet_37": {
+    "id": "roiet_37",
+    "name": "สี่แยก บขส(4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054437,
+    "lng": 103.641627,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2119/s.m3u8"
+  },
+  "roiet_38": {
+    "id": "roiet_38",
+    "name": "สามแยกนาฎศิลป์(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057246,
+    "lng": 103.641842,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2120/s.m3u8"
+  },
+  "roiet_39": {
+    "id": "roiet_39",
+    "name": "สามแยกนาฎศิลป์(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057246,
+    "lng": 103.641842,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2121/s.m3u8"
+  },
+  "roiet_40": {
+    "id": "roiet_40",
+    "name": "สามแยก จส.3 (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060461,
+    "lng": 103.642073,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2122/s.m3u8"
+  },
+  "roiet_41": {
+    "id": "roiet_41",
+    "name": "สามแยก จส.3 (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060461,
+    "lng": 103.642073,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2123/s.m3u8"
+  },
+  "roiet_42": {
+    "id": "roiet_42",
+    "name": "หน้าประตูสาเกตุ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055664,
+    "lng": 103.653473,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1020/s.m3u8"
+  },
+  "roiet_43": {
+    "id": "roiet_43",
+    "name": "หน้าประตูสาเกตุ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055664,
+    "lng": 103.653473,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1021/s.m3u8"
+  },
+  "roiet_44": {
+    "id": "roiet_44",
+    "name": "หน้าประตูสาเกตุ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055664,
+    "lng": 103.653473,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1022/s.m3u8"
+  },
+  "roiet_45": {
+    "id": "roiet_45",
+    "name": "หน้าประตูสาเกตุ (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055664,
+    "lng": 103.653473,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1023/s.m3u8"
+  },
+  "roiet_46": {
+    "id": "roiet_46",
+    "name": "หน้าพระบรมรูป ร.6 (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056002,
+    "lng": 103.652261,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1024/s.m3u8"
+  },
+  "roiet_47": {
+    "id": "roiet_47",
+    "name": "หน้าพระบรมรูป ร.6 (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056002,
+    "lng": 103.652261,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1025/s.m3u8"
+  },
+  "roiet_48": {
+    "id": "roiet_48",
+    "name": "หน้าพระบรมรูป ร.6 (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056002,
+    "lng": 103.652261,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1026/s.m3u8"
+  },
+  "roiet_49": {
+    "id": "roiet_49",
+    "name": "สามแยกหน้าบ้านพัก ผบก. (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055657,
+    "lng": 103.651641,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1027/s.m3u8"
+  },
+  "roiet_50": {
+    "id": "roiet_50",
+    "name": "สามแยกหน้าบ้านพัก ผบก. (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055657,
+    "lng": 103.651641,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1028/s.m3u8"
+  },
+  "roiet_51": {
+    "id": "roiet_51",
+    "name": "สามแยกหน้าบ้านพัก ผบก. (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055657,
+    "lng": 103.651641,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1029/s.m3u8"
+  },
+  "roiet_52": {
+    "id": "roiet_52",
+    "name": "สามแยกหน้าบ้านพัก ผบก. (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055657,
+    "lng": 103.651641,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1030/s.m3u8"
+  },
+  "roiet_54": {
+    "id": "roiet_54",
+    "name": "สามแยกหน้าวัดบึง (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056321,
+    "lng": 103.649825,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1032/s.m3u8"
+  },
+  "roiet_55": {
+    "id": "roiet_55",
+    "name": "สามแยกหน้าวัดบึง (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056321,
+    "lng": 103.649825,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1033/s.m3u8"
+  },
+  "roiet_56": {
+    "id": "roiet_56",
+    "name": "สามแยกหน้าวัดบึง (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056321,
+    "lng": 103.649825,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1034/s.m3u8"
+  },
+  "roiet_57": {
+    "id": "roiet_57",
+    "name": "สามแยกมาริน (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057394,
+    "lng": 103.649161,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1035/s.m3u8"
+  },
+  "roiet_58": {
+    "id": "roiet_58",
+    "name": "สามแยกมาริน (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057394,
+    "lng": 103.649161,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1036/s.m3u8"
+  },
+  "roiet_59": {
+    "id": "roiet_59",
+    "name": "สามแยกมาริน (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057394,
+    "lng": 103.649161,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1037/s.m3u8"
+  },
+  "roiet_60": {
+    "id": "roiet_60",
+    "name": "สามแยกมาริน (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057394,
+    "lng": 103.649161,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1038/s.m3u8"
+  },
+  "roiet_61": {
+    "id": "roiet_61",
+    "name": "สามแยกร้านข้าวมันไก่ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060194,
+    "lng": 103.651179,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1040/s.m3u8"
+  },
+  "roiet_62": {
+    "id": "roiet_62",
+    "name": "สามแยกร้านข้าวมันไก่ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060194,
+    "lng": 103.651179,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1041/s.m3u8"
+  },
+  "roiet_63": {
+    "id": "roiet_63",
+    "name": "สามแยกร้านข้าวมันไก่ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060194,
+    "lng": 103.651179,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1042/s.m3u8"
+  },
+  "roiet_64": {
+    "id": "roiet_64",
+    "name": "สามแยกร้านศรีเมือง (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059733,
+    "lng": 103.652244,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1044/s.m3u8"
+  },
+  "roiet_65": {
+    "id": "roiet_65",
+    "name": "สามแยกร้านศรีเมือง (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059733,
+    "lng": 103.652244,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1045/s.m3u8"
+  },
+  "roiet_66": {
+    "id": "roiet_66",
+    "name": "สามแยกร้านศรีเมือง (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059733,
+    "lng": 103.652244,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1046/s.m3u8"
+  },
+  "roiet_67": {
+    "id": "roiet_67",
+    "name": "สี่แยกห้างร้อยเอ็ดพลาซ่า (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056994,
+    "lng": 103.656915,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1050/s.m3u8"
+  },
+  "roiet_68": {
+    "id": "roiet_68",
+    "name": "สี่แยกห้างร้อยเอ็ดพลาซ่า (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056994,
+    "lng": 103.656915,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1051/s.m3u8"
+  },
+  "roiet_69": {
+    "id": "roiet_69",
+    "name": "สี่แยกห้างร้อยเอ็ดพลาซ่า (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056994,
+    "lng": 103.656915,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1052/s.m3u8"
+  },
+  "roiet_70": {
+    "id": "roiet_70",
+    "name": "สี่แยกห้างร้อยเอ็ดพลาซ่า (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056994,
+    "lng": 103.656915,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1053/s.m3u8"
+  },
+  "roiet_71": {
+    "id": "roiet_71",
+    "name": "สี่แยกห้างร้อยเอ็ดพลาซ่า (5)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.056994,
+    "lng": 103.656915,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1054/s.m3u8"
+  },
+  "roiet_72": {
+    "id": "roiet_72",
+    "name": "แยกหลังตลาดทุ่งเจริญ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058357,
+    "lng": 103.655995,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1055/s.m3u8"
+  },
+  "roiet_73": {
+    "id": "roiet_73",
+    "name": "แยกหลังตลาดทุ่งเจริญ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058357,
+    "lng": 103.655995,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1056/s.m3u8"
+  },
+  "roiet_74": {
+    "id": "roiet_74",
+    "name": "แยกหลังตลาดทุ่งเจริญ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058357,
+    "lng": 103.655995,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1057/s.m3u8"
+  },
+  "roiet_75": {
+    "id": "roiet_75",
+    "name": "แยกหลังตลาดทุ่งเจริญ (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058357,
+    "lng": 103.655995,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1058/s.m3u8"
+  },
+  "roiet_76": {
+    "id": "roiet_76",
+    "name": "แยกหลังตลาดทุ่งเจริญ (5)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058357,
+    "lng": 103.655995,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1059/s.m3u8"
+  },
+  "roiet_77": {
+    "id": "roiet_77",
+    "name": "แยกหน้าตลาดทุ่งเจริญ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058712,
+    "lng": 103.655309,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1060/s.m3u8"
+  },
+  "roiet_78": {
+    "id": "roiet_78",
+    "name": "แยกหน้าตลาดทุ่งเจริญ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058712,
+    "lng": 103.655309,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1061/s.m3u8"
+  },
+  "roiet_79": {
+    "id": "roiet_79",
+    "name": "แยกหน้าตลาดทุ่งเจริญ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058712,
+    "lng": 103.655309,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1062/s.m3u8"
+  },
+  "roiet_80": {
+    "id": "roiet_80",
+    "name": "แยกหน้าตลาดทุ่งเจริญ (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058712,
+    "lng": 103.655309,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1063/s.m3u8"
+  },
+  "roiet_82": {
+    "id": "roiet_82",
+    "name": "แยกธนาคารทหารไทย (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059183,
+    "lng": 103.656769,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1065/s.m3u8"
+  },
+  "roiet_83": {
+    "id": "roiet_83",
+    "name": "แยกธนาคารทหารไทย (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059183,
+    "lng": 103.656769,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1066/s.m3u8"
+  },
+  "roiet_84": {
+    "id": "roiet_84",
+    "name": "แยกธนาคารทหารไทย (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059183,
+    "lng": 103.656769,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1067/s.m3u8"
+  },
+  "roiet_85": {
+    "id": "roiet_85",
+    "name": "สี่แยกไพศาลยนต์ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060559,
+    "lng": 103.656753,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1068/s.m3u8"
+  },
+  "roiet_86": {
+    "id": "roiet_86",
+    "name": "สี่แยกไพศาลยนต์ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060559,
+    "lng": 103.656753,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1069/s.m3u8"
+  },
+  "roiet_87": {
+    "id": "roiet_87",
+    "name": "สี่แยกไพศาลยนต์ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060559,
+    "lng": 103.656753,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1070/s.m3u8"
+  },
+  "roiet_88": {
+    "id": "roiet_88",
+    "name": "สี่แยกไพศาลยนต์ (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060559,
+    "lng": 103.656753,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1071/s.m3u8"
+  },
+  "roiet_89": {
+    "id": "roiet_89",
+    "name": "สี่แยกไพศาลยนต์ (5)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060559,
+    "lng": 103.656753,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1072/s.m3u8"
+  },
+  "roiet_90": {
+    "id": "roiet_90",
+    "name": "สี่แยกหน้าตลาดวัดสระทอง (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062883,
+    "lng": 103.651337,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1073/s.m3u8"
+  },
+  "roiet_91": {
+    "id": "roiet_91",
+    "name": "สี่แยกหน้าตลาดวัดสระทอง (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062883,
+    "lng": 103.651337,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1074/s.m3u8"
+  },
+  "roiet_92": {
+    "id": "roiet_92",
+    "name": "สี่แยกหน้าตลาดวัดสระทอง (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062883,
+    "lng": 103.651337,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1075/s.m3u8"
+  },
+  "roiet_93": {
+    "id": "roiet_93",
+    "name": "สี่แยกหน้าตลาดวัดสระทอง (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062883,
+    "lng": 103.651337,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1076/s.m3u8"
+  },
+  "roiet_94": {
+    "id": "roiet_94",
+    "name": "แยกหลังตลาดวัดสระทอง (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062827,
+    "lng": 103.648002,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1077/s.m3u8"
+  },
+  "roiet_95": {
+    "id": "roiet_95",
+    "name": "แยกหลังตลาดวัดสระทอง (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062827,
+    "lng": 103.648002,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1078/s.m3u8"
+  },
+  "roiet_96": {
+    "id": "roiet_96",
+    "name": "แยกหลังตลาดวัดสระทอง (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.062827,
+    "lng": 103.648002,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1079/s.m3u8"
+  },
+  "roiet_97": {
+    "id": "roiet_97",
+    "name": "สี่แยกคชพลายุกต์ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065038,
+    "lng": 103.653744,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1080/s.m3u8"
+  },
+  "roiet_98": {
+    "id": "roiet_98",
+    "name": "สี่แยกคชพลายุกต์ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065038,
+    "lng": 103.653744,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1081/s.m3u8"
+  },
+  "roiet_99": {
+    "id": "roiet_99",
+    "name": "สี่แยกคชพลายุกต์ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065038,
+    "lng": 103.653744,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1082/s.m3u8"
+  },
+  "roiet_100": {
+    "id": "roiet_100",
+    "name": "สี่แยกคชพลายุกต์ (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065038,
+    "lng": 103.653744,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1083/s.m3u8"
+  },
+  "roiet_101": {
+    "id": "roiet_101",
+    "name": "สี่แยกคชพลายุกต์ (5)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065038,
+    "lng": 103.653744,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1084/s.m3u8"
+  },
+  "roiet_102": {
+    "id": "roiet_102",
+    "name": "สี่แยก ร.ร อนุบาลร้อยเอ็ด (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053201,
+    "lng": 103.658743,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1085/s.m3u8"
+  },
+  "roiet_103": {
+    "id": "roiet_103",
+    "name": "สี่แยก ร.ร อนุบาลร้อยเอ็ด (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053201,
+    "lng": 103.658743,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1086/s.m3u8"
+  },
+  "roiet_104": {
+    "id": "roiet_104",
+    "name": "สี่แยก ร.ร อนุบาลร้อยเอ็ด (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053201,
+    "lng": 103.658743,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1087/s.m3u8"
+  },
+  "roiet_105": {
+    "id": "roiet_105",
+    "name": "สี่แยก ร.ร อนุบาลร้อยเอ็ด (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053201,
+    "lng": 103.658743,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1088/s.m3u8"
+  },
+  "roiet_106": {
+    "id": "roiet_106",
+    "name": "สี่แยก ร.ร อนุบาลร้อยเอ็ด (5)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053201,
+    "lng": 103.658743,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1089/s.m3u8"
+  },
+  "roiet_107": {
+    "id": "roiet_107",
+    "name": "สามแยกวาปีปทุม (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051333,
+    "lng": 103.641512,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1090/s.m3u8"
+  },
+  "roiet_108": {
+    "id": "roiet_108",
+    "name": "สามแยกวาปีปทุม (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051333,
+    "lng": 103.641512,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1091/s.m3u8"
+  },
+  "roiet_109": {
+    "id": "roiet_109",
+    "name": "สามแยกวาปีปทุม (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051333,
+    "lng": 103.641512,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1092/s.m3u8"
+  },
+  "roiet_110": {
+    "id": "roiet_110",
+    "name": "สามแยกวาปีปทุม (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051333,
+    "lng": 103.641512,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1093/s.m3u8"
+  },
+  "roiet_111": {
+    "id": "roiet_111",
+    "name": "ถนน Street Art (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051852,
+    "lng": 103.643717,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2200/s.m3u8"
+  },
+  "roiet_112": {
+    "id": "roiet_112",
+    "name": "ถนน Street Art (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.052168,
+    "lng": 103.643739,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2202/s.m3u8"
+  },
+  "roiet_113": {
+    "id": "roiet_113",
+    "name": "ถนน Street Art (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.052563,
+    "lng": 103.643761,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2201/s.m3u8"
+  },
+  "roiet_114": {
+    "id": "roiet_114",
+    "name": "ถนน Street Art (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053116,
+    "lng": 103.643773,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2204/s.m3u8"
+  },
+  "roiet_115": {
+    "id": "roiet_115",
+    "name": "ถนน Street Art (5)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053814,
+    "lng": 103.643883,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls2203/s.m3u8"
+  },
+  "roiet_116": {
+    "id": "roiet_116",
+    "name": "วงเวียนศรีสุวรรณ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.063749,
+    "lng": 103.647974,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1094/s.m3u8"
+  },
+  "roiet_117": {
+    "id": "roiet_117",
+    "name": "วงเวียนศรีสุวรรณ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.063749,
+    "lng": 103.647974,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1095/s.m3u8"
+  },
+  "roiet_118": {
+    "id": "roiet_118",
+    "name": "กองศรีสุวรรณ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064029,
+    "lng": 103.646471,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1096/s.m3u8"
+  },
+  "roiet_119": {
+    "id": "roiet_119",
+    "name": "กองศรีสุวรรณ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064029,
+    "lng": 103.646471,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1197/s.m3u8"
+  },
+  "roiet_120": {
+    "id": "roiet_120",
+    "name": "กองศรีสุวรรณ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.064029,
+    "lng": 103.646471,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1098/s.m3u8"
+  },
+  "roiet_121": {
+    "id": "roiet_121",
+    "name": "แยกธนาคารกสิกรไทย (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060927,
+    "lng": 103.654067,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls10k1/s.m3u8"
+  },
+  "roiet_122": {
+    "id": "roiet_122",
+    "name": "แยกธนาคารกสิกรไทย (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060927,
+    "lng": 103.654067,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls10k2/s.m3u8"
+  },
+  "roiet_123": {
+    "id": "roiet_123",
+    "name": "แยกธนาคารกสิกรไทย (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060927,
+    "lng": 103.654067,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls10k3/s.m3u8"
+  },
+  "roiet_124": {
+    "id": "roiet_124",
+    "name": "แยกอุตสาหกรรม ตะวันตก",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049561,
+    "lng": 103.651225,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2205/s.m3u8"
+  },
+  "roiet_125": {
+    "id": "roiet_125",
+    "name": "วงเวียนโหวต (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.052204,
+    "lng": 103.651316,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3101/s.m3u8"
+  },
+  "roiet_126": {
+    "id": "roiet_126",
+    "name": "วงเวียนโหวต (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.052083,
+    "lng": 103.651376,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3102/s.m3u8"
+  },
+  "roiet_127": {
+    "id": "roiet_127",
+    "name": "แยกสหกรณ์",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.047006,
+    "lng": 103.651101,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2206/s.m3u8"
+  },
+  "roiet_128": {
+    "id": "roiet_128",
+    "name": "แยกไทยแซ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.046569,
+    "lng": 103.647126,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2207/s.m3u8"
+  },
+  "roiet_129": {
+    "id": "roiet_129",
+    "name": "ตลาดหนองแคน",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.050791,
+    "lng": 103.649508,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3106/s.m3u8"
+  },
+  "roiet_130": {
+    "id": "roiet_130",
+    "name": "แยกบุญกว้าง",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.051867,
+    "lng": 103.647979,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3107/s.m3u8"
+  },
+  "roiet_131": {
+    "id": "roiet_131",
+    "name": "แยกเยาวราช (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053602,
+    "lng": 103.64841,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3110/s.m3u8"
+  },
+  "roiet_132": {
+    "id": "roiet_132",
+    "name": "แยกเยาวราช (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053602,
+    "lng": 103.64841,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3111/s.m3u8"
+  },
+  "roiet_133": {
+    "id": "roiet_133",
+    "name": "แยกเยาวราช (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053602,
+    "lng": 103.64841,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3151/s.m3u8"
+  },
+  "roiet_134": {
+    "id": "roiet_134",
+    "name": "แยกเยาวราช (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053602,
+    "lng": 103.64841,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3160/s.m3u8"
+  },
+  "roiet_135": {
+    "id": "roiet_135",
+    "name": "บขส.ร้อยเอ็ด (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053688,
+    "lng": 103.639678,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2208/s.m3u8"
+  },
+  "roiet_136": {
+    "id": "roiet_136",
+    "name": "บขส.ร้อยเอ็ด (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053688,
+    "lng": 103.639678,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2209/s.m3u8"
+  },
+  "roiet_137": {
+    "id": "roiet_137",
+    "name": "แยกใบหยก",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057425,
+    "lng": 103.648275,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3153/s.m3u8"
+  },
+  "roiet_138": {
+    "id": "roiet_138",
+    "name": "ห้าแยกสายน้ำผึ้ง",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.057184,
+    "lng": 103.645834,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3168/s.m3u8"
+  },
+  "roiet_139": {
+    "id": "roiet_139",
+    "name": "แยกวัดคุ้ม",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060095,
+    "lng": 103.646814,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3154/s.m3u8"
+  },
+  "roiet_140": {
+    "id": "roiet_140",
+    "name": "สี่แยกหายโศรก",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.060642,
+    "lng": 103.651094,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1155/s.m3u8"
+  },
+  "roiet_141": {
+    "id": "roiet_141",
+    "name": "แยกขัติยะ",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.069836,
+    "lng": 103.653091,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2212/s.m3u8"
+  },
+  "roiet_142": {
+    "id": "roiet_142",
+    "name": "แยกตายาย",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.069411,
+    "lng": 103.649719,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2210/s.m3u8"
+  },
+  "roiet_143": {
+    "id": "roiet_143",
+    "name": "ห้าแยก กกโพธิ",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.06183,
+    "lng": 103.663022,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2224/s.m3u8"
+  },
+  "roiet_144": {
+    "id": "roiet_144",
+    "name": "แยก กกต.(1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065974,
+    "lng": 103.670269,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2222/s.m3u8"
+  },
+  "roiet_145": {
+    "id": "roiet_145",
+    "name": "แยกจุรีเวช (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054152,
+    "lng": 103.671312,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3113/s.m3u8"
+  },
+  "roiet_146": {
+    "id": "roiet_146",
+    "name": "แยกจุรีเวช (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054152,
+    "lng": 103.671312,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3114/s.m3u8"
+  },
+  "roiet_147": {
+    "id": "roiet_147",
+    "name": "แยกจุรีเวช (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054152,
+    "lng": 103.671312,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3171/s.m3u8"
+  },
+  "roiet_148": {
+    "id": "roiet_148",
+    "name": "แยกจุรีเวช (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.054152,
+    "lng": 103.671312,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3172/s.m3u8"
+  },
+  "roiet_149": {
+    "id": "roiet_149",
+    "name": "กม.0  (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.047287,
+    "lng": 103.654449,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2230/s.m3u8"
+  },
+  "roiet_150": {
+    "id": "roiet_150",
+    "name": "กม.0  (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.047287,
+    "lng": 103.654449,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2231/s.m3u8"
+  },
+  "roiet_151": {
+    "id": "roiet_151",
+    "name": "กม.0  (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.047287,
+    "lng": 103.654449,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2232/s.m3u8"
+  },
+  "roiet_152": {
+    "id": "roiet_152",
+    "name": "กม.0  (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.047287,
+    "lng": 103.654449,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2234/s.m3u8"
+  },
+  "roiet_153": {
+    "id": "roiet_153",
+    "name": "วงเวียนโค้งประปา (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.04821,
+    "lng": 103.661141,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2225/s.m3u8"
+  },
+  "roiet_154": {
+    "id": "roiet_154",
+    "name": "วงเวียนโค้งประปา (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.04821,
+    "lng": 103.661141,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2226/s.m3u8"
+  },
+  "roiet_155": {
+    "id": "roiet_155",
+    "name": "วงเวียนโค้งประปา (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.04821,
+    "lng": 103.661141,
+    "status": "Source offline",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2227/s.m3u8"
+  },
+  "roiet_156": {
+    "id": "roiet_156",
+    "name": "วงเวียนโค้งประปา (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.04821,
+    "lng": 103.661141,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO2229/s.m3u8"
+  },
+  "roiet_157": {
+    "id": "roiet_157",
+    "name": "แยกซินแซ",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058784,
+    "lng": 103.653733,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hls1167/s.m3u8"
+  },
+  "roiet_158": {
+    "id": "roiet_158",
+    "name": "ตลาดทุ่งเจริญ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058666,
+    "lng": 103.655251,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3165/s.m3u8"
+  },
+  "roiet_159": {
+    "id": "roiet_159",
+    "name": "ตลาดทุ่งเจริญ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.058666,
+    "lng": 103.655251,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3166/s.m3u8"
+  },
+  "roiet_160": {
+    "id": "roiet_160",
+    "name": "แยกมิติใหม่ (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053156,
+    "lng": 103.661376,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3112/s.m3u8"
+  },
+  "roiet_161": {
+    "id": "roiet_161",
+    "name": "แยกมิติใหม่ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053156,
+    "lng": 103.661376,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3205/s.m3u8"
+  },
+  "roiet_162": {
+    "id": "roiet_162",
+    "name": "แยกมิติใหม่ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053156,
+    "lng": 103.661376,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3157/s.m3u8"
+  },
+  "roiet_163": {
+    "id": "roiet_163",
+    "name": "แยกมิติใหม่ (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.053156,
+    "lng": 103.661376,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsPAO3170/s.m3u8"
+  },
+  "roiet_164": {
+    "id": "roiet_164",
+    "name": "สามแยกตลาดทุ่งเจริญ",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059166,
+    "lng": 103.655187,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni1106/s.m3u8"
+  },
+  "roiet_165": {
+    "id": "roiet_165",
+    "name": "สามแยกสุขเกษม",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.059527,
+    "lng": 103.65688,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni1107/s.m3u8"
+  },
+  "roiet_166": {
+    "id": "roiet_166",
+    "name": "แยกบ้านผู้การฯ ฝั่งบึง (1)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055672,
+    "lng": 103.651614,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni1108/s.m3u8"
+  },
+  "roiet_167": {
+    "id": "roiet_167",
+    "name": "แยกบ้านผู้การฯ ฝั่งบึง (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055672,
+    "lng": 103.651614,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni1109/s.m3u8"
+  },
+  "roiet_168": {
+    "id": "roiet_168",
+    "name": "หน้าพระบรมฯ ร.6",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.055847,
+    "lng": 103.652453,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni1110/s.m3u8"
+  },
+  "roiet_169": {
+    "id": "roiet_169",
+    "name": "แยกไทยแซ (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.046545,
+    "lng": 103.647328,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni2153/s.m3u8"
+  },
+  "roiet_170": {
+    "id": "roiet_170",
+    "name": "แยกไทยแซ (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.046545,
+    "lng": 103.647328,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni2154/s.m3u8"
+  },
+  "roiet_171": {
+    "id": "roiet_171",
+    "name": "ประตูระบายน้ำที่1 (2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065379,
+    "lng": 103.658466,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni2140/s.m3u8"
+  },
+  "roiet_172": {
+    "id": "roiet_172",
+    "name": "แยก กกต.(2)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065974,
+    "lng": 103.670269,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni2148/s.m3u8"
+  },
+  "roiet_173": {
+    "id": "roiet_173",
+    "name": "แยก กกต.(3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.065974,
+    "lng": 103.670269,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni2149/s.m3u8"
+  },
+  "roiet_174": {
+    "id": "roiet_174",
+    "name": "สามแยกหลังร.ร.สตรี",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.049905,
+    "lng": 103.655405,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni2158/s.m3u8"
+  },
+  "roiet_175": {
+    "id": "roiet_175",
+    "name": "วงเวียนโหวด (3)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.052289,
+    "lng": 103.651462,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni3103/s.m3u8"
+  },
+  "roiet_176": {
+    "id": "roiet_176",
+    "name": "วงเวียนโหวด (4)",
+    "province": "ร้อยเอ็ด",
+    "lat": 16.052289,
+    "lng": 103.651462,
+    "status": "Ready",
+    "url": "https://hj50ac9nwcc.sn.mynetname.net:18191/hlsmuni3104/s.m3u8"
+  },
+  "udon_api_9": {
+    "id": "udon_api_9",
+    "name": "แยกสี่ศรัทธา ด้านถนนสี่ศรัทธา",
+    "province": "อุดรธานี",
+    "lat": 17.406035,
+    "lng": 102.79036,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_IP754.stream/chunklist_w168520904.m3u8"
+  },
+  "udon_api_12": {
+    "id": "udon_api_12",
+    "name": "แยกเรือนจำ ถนนหมากแข้ง",
+    "province": "อุดรธานี",
+    "lat": 17.405132,
+    "lng": 102.786823,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_IP729.stream/chunklist_w1495648512.m3u8"
+  },
+  "udon_api_14": {
+    "id": "udon_api_14",
+    "name": "แยกจุดกลับรถหน้าตลาดเมืองทองขาออก",
+    "province": "อุดรธานี",
+    "lat": 17.390528,
+    "lng": 102.819876,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_30.stream/chunklist_w467067745.m3u8"
+  },
+  "udon_api_15": {
+    "id": "udon_api_15",
+    "name": "แยกตลาดไทยอีสานแยกถนนสุระการ",
+    "province": "อุดรธานี",
+    "lat": 17.403039,
+    "lng": 102.796105,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_21.stream/chunklist_w899598949.m3u8"
+  },
+  "udon_api_16": {
+    "id": "udon_api_16",
+    "name": "แยกปากซอยประชาสันติ",
+    "province": "อุดรธานี",
+    "lat": 17.396411,
+    "lng": 102.808966,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_27.stream/chunklist_w955945115.m3u8"
+  },
+  "udon_api_17": {
+    "id": "udon_api_17",
+    "name": "แยกหน้าโรงเรียนอุดรคริสเตียน",
+    "province": "อุดรธานี",
+    "lat": 17.423573,
+    "lng": 102.790767,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_53.stream/chunklist_w686882157.m3u8"
+  },
+  "udon_api_19": {
+    "id": "udon_api_19",
+    "name": "แยกชลประทาน",
+    "province": "อุดรธานี",
+    "lat": 17.413593,
+    "lng": 102.791913,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_45.stream/chunklist_w787893003.m3u8"
+  },
+  "udon_api_20": {
+    "id": "udon_api_20",
+    "name": "แยกธิเบต",
+    "province": "อุดรธานี",
+    "lat": 17.409016,
+    "lng": 102.800144,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_43.stream/chunklist_w772505927.m3u8"
+  },
+  "udon_api_27": {
+    "id": "udon_api_27",
+    "name": "แยกหลังโรงเรียนบ้านหมากแข้ง",
+    "province": "อุดรธานี",
+    "lat": 17.400624,
+    "lng": 102.789215,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Bosch_IP2.20.stream/chunklist_w1256541189.m3u8"
+  },
+  "udon_api_28": {
+    "id": "udon_api_28",
+    "name": "ถนนเพาะนิยม (อนุบาลลูกรัก)",
+    "province": "อุดรธานี",
+    "lat": 17.422455,
+    "lng": 102.777678,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Bosch_IP2.2.stream/chunklist_w1940793781.m3u8"
+  },
+  "udon_api_29": {
+    "id": "udon_api_29",
+    "name": "แยกตะวันแดง",
+    "province": "อุดรธานี",
+    "lat": 17.407707,
+    "lng": 102.802875,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Bosch_IP2.27.stream/chunklist_w37477846.m3u8"
+  },
+  "udon_api_30": {
+    "id": "udon_api_30",
+    "name": "แยกสนามกีฬาเวสสุวรรณ",
+    "province": "อุดรธานี",
+    "lat": 17.395934,
+    "lng": 102.80984,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Bosch_IP2.30.stream/chunklist_w828303139.m3u8"
+  },
+  "udon_api_32": {
+    "id": "udon_api_32",
+    "name": "แยกร่วมทวี ถนนนิตโย",
+    "province": "อุดรธานี",
+    "lat": 17.401561,
+    "lng": 102.798787,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/Axis_12_22.stream/chunklist_w236554495.m3u8"
+  },
+  "udon_api_36": {
+    "id": "udon_api_36",
+    "name": "แยกศรีวิไล",
+    "province": "อุดรธานี",
+    "lat": 17.405474,
+    "lng": 102.791728,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_d747.stream/playlist.m3u8"
+  },
+  "udon_api_37": {
+    "id": "udon_api_37",
+    "name": "แยก รร หมากแข้ง",
+    "province": "อุดรธานี",
+    "lat": 17.402935,
+    "lng": 102.790658,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t192101.stream/playlist.m3u8"
+  },
+  "udon_api_38": {
+    "id": "udon_api_38",
+    "name": "แยก ซอยจินตคาม",
+    "province": "อุดรธานี",
+    "lat": 17.395123,
+    "lng": 102.797474,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_a740.stream/playlist.m3u8"
+  },
+  "udon_api_39": {
+    "id": "udon_api_39",
+    "name": "ถ.ทหาร โซนไฮเทค Fix Out 1",
+    "province": "อุดรธานี",
+    "lat": 17.39434,
+    "lng": 102.797967,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t191143.stream/playlist.m3u8"
+  },
+  "udon_api_40": {
+    "id": "udon_api_40",
+    "name": "ถ.ทหาร โซนไฮเทค Fix Out 2",
+    "province": "อุดรธานี",
+    "lat": 17.394294,
+    "lng": 102.797833,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t191146.stream/playlist.m3u8"
+  },
+  "udon_api_41": {
+    "id": "udon_api_41",
+    "name": "ทางเข้า บน.23 ช่องทาง 2",
+    "province": "อุดรธานี",
+    "lat": 17.387383,
+    "lng": 102.802221,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t191149.stream/playlist.m3u8"
+  },
+  "udon_api_43": {
+    "id": "udon_api_43",
+    "name": "ทางเข้า มทบ.24 ประตู1",
+    "province": "อุดรธานี",
+    "lat": 17.377692,
+    "lng": 102.808084,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t191151.stream/playlist.m3u8"
+  },
+  "udon_api_44": {
+    "id": "udon_api_44",
+    "name": "ทางเข้า มทบ.24 ประตู2 Fix 1",
+    "province": "อุดรธานี",
+    "lat": 17.375122,
+    "lng": 102.809683,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t191152.stream/playlist.m3u8"
+  },
+  "udon_api_45": {
+    "id": "udon_api_45",
+    "name": "ทางเข้า มทบ.24 ประตู2 Fix 2",
+    "province": "อุดรธานี",
+    "lat": 17.374922,
+    "lng": 102.809785,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t191153.stream/playlist.m3u8"
+  },
+  "udon_api_46": {
+    "id": "udon_api_46",
+    "name": "รพ ค่าย ขาออก",
+    "province": "อุดรธานี",
+    "lat": 17.371175,
+    "lng": 102.811936,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t2095.stream/playlist.m3u8"
+  },
+  "udon_api_49": {
+    "id": "udon_api_49",
+    "name": "คีตกวี",
+    "province": "อุดรธานี",
+    "lat": 17.429078,
+    "lng": 102.784124,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_t2057.stream/playlist.m3u8"
+  },
+  "udon_api_50": {
+    "id": "udon_api_50",
+    "name": "แยกพรมประกาย",
+    "province": "อุดรธานี",
+    "lat": 17.407527,
+    "lng": 102.776595,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_b214.stream/playlist.m3u8"
+  },
+  "udon_api_51": {
+    "id": "udon_api_51",
+    "name": "แยกสุระทักษ์",
+    "province": "อุดรธานี",
+    "lat": 17.405361,
+    "lng": 102.780602,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_b215.stream/playlist.m3u8"
+  },
+  "udon_api_52": {
+    "id": "udon_api_52",
+    "name": "แยกสุระทักษ์2",
+    "province": "อุดรธานี",
+    "lat": 17.405346,
+    "lng": 102.780585,
+    "status": "Ready",
+    "url": "https://streaming.udoncity.go.th:1935/live/cctv_b216.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam108": {
+    "id": "ubon_l2_cam108",
+    "name": "บริเวณใต้สะพาน200ปี",
+    "province": "อุบลราชธานี",
+    "lat": 15.22369,
+    "lng": 104.85757,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam108.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam258": {
+    "id": "ubon_l2_cam258",
+    "name": "บริเวณวงเวียนน้ำพุ",
+    "province": "อุบลราชธานี",
+    "lat": 15.2247,
+    "lng": 104.85731,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam258.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam259": {
+    "id": "ubon_l2_cam259",
+    "name": "บริเวณวงเวียนน้ำพุ",
+    "province": "อุบลราชธานี",
+    "lat": 15.2247,
+    "lng": 104.85731,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam259.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam260": {
+    "id": "ubon_l2_cam260",
+    "name": "บริเวณสี่แยกประปาอุบล",
+    "province": "อุบลราชธานี",
+    "lat": 15.23817,
+    "lng": 104.83626,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam260.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam261": {
+    "id": "ubon_l2_cam261",
+    "name": "บริเวณสี่แยกประปาอุบล",
+    "province": "อุบลราชธานี",
+    "lat": 15.23817,
+    "lng": 104.83626,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam261.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam262": {
+    "id": "ubon_l2_cam262",
+    "name": "บริเวณสามแยกไฟแดง รพ.พระศรีมหาโพธิ",
+    "province": "อุบลราชธานี",
+    "lat": 15.25023,
+    "lng": 104.84095,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam262.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam263": {
+    "id": "ubon_l2_cam263",
+    "name": "บริเวณสามแยกไฟแดง รพ.พระศรีมหาโพธิ",
+    "province": "อุบลราชธานี",
+    "lat": 15.25023,
+    "lng": 104.84095,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam263.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam264": {
+    "id": "ubon_l2_cam264",
+    "name": "บริเวณสามแยกไฟแดงเกียรติสุรนนท์",
+    "province": "อุบลราชธานี",
+    "lat": 15.24616,
+    "lng": 104.85111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam264.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam265": {
+    "id": "ubon_l2_cam265",
+    "name": "บริเวณสามแยกไฟแดงเกียรติสุรนนท์",
+    "province": "อุบลราชธานี",
+    "lat": 15.24616,
+    "lng": 104.85111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam265.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam266": {
+    "id": "ubon_l2_cam266",
+    "name": "บริเวณโค้งปลาแดก",
+    "province": "อุบลราชธานี",
+    "lat": 15.23902,
+    "lng": 104.87281,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam266.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam267": {
+    "id": "ubon_l2_cam267",
+    "name": "บริเวณโค้งปลาแดก",
+    "province": "อุบลราชธานี",
+    "lat": 15.23902,
+    "lng": 104.87281,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam267.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam268": {
+    "id": "ubon_l2_cam268",
+    "name": "บริเวณหอสูบน้ำM7",
+    "province": "อุบลราชธานี",
+    "lat": 15.22375,
+    "lng": 104.8591,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam268.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam269": {
+    "id": "ubon_l2_cam269",
+    "name": "บริเวณหอสูบน้ำM7",
+    "province": "อุบลราชธานี",
+    "lat": 15.22375,
+    "lng": 104.8591,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam269.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam270": {
+    "id": "ubon_l2_cam270",
+    "name": "บริเวณหน้าศาลหลักเมือง",
+    "province": "อุบลราชธานี",
+    "lat": 15.22873,
+    "lng": 104.85781,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam270.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam271": {
+    "id": "ubon_l2_cam271",
+    "name": "บริเวณหน้าศาลหลักเมือง",
+    "province": "อุบลราชธานี",
+    "lat": 15.22873,
+    "lng": 104.85781,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam271.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam272": {
+    "id": "ubon_l2_cam272",
+    "name": "บริเวณหน้าเรือนจำกลางจังหวัด",
+    "province": "อุบลราชธานี",
+    "lat": 15.23332,
+    "lng": 104.84225,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam272.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam273": {
+    "id": "ubon_l2_cam273",
+    "name": "บริเวณหน้าเรือนจำกลางจังหวัด",
+    "province": "อุบลราชธานี",
+    "lat": 15.23332,
+    "lng": 104.84225,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam273.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam274": {
+    "id": "ubon_l2_cam274",
+    "name": "บริเวณสวนสาธารณะห้วยม่วงฝั่งชลประทาน",
+    "province": "อุบลราชธานี",
+    "lat": 15.24379,
+    "lng": 104.83463,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam274.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam275": {
+    "id": "ubon_l2_cam275",
+    "name": "บริเวณสวนสาธารณะห้วยม่วงฝั่งชลประทาน",
+    "province": "อุบลราชธานี",
+    "lat": 15.24379,
+    "lng": 104.83463,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam275.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam276": {
+    "id": "ubon_l2_cam276",
+    "name": "บริเวณหน้ามหาลัยราชฎัฏตรงข้ามSK",
+    "province": "อุบลราชธานี",
+    "lat": 15.24505,
+    "lng": 104.8478,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam276.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam277": {
+    "id": "ubon_l2_cam277",
+    "name": "บริเวณหน้ามหาลัยราชฎัฏตรงข้ามSK",
+    "province": "อุบลราชธานี",
+    "lat": 15.24505,
+    "lng": 104.8478,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam277.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam278": {
+    "id": "ubon_l2_cam278",
+    "name": "บริเวณหน้าวัดหนองบัวฝั่งตรงข้ามโรงเรียน",
+    "province": "อุบลราชธานี",
+    "lat": 15.26291,
+    "lng": 104.83974,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam278.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam279": {
+    "id": "ubon_l2_cam279",
+    "name": "บริเวณหน้าวัดหนองบัวฝั่งตรงข้ามโรงเรียน",
+    "province": "อุบลราชธานี",
+    "lat": 15.26291,
+    "lng": 104.83974,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam279.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam280": {
+    "id": "ubon_l2_cam280",
+    "name": "บริเวณแยกหน้าห้างฯสุนีย์",
+    "province": "อุบลราชธานี",
+    "lat": 15.2565,
+    "lng": 104.84766,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam280.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam281": {
+    "id": "ubon_l2_cam281",
+    "name": "บริเวณแยกหน้าห้างฯสุนีย์",
+    "province": "อุบลราชธานี",
+    "lat": 15.2565,
+    "lng": 104.84766,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam281.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam282": {
+    "id": "ubon_l2_cam282",
+    "name": "บริเวณหน้าไปรณีย์ห้วยวังนอง",
+    "province": "อุบลราชธานี",
+    "lat": 15.24359,
+    "lng": 104.87705,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam282.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam283": {
+    "id": "ubon_l2_cam283",
+    "name": "บริเวณหน้าไปรณีย์ห้วยวังนอง",
+    "province": "อุบลราชธานี",
+    "lat": 15.24359,
+    "lng": 104.87705,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam283.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam284": {
+    "id": "ubon_l2_cam284",
+    "name": "บริเวณสี่แยกโรงพยาบาลอุบลรักษ์",
+    "province": "อุบลราชธานี",
+    "lat": 15.23139,
+    "lng": 104.87067,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam284.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam285": {
+    "id": "ubon_l2_cam285",
+    "name": "บริเวณสี่แยกโรงพยาบาลอุบลรักษ์",
+    "province": "อุบลราชธานี",
+    "lat": 15.23139,
+    "lng": 104.87067,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam285.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam286": {
+    "id": "ubon_l2_cam286",
+    "name": "บริเวณหน้าโรงพยาบาลสรรพสิทธิฝั่งทางเข้า",
+    "province": "อุบลราชธานี",
+    "lat": 15.23567,
+    "lng": 104.86531,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam286.stream/playlist.m3u8"
+  },
+  "ubon_l2_cam287": {
+    "id": "ubon_l2_cam287",
+    "name": "บริเวณหน้าโรงพยาบาลสรรพสิทธิฝั่งทางเข้า",
+    "province": "อุบลราชธานี",
+    "lat": 15.23567,
+    "lng": 104.86531,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam287.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0001": {
+    "id": "ubon_l4_cam0001",
+    "name": "ประตูทางเข้าศาลากลางเก่าทิศเหนือ",
+    "province": "อุบลราชธานี",
+    "lat": 15.230278,
+    "lng": 104.855278,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0001.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0002": {
+    "id": "ubon_l4_cam0002",
+    "name": "สามแยกบ้านเกตศิริ ส่องสวนกัน",
+    "province": "อุบลราชธานี",
+    "lat": 15.231944,
+    "lng": 104.849722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0002.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0003": {
+    "id": "ubon_l4_cam0003",
+    "name": "สามแยกบ้านเกตศิริ ส่องสวนกัน",
+    "province": "อุบลราชธานี",
+    "lat": 15.231944,
+    "lng": 104.85,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0003.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0004": {
+    "id": "ubon_l4_cam0004",
+    "name": "สามแยกร้านสิรินกาแฟติดชวาลาใน",
+    "province": "อุบลราชธานี",
+    "lat": 15.232222,
+    "lng": 104.848889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0004.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0005": {
+    "id": "ubon_l4_cam0005",
+    "name": "สี่แยกไฟแดงเรือนจำ เสาไฟทิศใต้กะเสาทิศตะวันออก",
+    "province": "อุบลราชธานี",
+    "lat": 15.2325,
+    "lng": 104.846667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0005.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0006": {
+    "id": "ubon_l4_cam0006",
+    "name": "สี่แยกไฟแดงเรือนจำ เสาไฟทิศใต้กะเสาทิศตะวันออก",
+    "province": "อุบลราชธานี",
+    "lat": 15.2325,
+    "lng": 104.846667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0006.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0007": {
+    "id": "ubon_l4_cam0007",
+    "name": "ถนนพโลชัยหน้าเรือนจำปากซอยข้างโรงน้ำเข็ง",
+    "province": "อุบลราชธานี",
+    "lat": 15.2335,
+    "lng": 104.841111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0007.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0008": {
+    "id": "ubon_l4_cam0008",
+    "name": "สี่แยกประกันสังคม",
+    "province": "อุบลราชธานี",
+    "lat": 15.234222,
+    "lng": 104.836083,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0008.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0009": {
+    "id": "ubon_l4_cam0009",
+    "name": "สี่แยกไฟแดงประปาอุบล",
+    "province": "อุบลราชธานี",
+    "lat": 15.237778,
+    "lng": 104.836389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0009.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0010": {
+    "id": "ubon_l4_cam0010",
+    "name": "สี่แยก ร.ร.อ.หน่องปากซอยสรรพสิทธ์14",
+    "province": "อุบลราชธานี",
+    "lat": 15.237222,
+    "lng": 104.841389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0010.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0011": {
+    "id": "ubon_l4_cam0011",
+    "name": "สี่แยกไฟแดงร.รสามัคคี",
+    "province": "อุบลราชธานี",
+    "lat": 15.236389,
+    "lng": 104.846667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0011.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0012": {
+    "id": "ubon_l4_cam0012",
+    "name": "สามแยกแขวงการทาง 1",
+    "province": "อุบลราชธานี",
+    "lat": 15.237944,
+    "lng": 104.846917,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0012.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0013": {
+    "id": "ubon_l4_cam0013",
+    "name": "สามแยกชลประทาน",
+    "province": "อุบลราชธานี",
+    "lat": 15.239722,
+    "lng": 104.846944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0013.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0014": {
+    "id": "ubon_l4_cam0014",
+    "name": "เสาไฟหน้าประตู ศนจ.",
+    "province": "อุบลราชธานี",
+    "lat": 15.243889,
+    "lng": 104.847222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0014.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0015": {
+    "id": "ubon_l4_cam0015",
+    "name": "เสาไฟข้างสะพานลอย ม.ราชภัฏหลังศูนย์คอมฯ",
+    "province": "อุบลราชธานี",
+    "lat": 15.245833,
+    "lng": 104.845833,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0015.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0016": {
+    "id": "ubon_l4_cam0016",
+    "name": "ถ.สุขาอุปถัมภ์ (ปากซอยแซบซอย 9 เก่า)",
+    "province": "อุบลราชธานี",
+    "lat": 15.251944,
+    "lng": 104.835278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0016.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0017": {
+    "id": "ubon_l4_cam0017",
+    "name": "หน้าวัดป่าแสงอุดม ซ.แจ้งสนิท 21",
+    "province": "อุบลราชธานี",
+    "lat": 15.253889,
+    "lng": 104.830278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0017.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0018": {
+    "id": "ubon_l4_cam0018",
+    "name": "ถ.เลี่ยงเมือง 9 ตัด ถ.จันทร์พวง",
+    "province": "อุบลราชธานี",
+    "lat": 15.251944,
+    "lng": 104.829167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0018.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0019": {
+    "id": "ubon_l4_cam0019",
+    "name": "ซอยชลประทานท่าบ่อ 2",
+    "province": "อุบลราชธานี",
+    "lat": 15.248889,
+    "lng": 104.827222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0019.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0020": {
+    "id": "ubon_l4_cam0020",
+    "name": "ชลประทานท่าบ่อ 3 สามแยก กกยาง",
+    "province": "อุบลราชธานี",
+    "lat": 15.246111,
+    "lng": 104.831667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0020.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0021": {
+    "id": "ubon_l4_cam0021",
+    "name": "สะพานหน้า รพ.พระศรีฯส่องใส่แยกไฟแดง",
+    "province": "อุบลราชธานี",
+    "lat": 15.250278,
+    "lng": 104.840556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0021.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0022": {
+    "id": "ubon_l4_cam0022",
+    "name": "จุดกลับรถซอยแจ้งสนิท 4.2  หน้าร้าน20+",
+    "province": "อุบลราชธานี",
+    "lat": 15.252778,
+    "lng": 104.8375,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0022.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0023": {
+    "id": "ubon_l4_cam0023",
+    "name": "ถ.แจ้งสนิทข้างร้านโชคชัย เสา ป้ายศรีสวัสดิ์",
+    "province": "อุบลราชธานี",
+    "lat": 15.255,
+    "lng": 104.834722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0023.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0024": {
+    "id": "ubon_l4_cam0024",
+    "name": "จุดกลับรถ ก่อนถึงแยกดงอู่ผึ้ง ส้มตำถาดเก่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.256667,
+    "lng": 104.832222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0024.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0025": {
+    "id": "ubon_l4_cam0025",
+    "name": "หน้าปากซอยข้างเดอะโฮมเสาไฟเสาแรก",
+    "province": "อุบลราชธานี",
+    "lat": 15.261389,
+    "lng": 104.833333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0025.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0026": {
+    "id": "ubon_l4_cam0026",
+    "name": "หน้าประตูวัดหนองบัว (ด้านนอกวัด)",
+    "province": "อุบลราชธานี",
+    "lat": 15.263889,
+    "lng": 104.840556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0026.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0027": {
+    "id": "ubon_l4_cam0027",
+    "name": "ซอยข้างโปลี ซ.ชยางกูร 21ส่องปากซอย (ยงสวงนเก่า)",
+    "province": "อุบลราชธานี",
+    "lat": 15.265556,
+    "lng": 104.844167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0027.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0028": {
+    "id": "ubon_l4_cam0028",
+    "name": "ตรงข้ามปากซอยชยางกูร 40 ติดเสาไฟหน้า(โตโยต้าสาขาชยางกูร)",
+    "province": "อุบลราชธานี",
+    "lat": 15.271111,
+    "lng": 104.842222,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0028.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0029": {
+    "id": "ubon_l4_cam0029",
+    "name": "ปากซ. ชยางกูร 34 เสาไฟต้นแรก",
+    "province": "อุบลราชธานี",
+    "lat": 15.266667,
+    "lng": 104.843889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0029.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0030": {
+    "id": "ubon_l4_cam0030",
+    "name": "แยกไฟแดงหนองบัว ส่องขาออกมาจาก ถ.ธรรมวิถี",
+    "province": "อุบลราชธานี",
+    "lat": 15.262222,
+    "lng": 104.845556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0030.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0031": {
+    "id": "ubon_l4_cam0031",
+    "name": "ปากซอยสุขาสงเคราะห์",
+    "province": "อุบลราชธานี",
+    "lat": 15.26,
+    "lng": 104.846389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0031.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0032": {
+    "id": "ubon_l4_cam0032",
+    "name": "หน้าตึกสุนีย์ ส่องแยกไฟแดงรถขาเข้าชยางกูร",
+    "province": "อุบลราชธานี",
+    "lat": 15.2575,
+    "lng": 104.847222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0032.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0033": {
+    "id": "ubon_l4_cam0033",
+    "name": "หน้าโลตัส ส่องจุดกลับรถ ตู้ติดเสาไฟ(ปากซอย ชยางกูร10)เสาแรก",
+    "province": "อุบลราชธานี",
+    "lat": 15.251667,
+    "lng": 104.849167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0033.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0034": {
+    "id": "ubon_l4_cam0034",
+    "name": "ทางออก ธกส.ส่อง แยก.เนวาด้า",
+    "province": "อุบลราชธานี",
+    "lat": 15.248889,
+    "lng": 104.85,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0034.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0035": {
+    "id": "ubon_l4_cam0035",
+    "name": "หน้าตังปักอุบลฯ ส่องทางออกศูนย์วิทย์ฯ",
+    "province": "อุบลราชธานี",
+    "lat": 15.246389,
+    "lng": 104.850833,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0035.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0036": {
+    "id": "ubon_l4_cam0036",
+    "name": "แยกโตโยต้าอุบลฯ",
+    "province": "อุบลราชธานี",
+    "lat": 15.24,
+    "lng": 104.853056,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0036.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0037": {
+    "id": "ubon_l4_cam0037",
+    "name": "สี่แยกปั้ม ESSo  เสาหน้าป้อมยามจร",
+    "province": "อุบลราชธานี",
+    "lat": 15.237806,
+    "lng": 104.853972,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0037.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0038": {
+    "id": "ubon_l4_cam0038",
+    "name": "สี่แยกผาแดงตัด ถ.สุริยาตร์ (เสาไฟหน้าร้านชิดชม)",
+    "province": "อุบลราชธานี",
+    "lat": 15.2375,
+    "lng": 104.8575,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0038.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0039": {
+    "id": "ubon_l4_cam0039",
+    "name": "สี่แยกไฟแดงหลังวัดแจ้ง",
+    "province": "อุบลราชธานี",
+    "lat": 15.2375,
+    "lng": 104.860556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0039.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0040": {
+    "id": "ubon_l4_cam0040",
+    "name": "สามแยกหยวนสเต็กข้างปตท.กองบิน",
+    "province": "อุบลราชธานี",
+    "lat": 15.239167,
+    "lng": 104.8625,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0040.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0041": {
+    "id": "ubon_l4_cam0041",
+    "name": "ทางเข้าสนามบินจุดกลับรถ",
+    "province": "อุบลราชธานี",
+    "lat": 15.244722,
+    "lng": 104.866667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0041.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0042": {
+    "id": "ubon_l4_cam0042",
+    "name": "สี่แยกไฟแดงสำนักงานขนส่งเก่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.239444,
+    "lng": 104.864167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0042.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0043": {
+    "id": "ubon_l4_cam0043",
+    "name": "สี่แยกอุปลีสานตัดพลแพน (ร้านปอนด์เปรี้ยว)",
+    "province": "อุบลราชธานี",
+    "lat": 15.239306,
+    "lng": 104.8665,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0043.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0044": {
+    "id": "ubon_l4_cam0044",
+    "name": "สี่แยกไฟแดงใกล้บ้านส.สสุทัศน์ แยกป่าช้าแขก",
+    "province": "อุบลราชธานี",
+    "lat": 15.239167,
+    "lng": 104.868889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0044.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0045": {
+    "id": "ubon_l4_cam0045",
+    "name": "ท้ายซอยอุบล-ตระการ 14 ข้างอ่างเก็บน้ำห้วยวังนอง",
+    "province": "อุบลราชธานี",
+    "lat": 15.248611,
+    "lng": 104.879444,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0045.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0046": {
+    "id": "ubon_l4_cam0046",
+    "name": "ท้าย ซอยอุบล-ตระการ 8.1 (ข้างอ่างเสาไฟกกแซว)",
+    "province": "อุบลราชธานี",
+    "lat": 15.245833,
+    "lng": 104.8775,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0046.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0047": {
+    "id": "ubon_l4_cam0047",
+    "name": "แยกห้วยวังนอง (เสาไฟ canation)โค้งเข้าอ่าง",
+    "province": "อุบลราชธานี",
+    "lat": 15.243056,
+    "lng": 104.876944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0047.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0048": {
+    "id": "ubon_l4_cam0048",
+    "name": "ถ.สมเด็จซอยศูนย์สาธารณะสุขศาลาสุดซอยสนามกีฬาปะดู่เสาไฟอู่รถ",
+    "province": "อุบลราชธานี",
+    "lat": 15.240833,
+    "lng": 104.877778,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0048.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0049": {
+    "id": "ubon_l4_cam0049",
+    "name": "สามแยก ถ.สุริยาตร์ ซอย2 ทางไปสะพานห้วยวังนองหลังสรรพสามิต",
+    "province": "อุบลราชธานี",
+    "lat": 15.237389,
+    "lng": 104.877083,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0049.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0050": {
+    "id": "ubon_l4_cam0050",
+    "name": "หน้าวัดศรีประดู่ ถ.บูรพานอก",
+    "province": "อุบลราชธานี",
+    "lat": 15.236389,
+    "lng": 104.873889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0050.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0051": {
+    "id": "ubon_l4_cam0051",
+    "name": "สี่แยกกรุงไทยบ้านดู่",
+    "province": "อุบลราชธานี",
+    "lat": 15.236111,
+    "lng": 104.869722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0051.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0052": {
+    "id": "ubon_l4_cam0052",
+    "name": "สี่แยกไฟแดงจำปาหอม",
+    "province": "อุบลราชธานี",
+    "lat": 15.233611,
+    "lng": 104.870278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0052.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0053": {
+    "id": "ubon_l4_cam0053",
+    "name": "สี่แยกไฟแดงรพ.อุบลรักษ์ (เสาไฟร้านขายยา)",
+    "province": "อุบลราชธานี",
+    "lat": 15.231111,
+    "lng": 104.870556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0053.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0054": {
+    "id": "ubon_l4_cam0054",
+    "name": "ถ.เขื่อนธานีตัดถ.บูรพาใน(สามแยกสนง.เกรียงเก่า)",
+    "province": "อุบลราชธานี",
+    "lat": 15.228889,
+    "lng": 104.871111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0054.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0055": {
+    "id": "ubon_l4_cam0055",
+    "name": "แยก ถ.พลแพนตัดเขื่อนธานี (ทางลงหาดวัดใต้)",
+    "province": "อุบลราชธานี",
+    "lat": 15.2275,
+    "lng": 104.868056,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0055.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0056": {
+    "id": "ubon_l4_cam0056",
+    "name": "สี่แยกตลาดกกยาง (ถ.พลแพนตัดศรีณรงค์)",
+    "province": "อุบลราชธานี",
+    "lat": 15.228889,
+    "lng": 104.867778,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0056.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0057": {
+    "id": "ubon_l4_cam0057",
+    "name": "สี่แยกวิทยาลัยพยาบาล (เสาฝั่ง รพ.)",
+    "province": "อุบลราชธานี",
+    "lat": 15.235833,
+    "lng": 104.866667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0057.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0058": {
+    "id": "ubon_l4_cam0058",
+    "name": "แยกไฟแดง รพ.ใหญ่/สถานีตำรวจ (เสาไฟเภสัชชุมชน)",
+    "province": "อุบลราชธานี",
+    "lat": 15.235556,
+    "lng": 104.864444,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0058.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0059": {
+    "id": "ubon_l4_cam0059",
+    "name": "สี่แยกไฟแดงนิยมเฟอร์นิเจอร์เก่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.232778,
+    "lng": 104.860278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0059.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0060": {
+    "id": "ubon_l4_cam0060",
+    "name": "สี่แยกไฟแดงศาลจังหวัด",
+    "province": "อุบลราชธานี",
+    "lat": 15.233056,
+    "lng": 104.858056,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0060.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0061": {
+    "id": "ubon_l4_cam0061",
+    "name": "สี่แยกไฟแดงร้านตี๋ข้าวต้มติดกล้อง เสาไฟหน้าร้านฟาร์โร(มิเตอร์ติดเสาข้างตี๋ข้าวต้ม)",
+    "province": "อุบลราชธานี",
+    "lat": 15.235556,
+    "lng": 104.857222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0061.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0062": {
+    "id": "ubon_l4_cam0062",
+    "name": "สี่แยกไฟแดงยงกิจอลูมิเนียมหน้าวัดแจ้ง",
+    "province": "อุบลราชธานี",
+    "lat": 15.235556,
+    "lng": 104.860278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0062.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0063": {
+    "id": "ubon_l4_cam0063",
+    "name": "สี่แยกกิโลศูนย์ เสาไฟหน้าร้านกิตบรรณขายหนังสือ",
+    "province": "อุบลราชธานี",
+    "lat": 15.235556,
+    "lng": 104.854167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0063.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0064": {
+    "id": "ubon_l4_cam0064",
+    "name": "สี่แยกขายดีภัตรคาร ถ.จงกลนิธารตัด ถ.สรรพสิทธิ",
+    "province": "อุบลราชธานี",
+    "lat": 15.235833,
+    "lng": 104.851667,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0064.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0065": {
+    "id": "ubon_l4_cam0065",
+    "name": "สี่แยกไฟแดงที่ดินจังหวัด",
+    "province": "อุบลราชธานี",
+    "lat": 15.233889,
+    "lng": 104.851667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0065.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0066": {
+    "id": "ubon_l4_cam0066",
+    "name": "วงเวียนเล็กหน้าธนาคารออมสิน ติดเสาทางเข้าปากซอยพิชิตรังสรรค์1",
+    "province": "อุบลราชธานี",
+    "lat": 15.233611,
+    "lng": 104.854167,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0066.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0067": {
+    "id": "ubon_l4_cam0067",
+    "name": "สี่แยกอุบลพลาซ่า ถ.พโลชัยตัดพรหมราชเสาไฟมุมตึก",
+    "province": "อุบลราชธานี",
+    "lat": 15.231389,
+    "lng": 104.855278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0067.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0068": {
+    "id": "ubon_l4_cam0068",
+    "name": "สี่แยกไฟแดงแม่ฮาย 1",
+    "province": "อุบลราชธานี",
+    "lat": 15.231667,
+    "lng": 104.851667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0068.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0069": {
+    "id": "ubon_l4_cam0069",
+    "name": "สี่แยกไฟแดงข้างวัดศรีอุบล หน้าศาลากลางเก่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.228611,
+    "lng": 104.856111,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0069.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0070": {
+    "id": "ubon_l4_cam0070",
+    "name": "สี่แยกไฟแดงข้างวัดศรีอุบล หน้าศาลากลางเก่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.228611,
+    "lng": 104.856111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0070.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0071": {
+    "id": "ubon_l4_cam0071",
+    "name": "แยกไฟแดงทิศเหนือ ร.ร.อนุบาลอุบล",
+    "province": "อุบลราชธานี",
+    "lat": 15.231111,
+    "lng": 104.86,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0071.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0072": {
+    "id": "ubon_l4_cam0072",
+    "name": "แยกไฟแดงอุบลภาพยนตร์เก่า (เสาไฟหน้า ส.ศักดิ์ยนต์)",
+    "province": "อุบลราชธานี",
+    "lat": 15.230556,
+    "lng": 104.861944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0072.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0073": {
+    "id": "ubon_l4_cam0073",
+    "name": "แยกไฟจวนผู้ว่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.230556,
+    "lng": 104.864722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0073.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0074": {
+    "id": "ubon_l4_cam0074",
+    "name": "สี่แยกไฟแดง ถ.เทพโยธีตัด ถ.ศรีณรงค์ (แยกบุญนิยม)",
+    "province": "อุบลราชธานี",
+    "lat": 15.228611,
+    "lng": 104.865,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0074.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0075": {
+    "id": "ubon_l4_cam0075",
+    "name": "แยกไฟแดงร้านติ่งชาโต้ ถ.เขื่อนธานีตัดเทพโยธี",
+    "province": "อุบลราชธานี",
+    "lat": 15.227778,
+    "lng": 104.865278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0075.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0076": {
+    "id": "ubon_l4_cam0076",
+    "name": "ถ.ศรีณรงค์ตัด ถ.หลวง แยกไปรษณีย์อุบล (เสาไฟร้านยิ้มๆ)",
+    "province": "อุบลราชธานี",
+    "lat": 15.228611,
+    "lng": 104.861389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0076.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0077": {
+    "id": "ubon_l4_cam0077",
+    "name": "สี่แยกไฟแดงตลาดโต้รุ่ง เสาไฟร้านจงเฮง",
+    "province": "อุบลราชธานี",
+    "lat": 15.227222,
+    "lng": 104.858889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0077.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0078": {
+    "id": "ubon_l4_cam0078",
+    "name": "สี่แยกราชบุตร (เสาไฟร้านสรินกาแฟ)",
+    "province": "อุบลราชธานี",
+    "lat": 15.225833,
+    "lng": 104.858889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0078.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0079": {
+    "id": "ubon_l4_cam0079",
+    "name": "สี่แยกร้านปิ่นเพชรเก่า ถ.พรหมราชตัดถ.อุบลศักดิ์",
+    "province": "อุบลราชธานี",
+    "lat": 15.225833,
+    "lng": 104.859722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0079.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0080": {
+    "id": "ubon_l4_cam0080",
+    "name": "ถ.พรมราชตัด ถ.ยุทธภัณฑ์ประตูวัดหลวง(เสาไฟร้านวัฒนสิน)",
+    "province": "อุบลราชธานี",
+    "lat": 15.225278,
+    "lng": 104.860278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0080.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0081": {
+    "id": "ubon_l4_cam0081",
+    "name": "ถ.พรมเทพตัดราชบุตร แยกร้านล้ำฟ้ามิวสิค (เสาไฟร้านทอง)",
+    "province": "อุบลราชธานี",
+    "lat": 15.225,
+    "lng": 104.859167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0081.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0082": {
+    "id": "ubon_l4_cam0082",
+    "name": "วงเวียนน้ำพุ เสาไฟหน้าร้านแสงอุดม",
+    "province": "อุบลราชธานี",
+    "lat": 15.224444,
+    "lng": 104.856667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0082.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0083": {
+    "id": "ubon_l4_cam0083",
+    "name": "ถ.พรหมราชตัด ถ.ศรีทอง หลังอาชีวะ",
+    "province": "อุบลราชธานี",
+    "lat": 15.225278,
+    "lng": 104.855556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0083.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0084": {
+    "id": "ubon_l4_cam0084",
+    "name": "ทางเข้าวัดศรีอุบลทิศใต้เสาไฟด้านอาชีวะ",
+    "province": "อุบลราชธานี",
+    "lat": 15.226667,
+    "lng": 104.855556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0084.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0085": {
+    "id": "ubon_l4_cam0085",
+    "name": "สี่แยกไฟแดง หอสมุดประชาชน (ปั้มเชลล์)",
+    "province": "อุบลราชธานี",
+    "lat": 15.226944,
+    "lng": 104.856667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0085.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0086": {
+    "id": "ubon_l4_cam0086",
+    "name": "ปากซอยข้าง ร.ร.ศรีอีสาณ เสาไฟหน้าปากซอย",
+    "province": "อุบลราชธานี",
+    "lat": 15.224722,
+    "lng": 104.859167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0086.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0087": {
+    "id": "ubon_l4_cam0087",
+    "name": "ริมมูลท่าตลาดใหญ่ใต้สะพาน 200 ปี ติดโคมไฟส่องเข้าใต้อาคารตลาด",
+    "province": "อุบลราชธานี",
+    "lat": 15.223333,
+    "lng": 104.8575,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0087.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0088": {
+    "id": "ubon_l4_cam0088",
+    "name": "ริมมูลฝั่งวัดหลวง (ทางลงริมมูลตลาดใหญ่)",
+    "province": "อุบลราชธานี",
+    "lat": 15.223611,
+    "lng": 104.859167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0088.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0089": {
+    "id": "ubon_l4_cam0089",
+    "name": "ริมน้ำมูลท่าน้ำวัดหลวง",
+    "province": "อุบลราชธานี",
+    "lat": 15.223611,
+    "lng": 104.860556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0089.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0090": {
+    "id": "ubon_l4_cam0090",
+    "name": "ริมมูลทางลงพุทธก๋งหั่นไปตลาดไปตลาดใหญ่",
+    "province": "อุบลราชธานี",
+    "lat": 15.224167,
+    "lng": 104.8625,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0090.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0091": {
+    "id": "ubon_l4_cam0091",
+    "name": "ริมน้ำมูลทางลงศาลาพุทธก๋ง หันไปทางกรมเจ้าท่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.224167,
+    "lng": 104.8625,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0091.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0092": {
+    "id": "ubon_l4_cam0092",
+    "name": "ริมน้ำมูลทางลงหน้าสนง.กรมเจ้าท่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.224722,
+    "lng": 104.865556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0092.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0093": {
+    "id": "ubon_l4_cam0093",
+    "name": "สี่แยกไฟแดงอาลัยสปอร์ท",
+    "province": "อุบลราชธานี",
+    "lat": 15.233333,
+    "lng": 104.866944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0093.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0094": {
+    "id": "ubon_l4_cam0094",
+    "name": "สี่แยกไฟแดง จั๊บ 99 เสาไฟหน้าร้านจั๊บ 99",
+    "province": "อุบลราชธานี",
+    "lat": 15.233056,
+    "lng": 104.864722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0094.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0095": {
+    "id": "ubon_l4_cam0095",
+    "name": "สี่แยก หลัง รพ.ใหญ่ข้างหลังวิทยาลัยพยาบาลตัดสุริยาตร์",
+    "province": "อุบลราชธานี",
+    "lat": 15.237222,
+    "lng": 104.866389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0095.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0096": {
+    "id": "ubon_l4_cam0096",
+    "name": "โค้งสามแยกอุบลตระการตัดถ.อุปลีสาน",
+    "province": "อุบลราชธานี",
+    "lat": 15.238889,
+    "lng": 104.872222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0096.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0097": {
+    "id": "ubon_l4_cam0097",
+    "name": "สามแยกสมเด็จตัดอุปลีสาน สามแยกอุบลสายฟ้า 2",
+    "province": "อุบลราชธานี",
+    "lat": 15.238611,
+    "lng": 104.874167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0097.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0098": {
+    "id": "ubon_l4_cam0098",
+    "name": "สามแยกหน้าซอยอุบลตระการ ซ.5",
+    "province": "อุบลราชธานี",
+    "lat": 15.248611,
+    "lng": 104.876667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0098.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0099": {
+    "id": "ubon_l4_cam0099",
+    "name": "สามแยกไฟแดงข้างร้านอุทัยกรอบรูป ถ.อุปลีสานติดผาแดง",
+    "province": "อุบลราชธานี",
+    "lat": 15.239444,
+    "lng": 104.857778,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0099.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0100": {
+    "id": "ubon_l4_cam0100",
+    "name": "ถนนกลางตลาดท่าวังหิน ส่องสวนกัน คนละเสาไฟ",
+    "province": "อุบลราชธานี",
+    "lat": 15.236111,
+    "lng": 104.836111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0100.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0101": {
+    "id": "ubon_l4_cam0101",
+    "name": "ถนนกลางตลาดท่าวังหิน ส่องสวนกัน คนละเสาไฟ",
+    "province": "อุบลราชธานี",
+    "lat": 15.236389,
+    "lng": 104.836111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0101.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0102": {
+    "id": "ubon_l4_cam0102",
+    "name": "ชลประทานท่าบ่อ –หน้าทางเข้าประมงทางทิศตะวันตก",
+    "province": "อุบลราชธานี",
+    "lat": 15.242778,
+    "lng": 104.834722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0102.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0103": {
+    "id": "ubon_l4_cam0103",
+    "name": "อยู่กลางสวนห้วยม่วงเสาเดียวกัน#104",
+    "province": "อุบลราชธานี",
+    "lat": 15.244722,
+    "lng": 104.833611,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0103.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0104": {
+    "id": "ubon_l4_cam0104",
+    "name": "อยู่กลางสวนห้วยม่วงเสาเดียวกัน#1",
+    "province": "อุบลราชธานี",
+    "lat": 15.244167,
+    "lng": 104.833889,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0104.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0105": {
+    "id": "ubon_l4_cam0105",
+    "name": "ซอยแจ้งสนิท1สามแยกซอยเข้าหลังร.ร.เบ็ญฯฝั่งหน้าอาคาร สาธารณสุขศาสตร์",
+    "province": "อุบลราชธานี",
+    "lat": 15.244167,
+    "lng": 104.840556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0105.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0106": {
+    "id": "ubon_l4_cam0106",
+    "name": "สี่แยกสุขาอุปถัมภ์ ซ.เลี่ยงเมือง 7",
+    "province": "อุบลราชธานี",
+    "lat": 15.248056,
+    "lng": 104.833333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0106.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0107": {
+    "id": "ubon_l4_cam0107",
+    "name": "ซอย สุขาอุปถัมภ์ 5 ติด ซ. เลี่ยงเมือง 7 ปากซอยหน้ากรีนปาร์ค",
+    "province": "อุบลราชธานี",
+    "lat": 15.249722,
+    "lng": 104.831389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0107.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0108": {
+    "id": "ubon_l4_cam0108",
+    "name": "ถ.เลี่ยงเมืองหน้าจุดกลับรถ หน้าอุบลวิบูลการยาง",
+    "province": "อุบลราชธานี",
+    "lat": 15.251111,
+    "lng": 104.8275,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0108.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0109": {
+    "id": "ubon_l4_cam0109",
+    "name": "ซ.ชยางกูร 12 ติด ซ.12.3(ซอยข้างโลตัส) สามแยกเยื้องๆแทนแมนชั่น",
+    "province": "อุบลราชธานี",
+    "lat": 15.253889,
+    "lng": 104.8525,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0109.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0110": {
+    "id": "ubon_l4_cam0110",
+    "name": "สามแยก ถ.นครบาลตัดอุปสาน ใกล้(ส้มตำทบ.)",
+    "province": "อุบลราชธานี",
+    "lat": 15.239167,
+    "lng": 104.861111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0110.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0111": {
+    "id": "ubon_l4_cam0111",
+    "name": "สี่แยกร้านลัคกี้",
+    "province": "อุบลราชธานี",
+    "lat": 15.225556,
+    "lng": 104.856944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0111.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0112": {
+    "id": "ubon_l4_cam0112",
+    "name": "สี่แยกร้านเนสกาแฟ  ถ.ศรีณรงค์ตัด ถ.ราชวงค์",
+    "province": "อุบลราชธานี",
+    "lat": 15.228611,
+    "lng": 104.863333,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0112.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0113": {
+    "id": "ubon_l4_cam0113",
+    "name": "สี่แยกไฟแดงอุบลพลาซ่าเสาหน้าร้านเมืองทองเครื่องเย็น",
+    "province": "อุบลราชธานี",
+    "lat": 15.230278,
+    "lng": 104.855833,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0113.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0114": {
+    "id": "ubon_l4_cam0114",
+    "name": "ถนนพรหมราชตัดถนนเบ็ญจะมะสี่แยกวัดโลมัน ทางเข้า ร.ร.พระกุมาร",
+    "province": "อุบลราชธานี",
+    "lat": 15.226667,
+    "lng": 104.852222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0114.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0115": {
+    "id": "ubon_l4_cam0115",
+    "name": "สามแยกถนนศรีณรงค์หน้าสาธารณสุขอำเภอเมือง",
+    "province": "อุบลราชธานี",
+    "lat": 15.228611,
+    "lng": 104.853333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0115.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0116": {
+    "id": "ubon_l4_cam0116",
+    "name": "สามแยกหน้า ร.ร.สามัคคี  เสาไฟหน้าร้านชัยศิลป์",
+    "province": "อุบลราชธานี",
+    "lat": 15.234722,
+    "lng": 104.846667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0116.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0117": {
+    "id": "ubon_l4_cam0117",
+    "name": "สี่แยกชวาลาในตัดพิชิตรังสรรค์ แยกส้มตำวังแก้วเก่า",
+    "province": "อุบลราชธานี",
+    "lat": 15.234167,
+    "lng": 104.849444,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0117.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0118": {
+    "id": "ubon_l4_cam0118",
+    "name": "สี่แยกหลังวัดทองนพคุณ เสาหน้า SP. คอม",
+    "province": "อุบลราชธานี",
+    "lat": 15.235556,
+    "lng": 104.853333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0118.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0119": {
+    "id": "ubon_l4_cam0119",
+    "name": "ถ.ชวาลาในตัดสุริยาตร์ปากซอย สแตนดาร์ต",
+    "province": "อุบลราชธานี",
+    "lat": 15.237889,
+    "lng": 104.849917,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0119.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0120": {
+    "id": "ubon_l4_cam0120",
+    "name": "ปาก ซ.แจ้งสนิท 6 ข้างร้านขาย ถ้วย-จาน",
+    "province": "อุบลราชธานี",
+    "lat": 15.255278,
+    "lng": 104.834444,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0120.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0121": {
+    "id": "ubon_l4_cam0121",
+    "name": "สี่แยกพิชิตรังสรรค์ ตัด ถ.หลวงไฟแดงปิ่นณภัทร",
+    "province": "อุบลราชธานี",
+    "lat": 15.232778,
+    "lng": 104.8625,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0121.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0122": {
+    "id": "ubon_l4_cam0122",
+    "name": "สี่แยก ร.ร.ปทุมวิทยากร ถ.อุบล-ตระการตัดเจริญราษฏร์ ทิศใต้",
+    "province": "อุบลราชธานี",
+    "lat": 15.241111,
+    "lng": 104.873611,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0122.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0123": {
+    "id": "ubon_l4_cam0123",
+    "name": "สี่แยกถนนบรูพานอกตัดสุริยาตร์ ทิศเหนือวัดศรีประดู่",
+    "province": "อุบลราชธานี",
+    "lat": 15.237222,
+    "lng": 104.873333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0123.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0124": {
+    "id": "ubon_l4_cam0124",
+    "name": "สี่แยกตลาดบ้านดู่ สุริยาตร์ตัดบูรพาใน",
+    "province": "อุบลราชธานี",
+    "lat": 15.2375,
+    "lng": 104.869444,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0124.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0125": {
+    "id": "ubon_l4_cam0125",
+    "name": "แยก ถ.อุปลีสานตัดปากซอยภาษีเจริญ (หน้าร้านโกกั้ง)",
+    "province": "อุบลราชธานี",
+    "lat": 15.238889,
+    "lng": 104.871667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0125.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0160": {
+    "id": "ubon_l4_cam0160",
+    "name": "ริมน้ำมูลหลังตลาดใหญ่ ติดเสาไฟส่องสว่างหันเข้าอาคารที่เก็บของ",
+    "province": "อุบลราชธานี",
+    "lat": 15.223333,
+    "lng": 104.8575,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0160.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0161": {
+    "id": "ubon_l4_cam0161",
+    "name": "เสาโคมไฟหน้าตลาดใหญ่หันเข้าอาคารตลาด",
+    "province": "อุบลราชธานี",
+    "lat": 15.224167,
+    "lng": 104.858611,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0161.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0162": {
+    "id": "ubon_l4_cam0162",
+    "name": "เสาโคมไฟหน้าตลาดใหญ่หันไปลานจอดรถ",
+    "province": "อุบลราชธานี",
+    "lat": 15.224167,
+    "lng": 104.858611,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0162.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0163": {
+    "id": "ubon_l4_cam0163",
+    "name": "เสาโคมไฟหน้าตลาดใหญ่หันไปทางออกสะพานเสรี",
+    "province": "อุบลราชธานี",
+    "lat": 15.224167,
+    "lng": 104.858333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0163.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0164": {
+    "id": "ubon_l4_cam0164",
+    "name": "ถนนพิชิตรังสรรค์ตัดถ.อุปราชข้างแว่นท๊อปเจริญตลาดน้อยส่องไฟแดง",
+    "province": "อุบลราชธานี",
+    "lat": 15.233611,
+    "lng": 104.855278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0164.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0165": {
+    "id": "ubon_l4_cam0165",
+    "name": "ปากซอยเล็กด้านข้างตลาดน้อย (ตลาด2)",
+    "province": "อุบลราชธานี",
+    "lat": 15.233889,
+    "lng": 104.855278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0165.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0166": {
+    "id": "ubon_l4_cam0166",
+    "name": "สุดซอยติดในอาคารหน้าศาลเจ้าตลาดน้อย (ตลาด2)",
+    "province": "อุบลราชธานี",
+    "lat": 15.234167,
+    "lng": 104.855278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0166.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0167": {
+    "id": "ubon_l4_cam0167",
+    "name": "บริเวณ รอบตลาดเทศบาล 5",
+    "province": "อุบลราชธานี",
+    "lat": 15.235,
+    "lng": 104.869167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0167.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0168": {
+    "id": "ubon_l4_cam0168",
+    "name": "บริเวณ รอบตลาดเทศบาล 5",
+    "province": "อุบลราชธานี",
+    "lat": 15.235278,
+    "lng": 104.869167,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0168.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0169": {
+    "id": "ubon_l4_cam0169",
+    "name": "บริเวณ รอบตลาดเทศบาล 5",
+    "province": "อุบลราชธานี",
+    "lat": 15.235278,
+    "lng": 104.868333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0169.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0170": {
+    "id": "ubon_l4_cam0170",
+    "name": "บริเวณ รอบตลาดเทศบาล 5",
+    "province": "อุบลราชธานี",
+    "lat": 15.234722,
+    "lng": 104.868333,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0170.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0171": {
+    "id": "ubon_l4_cam0171",
+    "name": "หน้าตลาด 6 ติดเสาไฟ (ส่องลานจอดรถเข็นขายของ)",
+    "province": "อุบลราชธานี",
+    "lat": 15.242778,
+    "lng": 104.851944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0171.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0172": {
+    "id": "ubon_l4_cam0172",
+    "name": "หน้าอาคารตลาด 6 ส่องเข้าในอาคาร",
+    "province": "อุบลราชธานี",
+    "lat": 15.2425,
+    "lng": 104.851667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0172.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0173": {
+    "id": "ubon_l4_cam0173",
+    "name": "ด้านหลังตลาด 6 สามแยก",
+    "province": "อุบลราชธานี",
+    "lat": 15.2425,
+    "lng": 104.850833,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0173.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0174": {
+    "id": "ubon_l4_cam0174",
+    "name": "ด้านหลังส่องสามแยก ทางเข้าไป ร.ร.นารีฯ",
+    "province": "อุบลราชธานี",
+    "lat": 15.242222,
+    "lng": 104.851111,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0174.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0175": {
+    "id": "ubon_l4_cam0175",
+    "name": "หน้าวัดบ้านนาควาย",
+    "province": "อุบลราชธานี",
+    "lat": 15.260833,
+    "lng": 104.851944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0175.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0176": {
+    "id": "ubon_l4_cam0176",
+    "name": "ในสวนหนองฮางท้ายสวนทิศใต้ติดตรงโคมไฟสว่าง ทางออก",
+    "province": "อุบลราชธานี",
+    "lat": 15.263611,
+    "lng": 104.853333,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0176.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0177": {
+    "id": "ubon_l4_cam0177",
+    "name": "ในสวนหนองฮางด้านหน้ามุมสวนทางเข้า ตรงเสาทรู",
+    "province": "อุบลราชธานี",
+    "lat": 15.263889,
+    "lng": 104.852222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0177.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0178": {
+    "id": "ubon_l4_cam0178",
+    "name": "ในสวนหนองฮางด้านหน้า ทางเข้าสวน",
+    "province": "อุบลราชธานี",
+    "lat": 15.263889,
+    "lng": 104.852222,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0178.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0179": {
+    "id": "ubon_l4_cam0179",
+    "name": "หน้าหมู่บ้านสาริน 9",
+    "province": "อุบลราชธานี",
+    "lat": 15.264444,
+    "lng": 104.851389,
+    "status": "Source offline",
+    "url": "https://38.159.250.22/wowza/cam0179.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0180": {
+    "id": "ubon_l4_cam0180",
+    "name": "ศูนย์สาธารณะสุขหนองบัวในวัดหนองบัวหันเข้าอาคาร(ติดเสาเดียวกับ#26)",
+    "province": "อุบลราชธานี",
+    "lat": 15.263889,
+    "lng": 104.840556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0180.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0181": {
+    "id": "ubon_l4_cam0181",
+    "name": "ในวัดหนองบัวส่องเข้าอาคารสาธารณะสุข(เสาเดียวกะ#182)",
+    "province": "อุบลราชธานี",
+    "lat": 15.263611,
+    "lng": 104.840278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0181.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0182": {
+    "id": "ubon_l4_cam0182",
+    "name": "ในวัดหนองบัวส่องมาทางพระธาตุหนองบัง(เสาเดียวกะ#181)",
+    "province": "อุบลราชธานี",
+    "lat": 15.263611,
+    "lng": 104.840278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0182.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0183": {
+    "id": "ubon_l4_cam0183",
+    "name": "ซอยเลี่ยงเมือง3ตัดธรรมวิถี(ซอยหอพักมยุรีเข้าลัดเข้าตลาดนิกร)",
+    "province": "อุบลราชธานี",
+    "lat": 15.266389,
+    "lng": 104.837778,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0183.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0184": {
+    "id": "ubon_l4_cam0184",
+    "name": "ศูนย์ดับเพลิงแจ้งสนิท หลังปั้มบางจาก",
+    "province": "อุบลราชธานี",
+    "lat": 15.254167,
+    "lng": 104.836944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0184.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0185": {
+    "id": "ubon_l4_cam0185",
+    "name": "ศูนย์ดับเพลิงแจ้งสนิท หลังปั้มบางจาก",
+    "province": "อุบลราชธานี",
+    "lat": 15.254167,
+    "lng": 104.836944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0185.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0186": {
+    "id": "ubon_l4_cam0186",
+    "name": "สามแยกโชว์รุมรถเชพเก่า ถ.สุริยาตร์ตัดถ.จงกลนิธาร",
+    "province": "อุบลราชธานี",
+    "lat": 15.237778,
+    "lng": 104.851944,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0186.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0194": {
+    "id": "ubon_l4_cam0194",
+    "name": "ทางเข้าอาคารบ่อบำบัด ทน.อบ",
+    "province": "อุบลราชธานี",
+    "lat": 15.231944,
+    "lng": 104.876389,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0194.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0195": {
+    "id": "ubon_l4_cam0195",
+    "name": "หน้าสถานีดับเพลิงหันเข้าศูนย์จักรกล",
+    "province": "อุบลราชธานี",
+    "lat": 15.232778,
+    "lng": 104.875278,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0195.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0200": {
+    "id": "ubon_l4_cam0200",
+    "name": "ติดเสาเดียวข้างสวนสาธารณะบูรพา",
+    "province": "อุบลราชธานี",
+    "lat": 15.233889,
+    "lng": 104.875556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0200.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0201": {
+    "id": "ubon_l4_cam0201",
+    "name": "ติดเสาเดียวข้างสวนสาธารณะบูรพา",
+    "province": "อุบลราชธานี",
+    "lat": 15.233889,
+    "lng": 104.875556,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0201.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0202": {
+    "id": "ubon_l4_cam0202",
+    "name": "สี่แยกหน้าสวนบูรพา ถ.พิชิตรังสรรค์ติดบรูพานอก",
+    "province": "อุบลราชธานี",
+    "lat": 15.233889,
+    "lng": 104.874722,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0202.stream/playlist.m3u8"
+  },
+  "ubon_l4_cam0210": {
+    "id": "ubon_l4_cam0210",
+    "name": "ทางเข้าหนองดินจี่ (ข้างวัดทุ่งศรีเมืองประตูทิศตะวันออก",
+    "province": "อุบลราชธานี",
+    "lat": 15.229444,
+    "lng": 104.861667,
+    "status": "Ready",
+    "url": "https://38.159.250.22/wowza/cam0210.stream/playlist.m3u8"
+  },
+  "doh_per_13_011": {
+    "id": "doh_per_13_011",
+    "name": "DOH ขอนแก่น (PER-13-011)",
+    "province": "ขอนแก่น",
+    "lat": 16.615377,
+    "lng": 101.989748,
+    "status": "Ready",
+    "url": "https://streaming2.highwaytraffic.go.th/PER-13/PER_13_011.stream/playlist.m3u8"
+  },
+  "doh_per_17_003": {
+    "id": "doh_per_17_003",
+    "name": "DOH ขอนแก่น (PER-17-003)",
+    "province": "ขอนแก่น",
+    "lat": 16.5199805,
+    "lng": 102.2839943,
+    "status": "Ready",
+    "url": "https://streaming2.highwaytraffic.go.th/PER-17/PER_17_003.stream/playlist.m3u8"
+  },
+  "itic_kk01": {
+    "id": "itic_kk01",
+    "name": "แยกเซ็นทรัล มุ่งหน้าไปกทม.",
+    "province": "ขอนแก่น",
+    "lat": 16.432483,
+    "lng": 102.823759,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk01.m3u8"
+  },
+  "itic_kk02": {
+    "id": "itic_kk02",
+    "name": "แยก Central ทิศเหนือ 1",
+    "province": "ขอนแก่น",
+    "lat": 16.43308,
+    "lng": 102.82465,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk02.m3u8"
+  },
+  "itic_kk04": {
+    "id": "itic_kk04",
+    "name": "แยกเซ็นทรัล",
+    "province": "ขอนแก่น",
+    "lat": 16.431912,
+    "lng": 102.824065,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk04.m3u8"
+  },
+  "itic_kk06": {
+    "id": "itic_kk06",
+    "name": "หน้าประตู มข. มอดินแดง (เข้าเมือง)",
+    "province": "ขอนแก่น",
+    "lat": 16.476563,
+    "lng": 102.832739,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk06.m3u8"
+  },
+  "itic_kk07": {
+    "id": "itic_kk07",
+    "name": "หน้าประตู มข. มอดินแดง (ไปอุดร)",
+    "province": "ขอนแก่น",
+    "lat": 16.475452,
+    "lng": 102.832525,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk07.m3u8"
+  },
+  "itic_kk08": {
+    "id": "itic_kk08",
+    "name": "แยกเจริญศรี 1",
+    "province": "ขอนแก่น",
+    "lat": 16.415997,
+    "lng": 102.819049,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk08.m3u8"
+  },
+  "itic_kk12": {
+    "id": "itic_kk12",
+    "name": "ป้อมตำรวจสามเหลี่ยม",
+    "province": "ขอนแก่น",
+    "lat": 16.439818,
+    "lng": 102.828979,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk12.m3u8"
+  },
+  "itic_kk13": {
+    "id": "itic_kk13",
+    "name": "ป้อมตำรวจสามเหลี่ยม (ถ.มิตรภาพ)",
+    "province": "ขอนแก่น",
+    "lat": 16.439944,
+    "lng": 102.829102,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk13.m3u8"
+  },
+  "itic_kk14": {
+    "id": "itic_kk14",
+    "name": "ป้อมตำรวจสามเหลี่ยม (ลานจอดรถ)",
+    "province": "ขอนแก่น",
+    "lat": 16.439944,
+    "lng": 102.828979,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk14.m3u8"
+  },
+  "itic_kk25": {
+    "id": "itic_kk25",
+    "name": "แยก ม.ภาคฯ 2",
+    "province": "ขอนแก่น",
+    "lat": 16.421462,
+    "lng": 102.819468,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk25.m3u8"
+  },
+  "itic_kk26": {
+    "id": "itic_kk26",
+    "name": "แยก ม.ภาคฯ 3",
+    "province": "ขอนแก่น",
+    "lat": 16.421997,
+    "lng": 102.820766,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk26.m3u8"
+  },
+  "itic_kk27": {
+    "id": "itic_kk27",
+    "name": "NEU South (ม.ภาคฯ ใต้)",
+    "province": "ขอนแก่น",
+    "lat": 16.420917,
+    "lng": 102.820466,
+    "status": "Ready",
+    "url": "https://camerai1.iticfoundation.org/hls/kk27.m3u8"
+  }
+}

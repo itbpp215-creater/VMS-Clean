@@ -42,6 +42,7 @@ runtime-cache/
 frigate-nvr/runtime-cache/
 runtime/
 frigate-nvr/runtime/
+frigate-nvr/config/.runtime_state.json
 *.partial
 *.mp4.partial
 tools/**/bin/*.exe
@@ -68,6 +69,10 @@ n8n/credentials.json
 *.secret
 gemini_api_key*
 *.local
+*.local.json
+*gpsone*.json
+*.local.db*
+*gpsone*.db*
 
 # Scratch & temporary ad-hoc test scripts (ห้าม commit สคริปต์ทดสอบชั่วคราว)
 test_*.py

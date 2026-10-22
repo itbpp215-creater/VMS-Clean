@@ -179,6 +179,142 @@ def save_manual_recordings(recordings: dict) -> None:
         print(f"[config-api] Failed to save manual recordings: {e}")
 
 
+# Per-camera AI detection schedule storage and evaluation (Asia/Bangkok UTC+7).
+from datetime import datetime, timedelta, timezone
+
+AI_SCHEDULES_PATH = os.environ.get("AI_SCHEDULES_PATH", "/config/ai_schedules.json")
+TIME_HHMM_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+BANGKOK_TZ = timezone(timedelta(hours=7))
+DEFAULT_CAMERA_SCHEDULE = {
+    "enabled": False,
+    "start_time": "18:00",
+    "end_time": "06:00",
+    "days": [1, 2, 3, 4, 5, 6, 7],
+    "timezone": "Asia/Bangkok",
+}
+# Cache last MQTT detect state sent by the schedule worker per camera to avoid redundant publishes.
+_last_schedule_detect_state: dict[str, bool] = {}
+
+
+def get_ai_schedules() -> dict:
+    """Load the per-camera AI detection schedule map from disk.
+
+    Takes no arguments, reads ``AI_SCHEDULES_PATH`` if present, and returns a
+    dictionary mapping camera names to schedule objects (or ``{}`` on error).
+    """
+    if os.path.isfile(AI_SCHEDULES_PATH):
+        try:
+            with open(AI_SCHEDULES_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+    return {}
+
+
+def save_ai_schedules(schedules: dict) -> None:
+    """Persist the per-camera AI detection schedule map atomically to disk.
+
+    Accepts ``schedules`` dictionary, writes to a temporary sibling file, and
+    atomically replaces ``AI_SCHEDULES_PATH`` so readers never see partial JSON.
+    """
+    try:
+        tmp_path = AI_SCHEDULES_PATH + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(schedules, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, AI_SCHEDULES_PATH)
+    except Exception as e:
+        print(f"[config-api] Failed to save AI schedules: {e}")
+
+
+def get_camera_schedule_entry(name: str, schedules: Optional[dict] = None) -> dict:
+    """Return a normalized schedule dictionary for a single camera.
+
+    Accepts camera ``name`` and optional preloaded ``schedules`` map. Returns
+    a complete schedule dictionary falling back to ``DEFAULT_CAMERA_SCHEDULE``.
+    """
+    all_scheds = schedules if isinstance(schedules, dict) else get_ai_schedules()
+    raw = all_scheds.get(name) if isinstance(all_scheds.get(name), dict) else {}
+    start_t = str(raw.get("start_time") or DEFAULT_CAMERA_SCHEDULE["start_time"]).strip()
+    end_t = str(raw.get("end_time") or DEFAULT_CAMERA_SCHEDULE["end_time"]).strip()
+    if not TIME_HHMM_PATTERN.match(start_t):
+        start_t = DEFAULT_CAMERA_SCHEDULE["start_time"]
+    if not TIME_HHMM_PATTERN.match(end_t):
+        end_t = DEFAULT_CAMERA_SCHEDULE["end_time"]
+    raw_days = raw.get("days")
+    if isinstance(raw_days, list):
+        days = sorted(list({int(d) for d in raw_days if isinstance(d, int) and not isinstance(d, bool) and 1 <= d <= 7}))
+    else:
+        days = list(DEFAULT_CAMERA_SCHEDULE["days"])
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "start_time": start_t,
+        "end_time": end_t,
+        "days": days,
+        "timezone": "Asia/Bangkok",
+    }
+
+
+def evaluate_camera_schedule(sched: Optional[dict], now_dt: Optional[datetime] = None) -> bool:
+    """Evaluate whether a camera schedule permits AI detection at the given time.
+
+    Accepts a normalized ``sched`` dictionary and optional ``now_dt`` timestamp.
+    Returns ``True`` when the schedule is disabled (24/7 mode) or when current
+    Bangkok time falls within the configured days and ``start_time``..``end_time``
+    window (supporting both same-day and cross-midnight ranges).
+    """
+    if not isinstance(sched, dict) or not sched.get("enabled", False):
+        return True
+
+    # Convert reference timestamp to Asia/Bangkok (UTC+7) for consistent local evaluation.
+    now_bkk = now_dt.astimezone(BANGKOK_TZ) if now_dt is not None else datetime.now(BANGKOK_TZ)
+    raw_days = sched.get("days")
+    days = [int(d) for d in raw_days if isinstance(d, int) and not isinstance(d, bool) and 1 <= d <= 7] if isinstance(raw_days, list) else [1, 2, 3, 4, 5, 6, 7]
+    if not days:
+        return False
+
+    # Check ISO weekday (1 = Monday .. 7 = Sunday).
+    if now_bkk.isoweekday() not in days:
+        return False
+
+    start_str = str(sched.get("start_time") or "18:00").strip()
+    end_str = str(sched.get("end_time") or "06:00").strip()
+    if not TIME_HHMM_PATTERN.match(start_str) or not TIME_HHMM_PATTERN.match(end_str):
+        return True
+
+    sh, sm = (int(x) for x in start_str.split(":"))
+    eh, em = (int(x) for x in end_str.split(":"))
+    start_mins = sh * 60 + sm
+    end_mins = eh * 60 + em
+    now_mins = now_bkk.hour * 60 + now_bkk.minute
+
+    # Identical start and end times represent a full 24-hour active window on selected days.
+    if start_mins == end_mins:
+        return True
+    # Same-day window (e.g., 08:00 to 17:00).
+    if start_mins < end_mins:
+        return start_mins <= now_mins <= end_mins
+    # Cross-midnight window (e.g., 18:00 to 06:00).
+    return now_mins >= start_mins or now_mins <= end_mins
+
+
+def is_camera_in_ai_schedule(
+    name: str,
+    schedules: Optional[dict] = None,
+    now_dt: Optional[datetime] = None,
+) -> bool:
+    """Check whether camera ``name`` is currently within its active AI schedule window.
+
+    Accepts camera ``name``, optional ``schedules`` map, and optional ``now_dt``.
+    Returns ``True`` if no schedule is enabled for the camera or if the current time
+    satisfies the camera's schedule.
+    """
+    entry = get_camera_schedule_entry(name, schedules)
+    return evaluate_camera_schedule(entry, now_dt=now_dt)
+
+
+
 def require_authenticated(request: Request) -> TrustedIdentity:
     """Authenticate the original request for any authenticated user."""
     try:
@@ -263,6 +399,54 @@ class DetectToggleConfig(BaseModel):
     """Request body for the operator-level AI detect toggle endpoint."""
 
     detect_enabled: StrictBool
+
+
+class CameraScheduleConfig(BaseModel):
+    """Describe the per-camera AI detection time schedule window."""
+
+    enabled: bool = False
+    start_time: str = "18:00"
+    end_time: str = "06:00"
+    days: List[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5, 6, 7])
+    timezone: str = "Asia/Bangkok"
+
+
+def validate_camera_schedule(body: CameraScheduleConfig) -> dict:
+    """Validate and normalize a per-camera AI detection schedule request.
+
+    Accepts ``body`` (`CameraScheduleConfig`), verifies ``HH:MM`` time format
+    and ISO weekday integers ``1..7``, and returns a normalized dictionary.
+    Raises HTTP 422 on invalid time format or empty day list when enabled.
+    """
+    start_t = str(body.start_time or "").strip()
+    end_t = str(body.end_time or "").strip()
+    if not TIME_HHMM_PATTERN.match(start_t):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid start_time format; expected HH:MM (00:00 - 23:59)",
+        )
+    if not TIME_HHMM_PATTERN.match(end_t):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid end_time format; expected HH:MM (00:00 - 23:59)",
+        )
+    raw_days = body.days if isinstance(body.days, list) else []
+    days = sorted(list({int(d) for d in raw_days if isinstance(d, int) and not isinstance(d, bool) and 1 <= d <= 7}))
+    if body.enabled and not days:
+        raise HTTPException(
+            status_code=422,
+            detail="At least one day of the week (1-7) must be selected when schedule is enabled",
+        )
+    if not days:
+        days = [1, 2, 3, 4, 5, 6, 7]
+    return {
+        "enabled": bool(body.enabled),
+        "start_time": start_t,
+        "end_time": end_t,
+        "days": days,
+        "timezone": "Asia/Bangkok",
+    }
+
 
 
 class ProbeStreamRequest(BaseModel):
@@ -832,11 +1016,14 @@ def get_cameras():
     result = []
     
     # Get all unique camera names from both cameras and go2rtc blocks
-    # Filter out _sub and _hd suffixes
+    # Filter out _sub/_hd suffixes and internal empty RTMP relay aliases
     stream_names = set()
-    for s in go2rtc_streams.keys():
-        if not s.endswith('_sub') and not s.endswith('_hd'):
-            stream_names.add(s)
+    for s, s_val in go2rtc_streams.items():
+        if s.endswith('_sub') or s.endswith('_hd'):
+            continue
+        if s not in cameras and s not in groups and not s_val:
+            continue
+        stream_names.add(s)
             
     all_cams = set(cameras.keys()).union(stream_names)
     sources = get_camera_sources()
@@ -903,13 +1090,14 @@ def get_cameras():
             "rtsp_url": unmask(rtsp_url),
             "sub_url": unmask(sub_url),
             "ai_enabled": ai_enabled,
-            "enabled": cam_data.get('enabled', True) if cam_name in cameras else True,
+            "enabled": cam_data.get('enabled', True) if cam_name in cameras else False,
             "group": groups.get(cam_name, ""),
             # Tells the dashboard whether a maximize stream exists for this
             # camera. Cameras provisioned before the split stream layout have
             # none, and pointing the viewer at a missing stream would only
             # produce a connection that never succeeds.
             "has_hd": f"{cam_name}_hd" in go2rtc_streams,
+            "has_sub": f"{cam_name}_sub" in go2rtc_streams,
         })
     def natural_sort_key(x):
         name = x.get('name', '')
@@ -1113,21 +1301,32 @@ def set_camera_objects(name: str, request: CameraObjectsConfig):
     # Both object labels and detector state must change atomically so an empty
     # list cannot leave inference enabled with no classes, or vice versa.
     with open_config_transaction() as transaction:
-        camera = transaction.config.get('cameras', {}).get(name)
-        if camera is None:
-            raise HTTPException(status_code=404, detail="Camera not found")
-        detect_enabled = bool(track)
+        templates = get_camera_templates()
+        camera, created = _ensure_camera_in_config(transaction, name, templates)
         current_track = camera.get('objects', {}).get('track')
-        current_detect = camera.get('detect', {}).get('enabled', False)
-        if current_track != track or current_detect != detect_enabled:
-            camera.setdefault('objects', {})['track'] = track
+        current_detect = bool(camera.get('detect', {}).get('enabled', False))
+        detect_enabled = current_detect if bool(track) else False
+        if created or current_track != track or current_detect != detect_enabled:
+            camera.setdefault('objects', {})['track'] = list(track)
             camera.setdefault('detect', {})['enabled'] = detect_enabled
+            tmpl = templates.setdefault(name, json.loads(json.dumps(dict(camera))))
+            if isinstance(tmpl, dict):
+                tmpl.setdefault('objects', {})['track'] = list(track)
+                tmpl.setdefault('detect', {})['enabled'] = detect_enabled
+                save_camera_templates(templates)
             transaction.mark_changed()
+        cam_enabled = bool(camera.get('enabled', False))
+        rec_enabled = bool(camera.get('record', {}).get('enabled', False))
+
+    _sync_camera_to_frigate_runtime(
+        name, cam_enabled, detect_enabled, rec_enabled, objects_track=list(track)
+    )
 
     return {
         "status": "success",
         "camera": name,
         "detect_enabled": detect_enabled,
+        "track": list(track),
     }
 
 
@@ -1149,18 +1348,18 @@ def set_camera_enabled(name: str, request: CameraEnabledConfig):
     # Avoid rewriting the config or creating a backup when every requested value
     # already matches the live file.
     with open_config_transaction() as transaction:
-        camera = transaction.config.get('cameras', {}).get(name)
-        if camera is None:
-            raise HTTPException(status_code=404, detail="Camera not found")
-
         templates = get_camera_templates()
         tmpl = templates.get(name, {}) if isinstance(templates.get(name), dict) else {}
         is_protected = bool(tmpl.get("force_active") or name in get_lpr_cameras())
         if is_protected and not request.enabled:
             return {"status": "success", "camera": name, "enabled": True, "protected": True}
+        cameras_dict = transaction.config.setdefault("cameras", {})
+        if not request.enabled and name not in cameras_dict:
+            return {"status": "success", "camera": name, "enabled": False}
+        camera, created = _ensure_camera_in_config(transaction, name, templates)
 
         target_enabled = True if is_protected else request.enabled
-        changed = camera.get('enabled', True) != target_enabled
+        changed = created or (camera.get('enabled', True) != target_enabled)
         camera['enabled'] = target_enabled
         if target_enabled:
             if is_protected:
@@ -1211,7 +1410,7 @@ def set_camera_enabled(name: str, request: CameraEnabledConfig):
 
         # Synchronize ffmpeg inputs for this camera so Frigate validator accepts the config
         # (Frigate validator rejects detect.enabled=True if no input stream has role 'detect')
-        effective_ai = camera.get('enabled', True) and camera.get('detect', {}).get('enabled', False)
+        effective_ai = bool(camera.get('enabled', True) and camera.get('detect', {}).get('enabled', False))
         lpr_cams = get_lpr_cameras()
         go2rtc_streams = transaction.config.get("go2rtc", {}).get("streams", {})
         has_sub = f"{name}_sub" in go2rtc_streams
@@ -1228,7 +1427,6 @@ def set_camera_enabled(name: str, request: CameraEnabledConfig):
             changed = True
 
         # Keep persisted camera template in sync for demand reconciliation (ADR-0020)
-        templates = get_camera_templates()
         if name in templates and isinstance(templates[name], dict):
             tmpl = templates[name]
             tmpl['enabled'] = effective_frigate_enabled
@@ -1239,6 +1437,9 @@ def set_camera_enabled(name: str, request: CameraEnabledConfig):
 
         if changed:
             transaction.mark_changed()
+
+    if changed or effective_frigate_enabled:
+        _sync_camera_to_frigate_runtime(name, effective_frigate_enabled, effective_ai, target_record)
 
     return {"status": "success", "camera": name, "enabled": request.enabled}
 
@@ -1467,6 +1668,195 @@ def get_federated_peers(request: Request):
     return results
 
 _reconcile_lock = threading.Lock()
+_frigate_runtime_lock = threading.Lock()
+DEFAULT_OBJECT_TRACK = ['person', 'car', 'motorcycle', 'truck']
+
+
+def _load_gps_url_map() -> dict:
+    gps_path = "/settings-data/camera_gps.json"
+    if not os.path.exists(gps_path):
+        gps_path = os.path.join(os.path.dirname(CONFIG_PATH), "dashboard-settings", "camera_gps.json")
+    if os.path.exists(gps_path):
+        try:
+            with open(gps_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+    return {}
+
+
+def _ensure_camera_in_config(transaction, name: str, templates: dict) -> tuple[dict, bool]:
+    """
+    Ensure `name` exists in `transaction.config['cameras']`.
+    If missing, restores from `templates[name]` or provisions a default camera block
+    if `name` exists in go2rtc.streams, nvr_groups.json, camera_sources.json, or camera_gps.json.
+    Returns (camera_dict, created_bool).
+    """
+    cameras_dict = transaction.config.setdefault("cameras", {})
+    if name in cameras_dict and isinstance(cameras_dict[name], dict):
+        cam = cameras_dict[name]
+        if not cam.get("objects", {}).get("track"):
+            tmpl_track = (templates.get(name, {}) if isinstance(templates.get(name), dict) else {}).get("objects", {}).get("track")
+            cam.setdefault("objects", {})["track"] = list(tmpl_track) if tmpl_track else list(DEFAULT_OBJECT_TRACK)
+        return cam, False
+
+    go2rtc_streams = transaction.config.setdefault("go2rtc", {}).setdefault("streams", {})
+    groups = transaction.groups if transaction.groups is not None else (load_groups(GROUPS_PATH) or {})
+    sources = get_camera_sources()
+    gps_map = _load_gps_url_map()
+
+    tmpl = templates.get(name) if isinstance(templates.get(name), dict) else None
+    if not tmpl and name not in go2rtc_streams and name not in groups and name not in sources and name not in gps_map:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    if name not in go2rtc_streams:
+        if name in gps_map and isinstance(gps_map[name], dict) and gps_map[name].get("url"):
+            raw_u = str(gps_map[name]["url"]).split("#")[0].strip()
+            if raw_u.startswith("ffmpeg:"):
+                raw_u = raw_u[7:].strip()
+            go2rtc_streams[name] = [f"ffmpeg:{raw_u}#input=hls#video=copy#audio=copy"]
+        elif name in sources and sources[name]:
+            go2rtc_streams.update(build_camera_streams(name, sources[name], None))
+
+    if tmpl:
+        cam_block = json.loads(json.dumps(dict(tmpl)))
+        if not cam_block.get("objects", {}).get("track"):
+            cam_block.setdefault("objects", {})["track"] = list(DEFAULT_OBJECT_TRACK)
+    else:
+        has_sub = f"{name}_sub" in go2rtc_streams
+        lpr_cams = get_lpr_cameras()
+        inputs = configure_camera_inputs(name, "dummy", "dummy" if has_sub else "", False, name in lpr_cams)
+        cam_block = {
+            "ffmpeg": {"inputs": inputs},
+            "ui": {"dashboard": True},
+            "enabled": False,
+            "detect": {"enabled": False},
+            "record": {
+                "enabled": False,
+                "alerts": {"retain": {"days": 7, "mode": "motion"}},
+                "detections": {"retain": {"days": 7, "mode": "motion"}},
+            },
+            "snapshots": {"enabled": True, "bounding_box": True},
+            "objects": {"track": list(DEFAULT_OBJECT_TRACK)},
+        }
+        templates[name] = json.loads(json.dumps(cam_block))
+        save_camera_templates(templates)
+
+    cameras_dict[name] = cam_block
+    return cameras_dict[name], True
+
+
+def _collect_camera_go2rtc_streams(name: str) -> dict:
+    """Read go2rtc streams for `name`, `name_sub`, `name_hd` from config.yml and unmask credentials."""
+    try:
+        cfg = load_yaml_config(CONFIG_PATH)
+        all_streams = (cfg.get("go2rtc") or {}).get("streams") or {}
+    except Exception:
+        return {}
+    env_vars = {}
+    env_file = "/config/camera_credentials.env"
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#") and "=" in stripped:
+                        k, v = stripped.split("=", 1)
+                        env_vars[k.strip()] = v.strip()
+        except OSError:
+            pass
+
+    def _unmask_val(val):
+        if isinstance(val, str):
+            for match in set(re.findall(r"\{FRIGATE_[A-Z0-9_]+\}", val)):
+                var_name = match.strip("{}")
+                if var_name in env_vars:
+                    val = val.replace(match, env_vars[var_name])
+            return val
+        if isinstance(val, list):
+            return [_unmask_val(x) for x in val]
+        return val
+
+    out = {}
+    for key in (name, f"{name}_sub", f"{name}_hd"):
+        if key in all_streams and all_streams[key]:
+            out[key] = _unmask_val(all_streams[key])
+    return out
+
+
+def _sync_camera_to_frigate_runtime(
+    name: str,
+    enabled: bool,
+    detect_enabled: bool,
+    record_enabled: bool,
+    objects_track: Optional[list] = None,
+) -> None:
+    """
+    Synchronizes camera state (enabled, detect, record, objects, or dynamic process start)
+    into Frigate 0.17.2 runtime without restarting Frigate.
+    Respects per-camera AI detection schedules so runtime detection pauses outside
+    scheduled windows while preserving 24/7 video recording and YAML config state.
+    """
+    # Evaluate whether the camera is currently inside its scheduled AI time window.
+    in_schedule = is_camera_in_ai_schedule(name)
+    effective_runtime_detect = bool(enabled and detect_enabled and in_schedule)
+    _last_schedule_detect_state[name] = effective_runtime_detect
+
+    try:
+        import paho.mqtt.publish as publish
+        publish.single(
+            f"frigate/{name}/detect/set",
+            payload="ON" if effective_runtime_detect else "OFF",
+            hostname="mqtt",
+        )
+        publish.single(f"frigate/{name}/recordings/set", payload="ON" if record_enabled else "OFF", hostname="mqtt")
+        publish.single(f"frigate/{name}/enabled/set", payload="ON" if enabled else "OFF", hostname="mqtt")
+    except Exception as e:
+        print(f"MQTT publish failed for {name}: {e}")
+
+    def _worker():
+        with _frigate_runtime_lock:
+            try:
+                secret = get_federation_secret()
+                payload_dict = {
+                    "camera": name,
+                    "enabled": bool(enabled),
+                    "detect_enabled": bool(effective_runtime_detect),
+                    "record_enabled": bool(record_enabled),
+                    "objects_track": list(objects_track) if objects_track is not None else None,
+                    "go2rtc_streams": _collect_camera_go2rtc_streams(name) if enabled else None,
+                }
+                req = urllib.request.Request(
+                    "http://watchlist-api:5001/internal/frigate-runtime-sync",
+                    data=json.dumps(payload_dict).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-BPP-Federation": secret,
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    resp.read()
+            except Exception as err:
+                print(f"[config-api] Frigate runtime sync warning for {name}: {err}")
+            finally:
+                # Re-assert MQTT detect state after runtime sync in case Frigate reloaded config.yml.
+                if effective_runtime_detect != bool(detect_enabled):
+                    try:
+                        import paho.mqtt.publish as publish
+                        publish.single(
+                            f"frigate/{name}/detect/set",
+                            payload="ON" if effective_runtime_detect else "OFF",
+                            hostname="mqtt",
+                        )
+                    except Exception:
+                        pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 
 def snapshot_all_templates_internal() -> dict:
     if not os.path.exists(CONFIG_PATH):
@@ -1487,24 +1877,27 @@ def snapshot_all_templates_internal() -> dict:
 
 def reconcile_cameras_internal() -> dict:
     """
-    Demand-Driven Camera Provisioning Reconciliation (ADR-0020):
-    1. Fetches desired camera pool from nas-bot-service.
+    Demand-Driven Camera Provisioning Reconciliation (ADR-0020 / ADR-0024):
+    1. Fetches desired camera pool and AI-demanded cameras from nas-bot-service.
     2. Compares with cameras currently in config.yml.
     3. Deprovisions unreferenced cameras (saving templates first).
-    4. Provisions newly demanded cameras (restoring from templates or defaults).
-    5. Triggers Frigate restart if changes were committed.
+    4. Provisions newly demanded cameras and synchronizes AI state across active cameras.
+    5. Synchronizes Frigate runtime processes via ZMQ/config_set without restarting Frigate.
     """
     with _reconcile_lock:
         if not os.path.exists(CONFIG_PATH):
             raise HTTPException(status_code=404, detail="config.yml not found")
 
         desired_cameras = set()
+        ai_demand_cameras = None
         online_users = 0
         try:
             req = urllib.request.Request(NAS_BOT_DEMAND_POOL_URL, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 pool_data = json.loads(resp.read().decode('utf-8'))
                 desired_cameras = set(pool_data.get("cameras", []))
+                if "ai_demand_cameras" in pool_data and isinstance(pool_data["ai_demand_cameras"], list):
+                    ai_demand_cameras = set(pool_data["ai_demand_cameras"])
                 online_users = pool_data.get("online_users", 0)
         except Exception as e:
             return {
@@ -1514,11 +1907,18 @@ def reconcile_cameras_internal() -> dict:
             }
 
         templates = get_camera_templates()
+        manual_recs = get_manual_recordings()
+        lpr_cams = get_lpr_cameras()
+        gps_map = _load_gps_url_map()
 
         # Include any cameras explicitly marked force_active in templates
         for cam_name, tmpl in templates.items():
             if isinstance(tmpl, dict) and tmpl.get("force_active") is True:
                 desired_cameras.add(cam_name)
+                if ai_demand_cameras is not None:
+                    ai_demand_cameras.add(cam_name)
+
+        runtime_sync_queue = []
 
         with open_config_transaction(include_groups=False) as transaction:
             config = transaction.config
@@ -1531,7 +1931,28 @@ def reconcile_cameras_internal() -> dict:
             to_provision = desired_cameras - current_active_cameras
             to_deprovision = current_active_cameras - desired_cameras
 
-            if not to_provision and not to_deprovision:
+            # Also check already-active cameras whose detect.enabled disagrees with ai_demand_cameras
+            to_update_ai = set()
+            if ai_demand_cameras is not None:
+                for cam in (desired_cameras & current_active_cameras):
+                    ccfg = current_cameras_dict.get(cam, {})
+                    cur_ai = bool(ccfg.get("detect", {}).get("enabled", False))
+                    want_ai = cam in ai_demand_cameras
+                    if cur_ai != want_ai:
+                        to_update_ai.add(cam)
+
+            if not to_provision and not to_deprovision and not to_update_ai:
+                for cam in current_active_cameras:
+                    ccfg = current_cameras_dict.get(cam)
+                    if isinstance(ccfg, dict) and ccfg.get("enabled", False):
+                        runtime_sync_queue.append((
+                            cam,
+                            bool(ccfg.get("enabled", False)),
+                            bool((ccfg.get("detect") or {}).get("enabled", False)),
+                            bool((ccfg.get("record") or {}).get("enabled", False)),
+                        ))
+                for cam, en_val, det_val, rec_val in runtime_sync_queue:
+                    _sync_camera_to_frigate_runtime(cam, en_val, det_val, rec_val)
                 return {
                     "status": "success",
                     "changed": False,
@@ -1542,7 +1963,9 @@ def reconcile_cameras_internal() -> dict:
             # 1. Deprovision unreferenced cameras (preserve camera entry with enabled: False so historical events remain queryable)
             for cam in to_deprovision:
                 existing_block = current_cameras_dict.get(cam)
+                existing_track = list(DEFAULT_OBJECT_TRACK)
                 if existing_block:
+                    existing_track = existing_block.get("objects", {}).get("track") or existing_track
                     templates[cam] = json.loads(json.dumps(dict(existing_block)))
                 current_cameras_dict[cam] = {
                     "enabled": False,
@@ -1551,17 +1974,16 @@ def reconcile_cameras_internal() -> dict:
                         "inputs": [{"path": f"rtsp://127.0.0.1:8554/{cam}?video", "input_args": "preset-rtsp-restream", "roles": ["record"]}]
                     },
                     "detect": {"enabled": False},
-                    "record": {"enabled": False}
+                    "record": {"enabled": False},
+                    "objects": {"track": list(existing_track)},
                 }
+                runtime_sync_queue.append((cam, False, False, False))
 
-            # 2. Provision demanded cameras
-            for cam in to_provision:
-                # Ensure go2rtc stream entries exist so go2rtc can relay
-                # video for the provisioned camera.
+            # 2. Provision newly demanded cameras and update active cameras whose AI state changed
+            for cam in (to_provision | to_update_ai):
                 prov_streams = config.setdefault('go2rtc', {}).setdefault('streams', {})
                 sources = get_camera_sources()
-                if cam in sources:
-                    # RTMP push camera: check for stream key case-mismatch (e.g. Falcon1 vs falcon1, Bodyarm vs bodyarm)
+                if cam in sources and str(sources[cam]).lower().startswith("rtmp"):
                     rtmp_url = sources[cam]
                     stream_key = rtmp_url.rstrip('/').split('/')[-1] if '/' in rtmp_url else cam
                     lower_key = stream_key.lower()
@@ -1578,8 +2000,6 @@ def reconcile_cameras_internal() -> dict:
                         if cam not in prov_streams:
                             prov_streams[cam] = []
                 elif cam not in prov_streams:
-                    # Non-RTMP camera: try to build from template ffmpeg
-                    # input path using optimal codec/GPU probing.
                     tmpl_inputs = (templates.get(cam, {})
                                    .get('ffmpeg', {})
                                    .get('inputs', []))
@@ -1590,57 +2010,75 @@ def reconcile_cameras_internal() -> dict:
                             prov_streams.update(
                                 stream_probe.get_optimal_camera_streams(cam, clean_path)
                             )
+                    elif cam in gps_map and isinstance(gps_map[cam], dict) and gps_map[cam].get("url"):
+                        raw_u = str(gps_map[cam]["url"]).split("#")[0].strip()
+                        if raw_u.startswith("ffmpeg:"):
+                            raw_u = raw_u[7:].strip()
+                        prov_streams[cam] = [f"ffmpeg:{raw_u}#input=hls#video=copy#audio=copy"]
 
+                base_block = None
                 if cam in templates and isinstance(templates[cam], dict):
-                    cam_block = json.loads(json.dumps(dict(templates[cam])))
-                    if "detect" not in cam_block:
-                        cam_block["detect"] = {"enabled": False}
-                    ai_on = cam_block.get("detect", {}).get("enabled", False)
-                    manual_recs = get_manual_recordings()
-                    rec_on = bool(ai_on or manual_recs.get(cam, False))
+                    base_block = json.loads(json.dumps(dict(templates[cam])))
+                elif cam in current_cameras_dict and isinstance(current_cameras_dict[cam], dict):
+                    base_block = json.loads(json.dumps(dict(current_cameras_dict[cam])))
+
+                if ai_demand_cameras is not None:
+                    ai_on = bool(cam in ai_demand_cameras)
+                elif base_block is not None:
+                    ai_on = bool(base_block.get("detect", {}).get("enabled", False))
+                else:
+                    ai_on = False
+
+                rec_on = bool(ai_on or manual_recs.get(cam, False))
+                has_sub = f"{cam}_sub" in prov_streams
+                new_inputs = configure_camera_inputs(
+                    cam, "dummy", "dummy" if has_sub else "", ai_on, cam in lpr_cams
+                )
+
+                if base_block is not None:
+                    cam_block = base_block
                     cam_block["enabled"] = rec_on
+                    cam_block.setdefault("detect", {})["enabled"] = ai_on
                     cam_block.setdefault("record", {})["enabled"] = rec_on
-                    for inp in cam_block.get("ffmpeg", {}).get("inputs", []):
-                        if not ai_on and "roles" in inp and "detect" in inp["roles"]:
-                            inp["roles"] = [r for r in inp["roles"] if r != "detect"]
-                            if not inp["roles"]:
-                                inp["roles"] = ["record"]
+                    cam_block.setdefault("record", {}).setdefault("alerts", {"retain": {"days": 7, "mode": "motion"}})
+                    cam_block.setdefault("record", {}).setdefault("detections", {"retain": {"days": 7, "mode": "motion"}})
+                    cam_block.setdefault("snapshots", {"enabled": True, "bounding_box": True})
+                    if not cam_block.get("objects", {}).get("track"):
+                        cam_block.setdefault("objects", {})["track"] = list(DEFAULT_OBJECT_TRACK)
+                    cam_block["ffmpeg"] = {"inputs": new_inputs}
                     cam_block.setdefault("ui", {})["dashboard"] = True
                     current_cameras_dict[cam] = cam_block
                 else:
-                    inputs = [{
-                        'path': f'rtsp://127.0.0.1:8554/{cam}?video',
-                        'input_args': 'preset-rtsp-restream',
-                        'roles': ['record']
-                    }]
-                    current_cameras_dict[cam] = {
-                        'ffmpeg': {'inputs': inputs},
+                    cam_block = {
+                        'ffmpeg': {'inputs': new_inputs},
                         'ui': {'dashboard': True},
-                        'enabled': False,
-                        'detect': {'enabled': False},
+                        'enabled': rec_on,
+                        'detect': {'enabled': ai_on},
                         'record': {
-                            'enabled': False,
+                            'enabled': rec_on,
                             'alerts': {'retain': {'days': 7, 'mode': 'motion'}},
                             'detections': {'retain': {'days': 7, 'mode': 'motion'}}
                         },
-                        'snapshots': {'enabled': True, 'bounding_box': False},
-                        'objects': {'track': ['person', 'car', 'motorcycle', 'truck']}
+                        'snapshots': {'enabled': True, 'bounding_box': True},
+                        'objects': {'track': list(DEFAULT_OBJECT_TRACK)}
                     }
+                    current_cameras_dict[cam] = cam_block
+
+                templates[cam] = json.loads(json.dumps(dict(cam_block)))
+                runtime_sync_queue.append((cam, rec_on, ai_on, rec_on))
 
             save_camera_templates(templates)
             transaction.mark_changed()
 
-        # Incident 2.117: Demand reconciliation updates config.yml / templates for persistence.
-        # Live WebRTC streaming is handled independently on demand by go2rtc (all streams
-        # are already pre-loaded in go2rtc.streams). Do NOT trigger a Frigate restart here,
-        # which would sever all active WebSockets and cause mass "RECONNECT" drops across
-        # all viewing clients. Dynamic AI/record changes are handled via MQTT without restart.
+        for cam, en_val, det_val, rec_val in runtime_sync_queue:
+            _sync_camera_to_frigate_runtime(cam, en_val, det_val, rec_val)
 
         return {
             "status": "success",
             "changed": True,
             "provisioned": sorted(list(to_provision)),
             "deprovisioned": sorted(list(to_deprovision)),
+            "ai_updated": sorted(list(to_update_ai)),
             "active_cameras": sorted(list(desired_cameras)),
             "online_users": online_users
         }
@@ -1706,12 +2144,8 @@ def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity 
     save_manual_recordings(manual_recs)
 
     with open_config_transaction() as transaction:
-        config = transaction.config
-        cameras = config.setdefault('cameras', {})
-        if name not in cameras:
-            raise HTTPException(status_code=404, detail="Camera not found")
-
-        camera = cameras[name]
+        templates = get_camera_templates()
+        camera, _ = _ensure_camera_in_config(transaction, name, templates)
         detect_on = camera.get('detect', {}).get('enabled', False)
 
         if new_state:
@@ -1731,12 +2165,10 @@ def toggle_manual_record(name: str, request: Request, identity: TrustedIdentity 
                 rec['enabled'] = False
                 camera['enabled'] = False
             transaction.mark_changed()
+        cam_enabled = bool(camera.get('enabled', False))
+        rec_enabled = bool(camera.get('record', {}).get('enabled', False))
 
-    try:
-        import paho.mqtt.publish as publish
-        publish.single(f"frigate/{name}/record/set", payload="ON" if new_state else "OFF", hostname="mqtt")
-    except Exception as e:
-        print(f"MQTT publish failed: {e}")
+    _sync_camera_to_frigate_runtime(name, cam_enabled, bool(detect_on), rec_enabled)
 
     return {
         "status": "success",
@@ -1763,41 +2195,33 @@ def toggle_camera_detect(
 ):
     """Toggle AI detection (detect.enabled) for one camera.
 
-    Accessible to all authenticated users. Does NOT change camera enabled/disabled
-    state or recording state — only the AI detector pipeline.
-    Also synchronizes ffmpeg input roles so Frigate validator accepts the config.
+    Accessible to all authenticated users. Synchronizes recording, camera enabled
+    lifecycle, ffmpeg input roles, persisted camera templates, and Frigate runtime.
     """
     if not os.path.exists(CONFIG_PATH):
         raise HTTPException(status_code=404, detail="config.yml not found")
 
     new_detect = body.detect_enabled
+    changed = False
 
     with open_config_transaction() as transaction:
-        camera = transaction.config.get("cameras", {}).get(name)
         templates = get_camera_templates()
-        tmpl = templates.get(name, {}) if isinstance(templates.get(name), dict) else {}
-
-        if camera is None:
-            if tmpl:
-                transaction.config.setdefault("cameras", {})[name] = json.loads(json.dumps(tmpl))
-                camera = transaction.config["cameras"][name]
-            else:
-                raise HTTPException(status_code=404, detail="Camera not found")
-
+        camera, created = _ensure_camera_in_config(transaction, name, templates)
+        if created:
+            changed = True
 
         detect = camera.setdefault("detect", {})
+        if detect.get("enabled") != new_detect:
+            detect["enabled"] = new_detect
+            changed = True
 
-        if detect.get("enabled") == new_detect:
-            # No change needed
-            return {
-                "status": "success",
-                "camera": name,
-                "detect_enabled": new_detect,
-                "changed": False,
-            }
+        if new_detect and camera.get("ui", {}).get("dashboard") is False:
+            camera.setdefault("ui", {})["dashboard"] = True
+            changed = True
 
-        detect["enabled"] = new_detect
-        changed = True
+        if not camera.get("objects", {}).get("track"):
+            camera.setdefault("objects", {})["track"] = list(DEFAULT_OBJECT_TRACK)
+            changed = True
 
         # Synchronize recording: if detect is on, recording must also be on
         # so Frigate captures events. If detect is off, check manual recordings.
@@ -1828,32 +2252,30 @@ def toggle_camera_detect(
             changed = True
 
         # Keep persisted camera template in sync (ADR-0020)
-        templates = get_camera_templates()
-        if name in templates and isinstance(templates[name], dict):
-            tmpl = templates[name]
-            tmpl["enabled"] = camera.get("enabled", True)
+        tmpl = templates.setdefault(name, json.loads(json.dumps(dict(camera))))
+        if isinstance(tmpl, dict):
+            tmpl["enabled"] = effective_enabled
+            tmpl.setdefault("ui", {})["dashboard"] = True
             tmpl.setdefault("record", {})["enabled"] = target_record
             tmpl.setdefault("detect", {})["enabled"] = new_detect
             tmpl.setdefault("ffmpeg", {})["inputs"] = new_inputs
+            if not tmpl.get("objects", {}).get("track"):
+                tmpl.setdefault("objects", {})["track"] = list(camera.get("objects", {}).get("track") or DEFAULT_OBJECT_TRACK)
             save_camera_templates(templates)
 
         if changed:
             transaction.mark_changed()
 
-    # Incident 2.45 (Follow-up): Dynamically toggle detect and record via MQTT
-    # without restarting Frigate, preventing recording gaps.
-    try:
-        import paho.mqtt.publish as publish
-        publish.single(f"frigate/{name}/detect/set", payload="ON" if new_detect else "OFF", hostname="mqtt")
-        publish.single(f"frigate/{name}/record/set", payload="ON" if target_record else "OFF", hostname="mqtt")
-    except Exception as e:
-        print(f"MQTT publish failed: {e}")
+    _sync_camera_to_frigate_runtime(name, effective_enabled, new_detect, target_record)
+    in_sched = is_camera_in_ai_schedule(name)
 
     return {
         "status": "success",
         "camera": name,
         "detect_enabled": new_detect,
-        "changed": True,
+        "runtime_detect_enabled": bool(effective_enabled and new_detect and in_sched),
+        "is_in_schedule": in_sched,
+        "changed": changed,
         "user": identity.username,
     }
 
@@ -1874,41 +2296,267 @@ def public_reconcile():
 def public_reconcile_status():
     return get_reconcile_status_internal()
 
+@public_router.get("/cameras-catalog")
+def public_get_cameras_catalog(identity: TrustedIdentity = Depends(require_authenticated)):
+    """
+    Returns camera catalog + YOLO11 tracked objects + AI schedules for all authenticated users
+    (across config.yml cameras, camera_templates.json, go2rtc.streams, and nvr_groups.json).
+    """
+    if not os.path.exists(CONFIG_PATH):
+        raise HTTPException(status_code=404, detail="config.yml not found")
+
+    try:
+        with open_config_transaction(include_groups=True) as transaction:
+            config = transaction.config
+            groups = transaction.groups or {}
+    except HTTPException as exc:
+        if exc.status_code == 503:
+            config = load_yaml_config(CONFIG_PATH)
+            groups = load_groups(GROUPS_PATH) or {}
+        else:
+            raise
+
+    templates = get_camera_templates()
+    schedules = get_ai_schedules()
+    now_bkk = datetime.now(BANGKOK_TZ)
+    cameras = config.get("cameras", {})
+    go2rtc_streams = config.get("go2rtc", {}).get("streams", {})
+    global_track = (config.get("objects") or {}).get("track") or list(DEFAULT_OBJECT_TRACK)
+    lm = (config.get("model") or {}).get("labelmap") or {}
+    bus_truck_ready = (lm.get("5") == "bus" or lm.get(5) == "bus") and (lm.get("7") == "truck" or lm.get(7) == "truck")
+
+    stream_names = set()
+    for s, s_val in go2rtc_streams.items():
+        if s.endswith("_sub") or s.endswith("_hd"):
+            continue
+        if s not in cameras and s not in groups and not s_val:
+            continue
+        stream_names.add(s)
+
+    all_cams = set(cameras.keys()) | set(templates.keys()) | stream_names | set(groups.keys())
+    result = []
+    schedules_out = {}
+    for cam_name in all_cams:
+        cam_data = cameras.get(cam_name) if isinstance(cameras.get(cam_name), dict) else {}
+        tmpl_data = templates.get(cam_name) if isinstance(templates.get(cam_name), dict) else {}
+        ai_enabled = bool(
+            cam_data.get("detect", {}).get("enabled", tmpl_data.get("detect", {}).get("enabled", False))
+        ) if cam_name in cameras else False
+        enabled_val = bool(cam_data.get("enabled", False)) if cam_name in cameras else False
+        track = (
+            (cam_data.get("objects") or {}).get("track")
+            or (tmpl_data.get("objects") or {}).get("track")
+            or list(global_track)
+        )
+        sched_entry = get_camera_schedule_entry(cam_name, schedules)
+        in_sched = evaluate_camera_schedule(sched_entry, now_dt=now_bkk)
+        schedules_out[cam_name] = {
+            **sched_entry,
+            "is_in_schedule": in_sched,
+        }
+        result.append({
+            "name": cam_name,
+            "ai_enabled": ai_enabled,
+            "enabled": enabled_val,
+            "group": groups.get(cam_name, ""),
+            "has_hd": f"{cam_name}_hd" in go2rtc_streams,
+            "has_sub": f"{cam_name}_sub" in go2rtc_streams,
+            "track": list(track),
+            "schedule": sched_entry,
+            "is_in_schedule": in_sched,
+        })
+
+    def natural_sort_key(x):
+        name = x.get("name", "")
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", name)]
+
+    result.sort(key=natural_sort_key)
+    return {
+        "cameras": result,
+        "bus_truck_ready": bool(bus_truck_ready),
+        "global_track": list(global_track),
+        "schedules": schedules_out,
+        "server_time": now_bkk.strftime("%H:%M"),
+    }
+
+
+@public_router.put("/cameras/{name}/objects")
+def public_set_camera_objects(
+    name: str,
+    request: CameraObjectsConfig,
+    identity: TrustedIdentity = Depends(require_authenticated),
+):
+    """Allow any authenticated user to update YOLO11 tracked objects for a camera."""
+    return set_camera_objects(name, request)
+
+
+@public_router.get("/schedules")
+def public_get_all_camera_schedules(
+    identity: TrustedIdentity = Depends(require_authenticated),
+):
+    """Return all configured camera AI schedules and their live Bangkok evaluation status.
+
+    Requires any authenticated user. Returns the normalized schedule map, per-camera
+    ``is_in_schedule`` flag, and current ``server_time`` in ``Asia/Bangkok``.
+    """
+    raw_schedules = get_ai_schedules()
+    now_bkk = datetime.now(BANGKOK_TZ)
+    schedules_out = {}
+    for cam_name in raw_schedules.keys():
+        entry = get_camera_schedule_entry(cam_name, raw_schedules)
+        schedules_out[cam_name] = {
+            **entry,
+            "is_in_schedule": evaluate_camera_schedule(entry, now_dt=now_bkk),
+        }
+    return {
+        "status": "success",
+        "schedules": schedules_out,
+        "server_time": now_bkk.strftime("%H:%M"),
+        "server_isoweekday": now_bkk.isoweekday(),
+    }
+
+
+@public_router.get("/cameras/{name}/schedule")
+def public_get_camera_schedule(
+    name: str,
+    identity: TrustedIdentity = Depends(require_authenticated),
+):
+    """Return the AI detection schedule and live status for a single camera.
+
+    Accepts camera ``name``, validates syntax, and returns the camera's normalized
+    schedule, ``is_in_schedule`` evaluation in ``Asia/Bangkok``, and ``server_time``.
+    """
+    validate_cam_name(name)
+    schedules = get_ai_schedules()
+    now_bkk = datetime.now(BANGKOK_TZ)
+    entry = get_camera_schedule_entry(name, schedules)
+    in_sched = evaluate_camera_schedule(entry, now_dt=now_bkk)
+    return {
+        "status": "success",
+        "camera": name,
+        "schedule": entry,
+        "is_in_schedule": in_sched,
+        "server_time": now_bkk.strftime("%H:%M"),
+        "server_isoweekday": now_bkk.isoweekday(),
+    }
+
+
+@public_router.put("/cameras/{name}/schedule")
+def public_set_camera_schedule(
+    name: str,
+    body: CameraScheduleConfig,
+    identity: TrustedIdentity = Depends(require_authenticated),
+):
+    """Save the per-camera AI detection schedule and immediately apply runtime MQTT state.
+
+    Accepts camera ``name`` and ``body`` (`CameraScheduleConfig`). Validates the
+    time window and weekdays, persists to ``ai_schedules.json`` atomically, and
+    publishes the resulting runtime detection state via MQTT without restarting Frigate.
+    """
+    validate_cam_name(name)
+    normalized = validate_camera_schedule(body)
+
+    schedules = get_ai_schedules()
+    schedules[name] = normalized
+    save_ai_schedules(schedules)
+
+    now_bkk = datetime.now(BANGKOK_TZ)
+    in_sched = evaluate_camera_schedule(normalized, now_dt=now_bkk)
+
+    # Read current camera state so we can sync Frigate runtime immediately via MQTT.
+    cam_enabled = True
+    detect_enabled = True
+    rec_enabled = True
+    if os.path.exists(CONFIG_PATH):
+        try:
+            config = load_yaml_config(CONFIG_PATH)
+            templates = get_camera_templates()
+            cam_cfg = (config.get("cameras") or {}).get(name) or {}
+            tmpl_cfg = templates.get(name) if isinstance(templates.get(name), dict) else {}
+            cam_enabled = bool(cam_cfg.get("enabled", tmpl_cfg.get("enabled", True)))
+            detect_enabled = bool(
+                cam_cfg.get("detect", {}).get("enabled", tmpl_cfg.get("detect", {}).get("enabled", True))
+            )
+            rec_enabled = bool(
+                cam_cfg.get("record", {}).get("enabled", tmpl_cfg.get("record", {}).get("enabled", True))
+            )
+        except Exception:
+            pass
+
+    _sync_camera_to_frigate_runtime(name, cam_enabled, detect_enabled, rec_enabled)
+    effective_runtime_detect = bool(cam_enabled and detect_enabled and in_sched)
+
+    return {
+        "status": "success",
+        "camera": name,
+        "schedule": normalized,
+        "is_in_schedule": in_sched,
+        "runtime_detect_enabled": effective_runtime_detect,
+        "server_time": now_bkk.strftime("%H:%M"),
+        "server_isoweekday": now_bkk.isoweekday(),
+        "user": getattr(identity, "username", "system"),
+    }
+
+
+_hls_map_cache: dict = {"config_mtime": 0.0, "gps_mtime": 0.0, "data": None}
+
+
 @public_router.get("/hls-map")
 def get_hls_map():
     if not os.path.exists(CONFIG_PATH):
         return {}
-    
-    with open_config_transaction(include_groups=False) as transaction:
-        config = transaction.config
-        
-    go2rtc_streams = config.get('go2rtc', {}).get('streams', {})
+
+    gps_path = "/settings-data/camera_gps.json"
+    if not os.path.exists(gps_path):
+        gps_path = os.path.join(os.path.dirname(CONFIG_PATH), "dashboard-settings", "camera_gps.json")
+
+    try:
+        cfg_mtime = os.path.getmtime(CONFIG_PATH)
+    except OSError:
+        cfg_mtime = 0.0
+    try:
+        gps_mtime = os.path.getmtime(gps_path) if os.path.exists(gps_path) else 0.0
+    except OSError:
+        gps_mtime = 0.0
+
+    cached = _hls_map_cache.get("data")
+    if (
+        cached is not None
+        and _hls_map_cache.get("config_mtime") == cfg_mtime
+        and _hls_map_cache.get("gps_mtime") == gps_mtime
+    ):
+        return cached
+
+    try:
+        config = load_yaml_config(CONFIG_PATH)
+    except Exception:
+        with open_config_transaction(include_groups=False) as transaction:
+            config = transaction.config
+
+    go2rtc_streams = (config or {}).get('go2rtc', {}).get('streams', {})
     hls_map = {}
-    
+
     for stream_name, srcs in go2rtc_streams.items():
         if isinstance(srcs, list):
             src = srcs[0] if len(srcs) > 0 else ""
         else:
             src = srcs
-            
+
         if not src:
             continue
-            
+
         if src.startswith('ffmpeg:'):
             url = src.split('ffmpeg:', 1)[1]
         else:
             url = src
-            
+
         url = strip_stream_filters(url).strip("#")
-        
+
         if url.startswith('http') and '.m3u8' in url:
             hls_map[stream_name] = url
 
     # Also merge direct HLS URLs from camera_gps.json so cameras selected from the map
     # (e.g. kk01..kk27, Udon1..Udon10) have their HLS streams registered in hls_map
-    gps_path = "/settings-data/camera_gps.json"
-    if not os.path.exists(gps_path):
-        gps_path = os.path.join(os.path.dirname(CONFIG_PATH), "dashboard-settings", "camera_gps.json")
     if os.path.exists(gps_path):
         try:
             with open(gps_path, "r", encoding="utf-8") as f:
@@ -1924,21 +2572,93 @@ def get_hls_map():
                                     hls_map[cam_id] = c_url
         except Exception as e:
             print(f"[config-api] Failed to read camera_gps.json in get_hls_map: {e}")
-            
+
+    _hls_map_cache["config_mtime"] = cfg_mtime
+    _hls_map_cache["gps_mtime"] = gps_mtime
+    _hls_map_cache["data"] = hls_map
     return hls_map
 
 app.include_router(public_router)
 
-def _reconciliation_background_worker():
-    """Background loop ensuring periodic reconciliation safety net every 2 minutes."""
-    time.sleep(20)
-    while True:
+
+def enforce_ai_schedules_internal(force_publish: bool = False) -> dict:
+    """Evaluate all enabled camera AI schedules and publish MQTT detect transitions.
+
+    Accepts ``force_publish`` boolean to re-assert MQTT state even when unchanged.
+    Reads ``ai_schedules.json`` and ``config.yml``, and publishes ``ON`` or ``OFF``
+    to ``frigate/{camera}/detect/set`` whenever a camera enters or leaves its window.
+    """
+    schedules = get_ai_schedules()
+    if not schedules:
+        return {"checked": 0, "updated": []}
+
+    cameras_cfg = {}
+    templates = get_camera_templates()
+    if os.path.exists(CONFIG_PATH):
         try:
-            reconcile_cameras_internal()
+            cfg_data = load_yaml_config(CONFIG_PATH)
+            if isinstance(cfg_data, dict):
+                cameras_cfg = cfg_data.get("cameras") or {}
         except Exception:
             pass
-        time.sleep(120)
+
+    now_bkk = datetime.now(BANGKOK_TZ)
+    checked = 0
+    updated = []
+
+    for cam_name, raw_sched in schedules.items():
+        if not isinstance(raw_sched, dict) or not raw_sched.get("enabled", False):
+            _last_schedule_detect_state.pop(cam_name, None)
+            continue
+
+        checked += 1
+        entry = get_camera_schedule_entry(cam_name, schedules)
+        in_sched = evaluate_camera_schedule(entry, now_dt=now_bkk)
+
+        cam_block = cameras_cfg.get(cam_name) if isinstance(cameras_cfg.get(cam_name), dict) else {}
+        tmpl_block = templates.get(cam_name) if isinstance(templates.get(cam_name), dict) else {}
+        cam_en = bool(cam_block.get("enabled", tmpl_block.get("enabled", True)))
+        cam_ai = bool(
+            cam_block.get("detect", {}).get("enabled", tmpl_block.get("detect", {}).get("enabled", False))
+        )
+
+        target_detect = bool(cam_en and cam_ai and in_sched)
+        prev_detect = _last_schedule_detect_state.get(cam_name)
+
+        if force_publish or prev_detect is None or prev_detect != target_detect:
+            try:
+                import paho.mqtt.publish as publish
+                publish.single(
+                    f"frigate/{cam_name}/detect/set",
+                    payload="ON" if target_detect else "OFF",
+                    hostname="mqtt",
+                )
+                _last_schedule_detect_state[cam_name] = target_detect
+                updated.append({"camera": cam_name, "detect": target_detect, "in_schedule": in_sched})
+            except Exception as e:
+                print(f"[config-api] Schedule MQTT publish failed for {cam_name}: {e}")
+
+    return {"checked": checked, "updated": updated}
+
+
+def _reconciliation_background_worker():
+    """Background loop evaluating AI schedules every 30s and reconciling camera pool every 2m."""
+    time.sleep(15)
+    tick = 0
+    while True:
+        try:
+            # Run full demand reconciliation every 4th tick (120 seconds).
+            if tick % 4 == 0:
+                reconcile_cameras_internal()
+            # Evaluate per-camera AI detection schedules every 30 seconds.
+            enforce_ai_schedules_internal(force_publish=(tick % 4 == 0))
+        except Exception:
+            pass
+        tick += 1
+        time.sleep(30)
 
 _worker_thread = threading.Thread(target=_reconciliation_background_worker, daemon=True)
 _worker_thread.start()
+
+
 

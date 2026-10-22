@@ -567,6 +567,7 @@ async def execute_telegram_search(client, url: str, chat_id: Any, q_term: str, u
     reply_parts = []
     photo_path_to_send = None
     case_photos_to_send = []
+    has_any_match = False
     # 1. Person Profile & Dossier Vault Section
     dossier_matches = dossier_mgr.get_all_dossiers(query=search_q)
     if not dossier_matches and clean_q and clean_q != search_q:
@@ -2678,18 +2679,24 @@ async def telegram_polling_loop():
                                             }
                                         })
                                     continue
-                            try:
-                                handled_intel = await handle_intelligence_text(
-                                    client=client,
-                                    url=url,
-                                    chat_id=chat_id,
-                                    username=username,
-                                    text=text
-                                )
-                                if handled_intel:
-                                    continue
-                            except Exception as intel_err:
-                                logger.error(f"Intelligence text handling error: {intel_err}")
+                            # Guard: Check if message is a police incident / arrest / seizure report
+                            report_indicators = ["จับกุม", "ตรวจยึด", "ผู้ต้องหา", "ของกลาง", "ของกลางยาบ้า", "ยาบ้า", "ข้อกล่าวหา", "นำของกลางนำส่ง", "ปจว.", "ประจำวัน", "สภ.", "ชปส.", "ร้อย ตชด.", "จึงเรียนมาเพื่อ"]
+                            matched_rep = [k for k in report_indicators if k in text]
+                            is_incident_report = len(matched_rep) >= 2 or any(k in text for k in ["จับกุม", "ตรวจยึด", "นำของกลางนำส่ง"])
+
+                            if not is_incident_report:
+                                try:
+                                    handled_intel = await handle_intelligence_text(
+                                        client=client,
+                                        url=url,
+                                        chat_id=chat_id,
+                                        username=username,
+                                        text=text
+                                    )
+                                    if handled_intel:
+                                        continue
+                                except Exception as intel_err:
+                                    logger.error(f"Intelligence text handling error: {intel_err}")
 
                             report_result = await submit_plain_text_report(
                                 message_text=text,
@@ -3518,8 +3525,49 @@ class GridBatchPayload(BaseModel):
 
 
 def _require_superadmin(x_role: str) -> None:
-    if x_role != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if x_role not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Admin or Superadmin only")
+
+
+def _compute_effective_ai_demand() -> Dict[str, List[str]]:
+    """
+    Combines per-account grid AI demand with active paired Telegram alert subscriptions
+    (unless the user explicitly disabled AI for that camera in their profile).
+    """
+    demand = {cam: list(users) for cam, users in profile_manager.get_ai_demand().items()}
+    try:
+        sub_manager._load()
+        auth_linker._load_state()
+        paired_users = set(auth_linker.pairings.values())
+        all_profiles = profile_manager.get_all_profiles()
+        for uname, sub in sub_manager.subscriptions.items():
+            if not isinstance(sub, dict) or not sub.get("master_enabled", False):
+                continue
+            if uname not in paired_users and not sub.get("broadcast_to_all", False):
+                continue
+            if uname not in all_profiles:
+                # ADR-0024: Skip orphaned subscriptions for accounts that have no profile in the system
+                continue
+            prof = all_profiles.get(uname, {})
+            disabled_ai = set(str(x) for x in (prof.get("disabled_ai_cameras") or []))
+            prof_channels = prof.get("channels") if isinstance(prof.get("channels"), list) else []
+            explicit_off_in_grid = {
+                str(c.get("src"))
+                for c in prof_channels
+                if isinstance(c, dict) and c.get("src") and (c.get("enabled") is False or c.get("detect") is False)
+            }
+            cams_dict = sub.get("cameras") if isinstance(sub.get("cameras"), dict) else {}
+            for cam_id, obj_map in cams_dict.items():
+                if not cam_id or not isinstance(obj_map, dict):
+                    continue
+                if any(v is True for v in obj_map.values()):
+                    if cam_id not in disabled_ai and cam_id not in explicit_off_in_grid:
+                        users = demand.setdefault(str(cam_id), [])
+                        if uname not in users:
+                            users.append(uname)
+    except Exception as e:
+        logger.warning(f"Error merging subscription AI demand: {e}")
+    return demand
 
 
 @app.get("/api/nas-bot/admin/ai-demand")
@@ -3527,14 +3575,18 @@ def get_ai_demand(x_role: str = Header(default="officer")) -> Dict[str, Any]:
     """Cameras whose AI is demanded by at least one account, with the demanding accounts."""
     if x_role not in ["admin", "superadmin"]:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return {"status": "success", "demand": profile_manager.get_ai_demand()}
+    return {"status": "success", "demand": _compute_effective_ai_demand()}
 
 
 @app.get("/api/nas-bot/user/ai-demand")
 def get_ai_demand_counts() -> Dict[str, Any]:
-    """Per-camera count of accounts demanding AI (ADR-0024). Counts only; no account names."""
-    demand = profile_manager.get_ai_demand()
-    return {"status": "success", "counts": {cam: len(users) for cam, users in demand.items()}}
+    """Per-camera count of accounts demanding AI (ADR-0024). Includes demanding account names."""
+    demand = _compute_effective_ai_demand()
+    return {
+        "status": "success",
+        "counts": {cam: len(users) for cam, users in demand.items()},
+        "users": demand,
+    }
 
 
 @app.post("/api/nas-bot/admin/grid/broadcast")
@@ -3610,12 +3662,16 @@ def post_user_logout(
 def get_user_demand_pool(timeout_sec: int = 300) -> Dict[str, Any]:
     """
     Demand-Driven Camera Provisioning (ADR-0020):
-    Returns the Aggregated Camera Pool as the union set of active cameras demanded by all online users.
+    Returns the Aggregated Camera Pool as the union set of active cameras demanded by all online users
+    plus cameras with active AI / Telegram alert demand.
     """
     pool = profile_manager.get_demand_camera_pool(timeout_sec=timeout_sec)
+    eff_ai = _compute_effective_ai_demand()
+    merged_cams = sorted(list(set(pool.get("cameras", [])) | set(eff_ai.keys())))
     return {
         "status": "success",
-        "cameras": pool.get("cameras", []),
+        "cameras": merged_cams,
+        "ai_demand_cameras": sorted(list(eff_ai.keys())),
         "online_users": pool.get("online_users", 0),
         "users": pool.get("users", [])
     }
@@ -6004,6 +6060,149 @@ def api_bind_vehicle_to_dossier(
         dossier_mgr.rebuild_index()
 
     return {"status": "success", "message": f"ผูกรถ {plate} เข้ากับแฟ้ม '{s_name}' เรียบร้อยแล้ว", "vehicle": rec}
+
+
+# =============================================================================
+# Multi-Camera Historical Pull & AI Vehicle Scanner API (/api/nas-bot/history-pull/*)
+# =============================================================================
+
+HISTORY_JOBS_DIR = os.path.join(os.environ.get("LOCAL_EXPORTS_PATH", "/media/exports"), ".history_jobs")
+
+
+class HistoryPullJobCreateRequest(BaseModel):
+    cameras: List[str]
+    start_ts: int
+    end_ts: int
+    ai_scan: bool = True
+    vehicle_type: str = "all"
+    vehicle_color: str = "all"
+    case_tag: Optional[str] = ""
+
+
+@app.get("/api/nas-bot/history-pull/cameras")
+def api_history_pull_cameras() -> Dict[str, Any]:
+    """Return all historical-capable cameras grouped by NVR."""
+    os.makedirs(HISTORY_JOBS_DIR, exist_ok=True)
+    catalog_file = os.path.join(HISTORY_JOBS_DIR, "cameras_catalog.json")
+    if os.path.isfile(catalog_file):
+        try:
+            with open(catalog_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed reading cameras_catalog.json: {e}")
+    return {"updated_at": None, "total_cameras": 0, "groups": []}
+
+
+@app.post("/api/nas-bot/history-pull/jobs")
+def api_history_pull_create_job(
+    body: HistoryPullJobCreateRequest,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+) -> Dict[str, Any]:
+    """Enqueue a new multi-camera historical video pull and AI vehicle scan job."""
+    cams = [c.strip() for c in (body.cameras or []) if c and c.strip()]
+    if not cams:
+        raise HTTPException(status_code=400, detail="กรุณาเลือกกล้องอย่างน้อย 1 กล้อง")
+    if body.end_ts <= body.start_ts:
+        raise HTTPException(status_code=400, detail="เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น")
+    if (body.end_ts - body.start_ts) > 3600:
+        raise HTTPException(status_code=400, detail="สามารถดึงย้อนหลังได้สูงสุดครั้งละไม่เกิน 60 นาทีต่อชุดคำสั่ง")
+
+    os.makedirs(HISTORY_JOBS_DIR, exist_ok=True)
+    now_ms = int(time.time() * 1000)
+    job_id = f"job_{now_ms}"
+    tz_th = datetime.timezone(datetime.timedelta(hours=7))
+    now_iso = datetime.datetime.now(tz_th).isoformat()
+
+    job_data = {
+        "job_id": job_id,
+        "status": "queued",
+        "percent": 0,
+        "cameras": cams,
+        "start_ts": int(body.start_ts),
+        "end_ts": int(body.end_ts),
+        "ai_scan": bool(body.ai_scan),
+        "vehicle_type": (body.vehicle_type or "all").strip(),
+        "vehicle_color": (body.vehicle_color or "all").strip(),
+        "case_tag": (body.case_tag or "").strip(),
+        "created_by": x_user or "operator",
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "segments_imported": 0,
+        "events_created": 0,
+        "camera_progress": {
+            c: {"camera": c, "name": c, "status": "pending", "segments_ok": 0, "segments_total": 0, "events_found": 0}
+            for c in cams
+        },
+        "matched_events": [],
+    }
+
+    job_path = os.path.join(HISTORY_JOBS_DIR, f"{job_id}.json")
+    tmp_path = job_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(job_data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, job_path)
+    return {"status": "ok", "job": job_data}
+
+
+@app.get("/api/nas-bot/history-pull/jobs")
+def api_history_pull_list_jobs() -> Dict[str, Any]:
+    """List recent historical pull jobs."""
+    os.makedirs(HISTORY_JOBS_DIR, exist_ok=True)
+    jobs = []
+    try:
+        files = [
+            os.path.join(HISTORY_JOBS_DIR, fn)
+            for fn in os.listdir(HISTORY_JOBS_DIR)
+            if fn.startswith("job_") and fn.endswith(".json")
+        ]
+        files.sort(reverse=True)
+        for fp in files[:15]:
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    jobs.append(json.load(f))
+            except Exception:
+                continue
+    except Exception as e:
+        logger.warning(f"Failed listing history pull jobs: {e}")
+    return {"status": "ok", "jobs": jobs}
+
+
+@app.get("/api/nas-bot/history-pull/jobs/{job_id}")
+def api_history_pull_get_job(job_id: str) -> Dict[str, Any]:
+    """Return live progress for a specific historical pull job."""
+    if not re.fullmatch(r"job_[0-9A-Za-z_]+", job_id):
+        raise HTTPException(status_code=400, detail="Invalid job_id")
+    job_path = os.path.join(HISTORY_JOBS_DIR, f"{job_id}.json")
+    if not os.path.isfile(job_path):
+        raise HTTPException(status_code=404, detail="ไม่พบงานดึงภาพย้อนหลังที่ระบุ")
+    try:
+        with open(job_path, "r", encoding="utf-8") as f:
+            return {"status": "ok", "job": json.load(f)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/nas-bot/history-pull/jobs/{job_id}/cancel")
+def api_history_pull_cancel_job(job_id: str) -> Dict[str, Any]:
+    """Request cancellation of a running/queued historical pull job."""
+    if not re.fullmatch(r"job_[0-9A-Za-z_]+", job_id):
+        raise HTTPException(status_code=400, detail="Invalid job_id")
+    job_path = os.path.join(HISTORY_JOBS_DIR, f"{job_id}.json")
+    if not os.path.isfile(job_path):
+        raise HTTPException(status_code=404, detail="ไม่พบงานดึงภาพย้อนหลังที่ระบุ")
+    try:
+        with open(job_path, "r", encoding="utf-8") as f:
+            jdata = json.load(f)
+        if jdata.get("status") in ("queued", "running"):
+            jdata["status"] = "cancel_requested"
+            jdata["cancel_requested"] = True
+            tmp_path = job_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as fw:
+                json.dump(jdata, fw, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, job_path)
+        return {"status": "ok", "job": jdata}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

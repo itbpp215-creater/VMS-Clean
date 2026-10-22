@@ -835,3 +835,299 @@ def get_zone_risk(level: str = "district", start_date: str = None, end_date: str
     return {"level": level, "incident_type": incident_type, "zones": zones, "total_zones": len(zones)}
 
 
+# ── GPSONE Hardware Tracker Integration (gps903.net) ──────────────────────
+from pydantic import BaseModel
+from services.gpsone_tracker import gpsone_manager, is_superadmin_user
+
+
+class GpsOneDevicePayload(BaseModel):
+    imei: str = ""
+    password: Optional[str] = None
+    name: Optional[str] = None
+    icon_type: str = "target"
+    enabled: bool = True
+    notes: str = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    mode: str = "gpsone"
+    provider: str = "auto"
+    allowed_users: Optional[List[str]] = None
+
+
+class GpsOneTogglePayload(BaseModel):
+    enabled: Optional[bool] = None
+    online_only: bool = False
+
+
+class GpsOneUserPermissionsPayload(BaseModel):
+    username: str
+    imeis: List[str] = []
+
+
+class GpsOneDevicePermissionsPayload(BaseModel):
+    imei: str
+    allowed_users: List[str] = []
+
+
+@app.on_event("startup")
+def _start_gpsone_poller() -> None:
+    try:
+        gpsone_manager.start_background_poller()
+    except Exception as exc:
+        logger.warning("Failed to start GPSONE background poller: %s", exc)
+
+
+@app.get("/api/analytics/gpsone/locations", dependencies=[Depends(require_gateway)])
+def get_gpsone_locations(
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Return real-time cached positions for all enabled GPSONE / DDGPS trackers visible to the current user."""
+    gpsone_manager.start_background_poller()
+    active_devices = gpsone_manager.list_devices(
+        include_disabled=False,
+        viewer_user=x_user,
+        viewer_role=x_role,
+    )
+    all_devices = gpsone_manager.list_devices(
+        include_disabled=True,
+        viewer_user=x_user,
+        viewer_role=x_role,
+    )
+    return {
+        "devices": active_devices,
+        "all_devices": all_devices,
+        "active_count": len(active_devices),
+        "total_count": len(all_devices),
+        "viewer_user": (x_user or "").strip().lower(),
+        "viewer_role": (x_role or "").strip().lower(),
+        "is_superadmin": is_superadmin_user(x_user, x_role),
+    }
+
+
+@app.get("/api/analytics/gpsone/devices", dependencies=[Depends(require_gateway)])
+def list_gpsone_devices(
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Return configured GPSONE / DDGPS trackers visible to the current user for management UI."""
+    gpsone_manager.start_background_poller()
+    devices = gpsone_manager.list_devices(
+        include_disabled=True,
+        viewer_user=x_user,
+        viewer_role=x_role,
+    )
+    return {
+        "devices": devices,
+        "viewer_user": (x_user or "").strip().lower(),
+        "viewer_role": (x_role or "").strip().lower(),
+        "is_superadmin": is_superadmin_user(x_user, x_role),
+    }
+
+
+@app.post("/api/analytics/gpsone/devices", dependencies=[Depends(require_gateway)])
+def upsert_gpsone_device(
+    payload: GpsOneDevicePayload,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Register or update a GPSONE / DDGPS / YUKI GPS tracker by IMEI/Account+password or manual coordinates."""
+    gpsone_manager.start_background_poller()
+    try:
+        device = gpsone_manager.upsert_device(
+            imei=payload.imei,
+            password=payload.password,
+            name=payload.name,
+            icon_type=payload.icon_type,
+            enabled=payload.enabled,
+            notes=payload.notes,
+            verify_login=True,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            mode=payload.mode,
+            provider=payload.provider,
+            allowed_users=payload.allowed_users,
+            actor_user=x_user,
+            actor_role=x_role,
+        )
+        return {"status": "ok", "device": device}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ GPSONE / DDGPS / YUKI GPS ได้: {exc}")
+
+
+@app.post("/api/analytics/gpsone/devices/toggle-all", dependencies=[Depends(require_gateway)])
+def toggle_all_gpsone_devices(
+    payload: GpsOneTogglePayload,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Enable or disable all GPSONE trackers visible to the caller at once (or enable online-only)."""
+    target_state = True if payload.enabled is None else bool(payload.enabled)
+    affected = gpsone_manager.set_all_devices_enabled(
+        target_state,
+        online_only=bool(payload.online_only),
+        actor_user=x_user,
+        actor_role=x_role,
+    )
+    return {
+        "status": "ok",
+        "enabled": target_state,
+        "online_only": bool(payload.online_only),
+        "affected": affected,
+        "all_devices": gpsone_manager.list_devices(
+            include_disabled=True,
+            viewer_user=x_user,
+            viewer_role=x_role,
+        ),
+    }
+
+
+@app.post("/api/analytics/gpsone/devices/{imei}/toggle", dependencies=[Depends(require_gateway)])
+def toggle_gpsone_device(
+    imei: str,
+    payload: Optional[GpsOneTogglePayload] = None,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Toggle or set enabled/disabled state for a single GPSONE tracker."""
+    try:
+        target = payload.enabled if payload is not None else None
+        dev = gpsone_manager.set_device_enabled(imei, enabled=target, actor_user=x_user, actor_role=x_role)
+        return {"status": "ok", "device": dev}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.delete("/api/analytics/gpsone/devices/{imei}", dependencies=[Depends(require_gateway)])
+def delete_gpsone_device(
+    imei: str,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Remove a GPSONE tracker from the system (allowed for device owner or Superadmin)."""
+    try:
+        deleted = gpsone_manager.delete_device(imei, actor_user=x_user, actor_role=x_role)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="ไม่พบอุปกรณ์ GPS ที่ระบุ")
+    return {"status": "ok", "deleted": imei}
+
+
+@app.get("/api/analytics/gpsone/permissions", dependencies=[Depends(require_gateway)])
+def get_gpsone_permissions(
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Return GPS device permission matrix (all devices for Superadmin, own added devices for regular users)."""
+    return gpsone_manager.get_permissions_matrix(viewer_user=x_user, viewer_role=x_role)
+
+
+@app.post("/api/analytics/gpsone/permissions/user", dependencies=[Depends(require_gateway)])
+def set_gpsone_user_permissions(
+    payload: GpsOneUserPermissionsPayload,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Set which GPS devices a specific user is allowed to view (scoped to caller's manageable devices)."""
+    try:
+        result = gpsone_manager.set_user_allowed_devices(
+            payload.username,
+            payload.imeis,
+            actor_user=x_user,
+            actor_role=x_role,
+        )
+        return {
+            "status": "ok",
+            **result,
+            "all_devices": gpsone_manager.list_devices(
+                include_disabled=True,
+                viewer_user=x_user,
+                viewer_role=x_role,
+            ),
+        }
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/analytics/gpsone/permissions/device", dependencies=[Depends(require_gateway)])
+def set_gpsone_device_permissions(
+    payload: GpsOneDevicePermissionsPayload,
+    x_user: Optional[str] = Header(None, alias="X-User"),
+    x_role: Optional[str] = Header(None, alias="X-Role"),
+) -> Dict[str, Any]:
+    """Set which users are allowed to view a specific GPS device (allowed for device owner or Superadmin)."""
+    try:
+        dev = gpsone_manager.set_device_allowed_users(
+            payload.imei,
+            payload.allowed_users,
+            actor_user=x_user,
+            actor_role=x_role,
+        )
+        return {
+            "status": "ok",
+            "device": dev,
+            "all_devices": gpsone_manager.list_devices(
+                include_disabled=True,
+                viewer_user=x_user,
+                viewer_role=x_role,
+            ),
+        }
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/analytics/gpsone/devices/{imei}/refresh", dependencies=[Depends(require_gateway)])
+def refresh_gpsone_device(imei: str) -> Dict[str, Any]:
+    """Force an immediate live poll from GPSONE cloud for a specific tracker."""
+    try:
+        state = gpsone_manager.poll_single_device(imei, force_relogin=False)
+        devices = [d for d in gpsone_manager.list_devices(include_disabled=True) if d["imei"] == imei]
+        return {"status": "ok", "device": devices[0] if devices else state}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"ซิงค์ข้อมูลจาก GPSONE ไม่สำเร็จ: {exc}")
+
+
+@app.get("/api/analytics/gpsone/devices/{imei}/history", dependencies=[Depends(require_gateway)])
+def get_gpsone_device_history(
+    imei: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    hours: int = 0,
+    show_lbs: int = 1,
+) -> Dict[str, Any]:
+    """Retrieve historical movement trajectory for a GPSONE tracker (unlimited by default when hours <= 0)."""
+    import datetime as _dt
+
+    ict = _dt.timezone(_dt.timedelta(hours=7))
+    now_ict = _dt.datetime.now(ict)
+    end_str = end or now_ict.strftime("%Y-%m-%d %H:%M:%S")
+    all_history = (hours <= 0 and not start)
+    start_str = start or (
+        None if all_history else (now_ict - _dt.timedelta(hours=max(1, hours))).strftime("%Y-%m-%d %H:%M:%S")
+    )
+    try:
+        return gpsone_manager.fetch_device_history(
+            imei,
+            start_time=start_str,
+            end_time=end_str,
+            show_lbs=show_lbs,
+            all_history=all_history,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"ดึงประวัติเส้นทางจาก GPSONE ไม่สำเร็จ: {exc}")
+

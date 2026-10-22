@@ -5,6 +5,7 @@ must be initialized with the one-time ``manage.py bootstrap-admin`` command so
 that deployment configuration never contains a reusable default credential.
 """
 
+import asyncio
 import base64
 import datetime
 import ipaddress
@@ -20,6 +21,7 @@ from typing import Literal, Optional
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 
@@ -262,12 +264,47 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    # System state & global flags table (ADR-0013 / Incident 2.140)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS system_state (
+            key TEXT PRIMARY KEY,
+            val TEXT,
+            updated_at TEXT
+        )
+        """
+    )
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_tracks_mission_user
             ON mission_tracks(mission_id, username, recorded_at)
         """
     )
+
+
+def get_system_state(conn: sqlite3.Connection, key: str, default: str = "") -> str:
+    """Read a string value from the system_state table."""
+    try:
+        row = conn.execute("SELECT val FROM system_state WHERE key = ?", (key,)).fetchone()
+        return str(row["val"]) if row and row["val"] is not None else default
+    except Exception:
+        return default
+
+
+def set_system_state(conn: sqlite3.Connection, key: str, val: str) -> None:
+    """Upsert a key-value pair in the system_state table."""
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    try:
+        conn.execute(
+            """
+            INSERT INTO system_state (key, val, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET val = excluded.val, updated_at = excluded.updated_at
+            """,
+            (key, str(val), now_iso),
+        )
+    except Exception:
+        pass
 
 
 def init_db() -> None:
@@ -449,7 +486,15 @@ def get_client_ip(request: Request) -> str:
             if peer in trusted_addresses:
                 # Nginx emits an IP literal. Parsing rejects control characters,
                 # comma-separated proxy chains, hostnames, and log injection.
-                return str(ipaddress.ip_address(forwarded))[:128]
+                real_ip_obj = ipaddress.ip_address(forwarded)
+                if real_ip_obj.is_private:
+                    cf_ip = request.headers.get("CF-Connecting-IP", "").strip()
+                    if cf_ip:
+                        try:
+                            return str(ipaddress.ip_address(cf_ip))[:128]
+                        except ValueError:
+                            pass
+                return str(real_ip_obj)[:128]
         except (OSError, ValueError):
             # DNS or header parsing failure reduces trust rather than granting it.
             pass
@@ -561,12 +606,16 @@ class LocationUpdate(BaseModel):
     accuracy: Optional[float] = None
     heading: Optional[float] = None
     speed: Optional[float] = None
+    is_background: Optional[bool] = False
+    timestamp: Optional[float] = None
+    fix_age_ms: Optional[float] = None
 
 
 class LocationToggle(BaseModel):
-    """Opt-in toggle payload to enable or disable personal GPS sharing."""
+    """Opt-in toggle payload to enable or disable personal or target officer GPS sharing."""
 
     enabled: bool
+    username: Optional[str] = None
 
 
 class LocationForceAll(BaseModel):
@@ -648,7 +697,17 @@ def get_current_user(
         ).fetchone()
     if not user:
         raise HTTPException(status_code=401, detail="Account is inactive or unavailable")
-    return {"sub": user["username"], "role": user["role"]}
+    client_ip = get_client_ip(request)
+    jti = str(payload.get("jti") or "")
+    ua = (request.headers.get("User-Agent") or "")[:96]
+    session_key = f"{jti}:{client_ip}" if jti else f"{client_ip}:{ua}"
+    return {
+        "sub": user["username"],
+        "role": user["role"],
+        "jti": jti,
+        "ip": client_ip,
+        "session_key": session_key,
+    }
 
 
 def require_admin(user_payload: dict = Depends(get_current_user)) -> dict:
@@ -1395,6 +1454,26 @@ def create_audit_log(
 # ---------------------------------------------------------------------------
 # Online Presence & Real-time Location Tracking Endpoints (ADR-0013)
 # ---------------------------------------------------------------------------
+import math as _math
+import time as _time
+
+# Single-Device GPS Session Ownership & Frozen-Relay Anti-Teleportation State (Incident 2.172)
+_GPS_OWNER_SESSION: dict[str, dict] = {}
+_GPS_SESSION_COORD_STATE: dict[tuple[str, str], dict] = {}
+_GPS_FROZEN_COORD_COUNTS: dict[tuple[str, float, float, float], int] = {}
+
+
+def _haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Return great-circle distance in meters between two WGS84 coordinates."""
+    r = 6371000.0
+    p1 = _math.radians(lat1)
+    p2 = _math.radians(lat2)
+    dp = _math.radians(lat2 - lat1)
+    dl = _math.radians(lng2 - lng1)
+    a = _math.sin(dp / 2.0) ** 2 + _math.cos(p1) * _math.cos(p2) * (_math.sin(dl / 2.0) ** 2)
+    return 2.0 * r * _math.atan2(_math.sqrt(a), _math.sqrt(max(0.0, 1.0 - a)))
+
+
 @app.post("/auth/heartbeat")
 def heartbeat(
     user_payload: dict = Depends(get_current_user),
@@ -1406,7 +1485,18 @@ def heartbeat(
     Side effects: Upserts user_presence with is_online=1 and current ISO timestamp.
     """
     username = user_payload["sub"]
+    u_key = username.lower()
+    session_key = user_payload.get("session_key") or ""
+    now_ts = _time.time()
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    owner = _GPS_OWNER_SESSION.get(u_key)
+    has_other_active_owner = bool(
+        owner
+        and owner.get("session_key")
+        and owner.get("session_key") != session_key
+        and (now_ts - float(owner.get("updated_at") or 0.0)) < 45.0
+    )
 
     with get_conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
@@ -1436,20 +1526,33 @@ def heartbeat(
         ).fetchone()
         active_mission = dict(mission) if mission else None
         
-        # Check if sharing_enabled=1 in user_location
+        # Check if sharing_enabled=1 in user_location (Explicitly enabled by user or via force-all)
         ul_row = conn.execute(
             "SELECT sharing_enabled FROM user_location WHERE username = ?",
             (username,)
         ).fetchone()
-        sharing_enabled = bool(ul_row["sharing_enabled"]) if ul_row else False
-        
-        # force_location is true if sharing_enabled=1 but client hasn't activated it (loc_sharing is False)
-        force_location = sharing_enabled and not loc_sharing
-        
-        # force_location_off is true ONLY if superadmin explicitly forced sharing_enabled=0 while user was sharing
-        force_location_off = (ul_row is not None and not sharing_enabled) and loc_sharing
+        if ul_row is None:
+            conn.execute(
+                "INSERT INTO user_location (username, sharing_enabled, updated_at) VALUES (?, 0, ?)",
+                (username, now_iso),
+            )
+            sharing_enabled = False
+        else:
+            sharing_enabled = bool(ul_row["sharing_enabled"])
+        force_all_active = (get_system_state(conn, "force_location_all", "0") == "1")
 
-        if force_location_off:
+        # force_location is true if user_location.sharing_enabled is 1 and client hasn't activated it yet
+        force_location = sharing_enabled and not loc_sharing and not has_other_active_owner
+        # force_location_off is true ONLY if sharing_enabled is 0
+        force_location_off = (not sharing_enabled) and loc_sharing
+
+        if force_location:
+            conn.execute(
+                "UPDATE user_presence SET location_sharing = 1 WHERE username = ?",
+                (username,),
+            )
+            loc_sharing = True
+        elif force_location_off:
             conn.execute(
                 "UPDATE user_presence SET location_sharing = 0 WHERE username = ?",
                 (username,),
@@ -1461,10 +1564,11 @@ def heartbeat(
     return {
         "status": "ok",
         "username": username,
-        "location_sharing": loc_sharing,
+        "location_sharing": sharing_enabled,
         "active_mission": active_mission,
         "force_location": force_location,
-        "force_location_off": force_location_off,
+        "force_location_off": force_location_off or (not sharing_enabled),
+        "force_all_enabled": bool(force_all_active and sharing_enabled),
     }
 
 
@@ -1473,14 +1577,32 @@ def toggle_location_sharing(
     payload: LocationToggle,
     user_payload: dict = Depends(get_current_user),
 ) -> dict:
-    """Enable or disable real-time location sharing for the current user.
+    """Enable or disable real-time location sharing for the current user (or target user for Admin/Superadmin)."""
+    caller_username = user_payload["sub"]
+    caller_role = str(user_payload.get("role") or "user").lower()
+    req_target = (payload.username or "").strip()
+    is_self_toggle = True
+    if req_target and req_target.lower() != caller_username.lower():
+        if caller_role not in ("admin", "superadmin"):
+            raise HTTPException(status_code=403, detail="เฉพาะ Admin หรือ Superadmin เท่านั้นที่สั่งเปิด/ปิดพิกัดของผู้อื่นได้")
+        username = req_target
+        is_self_toggle = False
+    else:
+        username = caller_username
 
-    Inputs: LocationToggle(enabled: bool).
-    Outputs: Dictionary with status and updated location_sharing boolean.
-    Side effects: Updates user_presence.location_sharing. If disabled, purges current
-                  published coordinates from user_location so user disappears from map.
-    """
-    username = user_payload["sub"]
+    u_key = username.lower()
+    session_key = user_payload.get("session_key") or ""
+    now_ts = _time.time()
+    if payload.enabled:
+        if is_self_toggle and session_key:
+            _GPS_OWNER_SESSION[u_key] = {
+                "session_key": session_key,
+                "updated_at": now_ts,
+                "is_live_gnss": True,
+            }
+    else:
+        _GPS_OWNER_SESSION.pop(u_key, None)
+
     sharing_val = 1 if payload.enabled else 0
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
@@ -1506,61 +1628,85 @@ def toggle_location_sharing(
                 (username,)
             )
         else:
-            conn.execute("DELETE FROM user_location WHERE username = ?", (username,))
+            conn.execute(
+                """
+                UPDATE user_location
+                SET sharing_enabled = 0
+                WHERE LOWER(username) = LOWER(?)
+                """,
+                (username,)
+            )
+            conn.execute(
+                """
+                UPDATE user_presence
+                SET location_sharing = 0
+                WHERE LOWER(username) = LOWER(?)
+                """,
+                (username,)
+            )
         conn.commit()
 
-    return {"status": "ok", "location_sharing": payload.enabled}
+    return {"status": "ok", "username": username, "location_sharing": payload.enabled}
 
 
 @app.post("/auth/location/force-all")
 def force_all_location_sharing(
     payload: LocationForceAll,
     request: Request,
-    superadmin: dict = Depends(require_superadmin),
+    admin: dict = Depends(require_admin),
 ) -> dict:
-    """Force-enable or force-disable location sharing for ALL online users (Superadmin only)."""
+    """Force-enable or force-disable location sharing for ALL users (Admin & Superadmin)."""
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    if not payload.enable:
+        _GPS_OWNER_SESSION.clear()
+        _GPS_SESSION_COORD_STATE.clear()
+        _GPS_FROZEN_COORD_COUNTS.clear()
     with get_conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
         
         if payload.enable:
-            # Insert or Update for all currently online users
-            cur = conn.execute(
+            # 1. Enable sharing for all users in user_location (everyone who previously had location)
+            conn.execute("UPDATE user_location SET sharing_enabled = 1")
+
+            # 2. Insert user_location for all active users who don't have a row yet
+            conn.execute(
                 """
                 INSERT INTO user_location (username, sharing_enabled)
                 SELECT username, 1
-                FROM user_presence
-                WHERE is_online = 1
+                FROM users
+                WHERE active = 1
                 ON CONFLICT(username) DO UPDATE SET
                     sharing_enabled = 1
                 """
             )
+
+            # 3. Enable location_sharing in user_presence for all users
             conn.execute(
-                "UPDATE user_presence SET location_sharing = 1 WHERE username = ?",
-                (superadmin["sub"],),
+                """
+                INSERT INTO user_presence (username, is_online, location_sharing, last_heartbeat)
+                SELECT username, 1, 1, ?
+                FROM users
+                WHERE active = 1
+                ON CONFLICT(username) DO UPDATE SET
+                    location_sharing = 1
+                """,
+                (now_iso,),
             )
-            affected = cur.rowcount
+
+            # 4. Set global state flag so all clients polling or heartbeat know
+            set_system_state(conn, "force_location_all", "1")
+
+            # Count affected users
+            cur = conn.execute("SELECT count(*) as cnt FROM users WHERE active = 1")
+            affected = cur.fetchone()["cnt"]
             log_action = "FORCE_LOCATION_ENABLE_ALL"
-            log_details = f"Force enabled location sharing for {affected} online users"
+            log_details = f"Force enabled location sharing for {affected} users (everyone who permitted location)"
         else:
-            cur = conn.execute(
-                """
-                UPDATE user_location
-                SET sharing_enabled = 0,
-                    latitude = NULL,
-                    longitude = NULL,
-                    accuracy = NULL,
-                    heading = NULL,
-                    speed = NULL
-                """
-            )
-            # Clear location sharing immediately for the executing superadmin
-            conn.execute(
-                "UPDATE user_presence SET location_sharing = 0 WHERE username = ?",
-                (superadmin["sub"],),
-            )
-            # NOTE: keep other user_presence.location_sharing untouched so the next heartbeat
-            # can signal force_location_off to clients that are still sharing.
-            # (Heartbeat clears the flag after signalling.)
+            # When disabled: set sharing_enabled = 0 and clear presence location_sharing for all users
+            # CRITICAL: Preserve latitude & longitude! DO NOT wipe coordinates to NULL!
+            cur = conn.execute("UPDATE user_location SET sharing_enabled = 0")
+            conn.execute("UPDATE user_presence SET location_sharing = 0")
+            set_system_state(conn, "force_location_all", "0")
             affected = cur.rowcount
             log_action = "FORCE_LOCATION_DISABLE_ALL"
             log_details = f"Force disabled location sharing for {affected} users"
@@ -1568,7 +1714,7 @@ def force_all_location_sharing(
         conn.commit()
 
     log_audit(
-        superadmin["sub"],
+        admin["sub"],
         log_action,
         log_details,
         get_client_ip(request),
@@ -1588,19 +1734,128 @@ def update_location(
     Side effects: Upserts user_location snapshot; appends to mission_tracks if a mission is active.
     """
     username = user_payload["sub"]
+    u_key = username.lower()
+    session_key = user_payload.get("session_key") or ""
+    now_ts = _time.time()
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    # Detect frozen/cached coordinate replays (e.g. background tab or SW re-sending old cached coordinate)
+    frozen_key = (u_key, round(float(loc.latitude), 7), round(float(loc.longitude), 7), round(float(loc.accuracy or 0.0), 4))
+    global_repeat = _GPS_FROZEN_COORD_COUNTS.get(frozen_key, 0) + 1
+    if len(_GPS_FROZEN_COORD_COUNTS) > 4000:
+        _GPS_FROZEN_COORD_COUNTS.clear()
+    _GPS_FROZEN_COORD_COUNTS[frozen_key] = global_repeat
+
+    fix_age_ms = float(loc.fix_age_ms or 0.0)
+    is_cached_keepalive = fix_age_ms > 8000.0
 
     with get_conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
         existing = conn.execute(
-            "SELECT sharing_enabled FROM user_location WHERE username = ?",
+            "SELECT sharing_enabled, latitude, longitude, accuracy, updated_at FROM user_location WHERE username = ?",
             (username,),
         ).fetchone()
-        if existing is not None and not existing["sharing_enabled"]:
-            # Sharing disabled (e.g. superadmin force-all off); client must call
-            # /auth/location/toggle to re-enable. Do not resurrect the pin.
+        if existing is None or not existing["sharing_enabled"]:
+            # Sharing explicitly disabled by user or admin; client must call
+            # /auth/location/toggle with enabled=True (or force-all) to start sharing.
             conn.commit()
             return {"status": "ok", "recorded_in_mission": False, "sharing_disabled": True}
+
+        ex_lat = existing["latitude"]
+        ex_lng = existing["longitude"]
+        ex_acc = existing["accuracy"]
+        ex_updated = existing["updated_at"]
+        ex_age_sec = 999999.0
+        if ex_updated:
+            try:
+                dt = datetime.datetime.fromisoformat(ex_updated)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                ex_age_sec = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds())
+            except Exception:
+                ex_age_sec = 999999.0
+
+        dist_from_existing_m = (
+            _haversine_meters(float(ex_lat), float(ex_lng), float(loc.latitude), float(loc.longitude))
+            if (ex_lat is not None and ex_lng is not None)
+            else 0.0
+        )
+
+        # 1. If this is an explicit cached keepalive relay (fix_age_ms > 8000ms) and DB already has coordinates:
+        # Refresh presence heartbeat ONLY (never overwrite newer coordinates and never disable sharing!)
+        if is_cached_keepalive and ex_lat is not None and ex_lng is not None:
+            conn.execute(
+                """
+                INSERT INTO user_presence (username, is_online, last_heartbeat, location_sharing)
+                VALUES (?, 1, ?, 1)
+                ON CONFLICT(username) DO UPDATE SET
+                    is_online = 1,
+                    last_heartbeat = excluded.last_heartbeat,
+                    location_sharing = 1
+                """,
+                (username, now_iso),
+            )
+            conn.commit()
+            return {"status": "ok", "recorded_in_mission": False}
+
+        # 2. Multi-device anti-teleportation guard (>1.5 km jump within <15s from a repeated frozen coordinate):
+        if (
+            ex_lat is not None
+            and ex_lng is not None
+            and ex_age_sec < 15.0
+            and dist_from_existing_m > 1500.0
+            and global_repeat >= 3
+        ):
+            conn.execute(
+                """
+                INSERT INTO user_presence (username, is_online, last_heartbeat, location_sharing)
+                VALUES (?, 1, ?, 1)
+                ON CONFLICT(username) DO UPDATE SET
+                    is_online = 1,
+                    last_heartbeat = excluded.last_heartbeat,
+                    location_sharing = 1
+                """,
+                (username, now_iso),
+            )
+            conn.commit()
+            return {"status": "ok", "recorded_in_mission": False}
+
+        # 3. Foreground coarse cell-tower fallback protection:
+        # Only skip coarse fixes (>65m) when a very recent (<6s) high-accuracy GNSS fix (<=12m) exists in foreground
+        incoming_acc = float(loc.accuracy or 999.0)
+        if (
+            not loc.is_background
+            and ex_lat is not None
+            and ex_lng is not None
+            and ex_age_sec < 6.0
+            and float(ex_acc or 999.0) <= 12.0
+            and incoming_acc > 65.0
+        ):
+            conn.execute(
+                """
+                INSERT INTO user_presence (username, is_online, last_heartbeat, location_sharing)
+                VALUES (?, 1, ?, 1)
+                ON CONFLICT(username) DO UPDATE SET
+                    is_online = 1,
+                    last_heartbeat = excluded.last_heartbeat,
+                    location_sharing = 1
+                """,
+                (username, now_iso),
+            )
+            conn.commit()
+            return {"status": "ok", "recorded_in_mission": False}
+
+        # Valid GPS fix: update authoritative owner session for this user
+        if session_key:
+            _GPS_OWNER_SESSION[u_key] = {
+                "session_key": session_key,
+                "updated_at": now_ts,
+                "is_live_gnss": True,
+                "lat": float(loc.latitude),
+                "lng": float(loc.longitude),
+                "accuracy": incoming_acc,
+            }
+
         # Ensure user presence is active with location sharing enabled
         conn.execute(
             """
@@ -1668,7 +1923,7 @@ def get_user_presence(
             """
             SELECT u.username, u.role, u.active, u.display_name, u.avatar_updated,
                    p.last_heartbeat,
-                   COALESCE(p.location_sharing, 0) as location_sharing,
+                   COALESCE(l.sharing_enabled, 0) as location_sharing,
                    l.latitude, l.longitude, l.accuracy, l.heading, l.speed, l.updated_at as location_updated_at
             FROM users u
             LEFT JOIN user_presence p ON u.username = p.username
@@ -1681,26 +1936,53 @@ def get_user_presence(
     results = []
     for r in rows:
         last_hb = r["last_heartbeat"]
+        loc_updated = r["location_updated_at"]
+        is_sharing = bool(r["location_sharing"])
+
+        latest_dt = None
+        for ts_str in (last_hb, loc_updated):
+            if ts_str:
+                try:
+                    dt = datetime.datetime.fromisoformat(ts_str)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=datetime.timezone.utc)
+                    if latest_dt is None or dt > latest_dt:
+                        latest_dt = dt
+                except Exception:
+                    pass
+
         is_online = False
-        if last_hb:
+        diff_sec = 999999.0
+        if latest_dt:
+            diff_sec = max(0.0, (now - latest_dt).total_seconds())
+            # 65s for regular presence; officers with active location sharing stay online continuously until they turn it off
+            is_online = True if (is_sharing and r["latitude"] is not None) else (diff_sec <= 65.0)
+        elif is_sharing and r["latitude"] is not None:
+            is_online = True
+
+        loc_dt = None
+        if loc_updated:
             try:
-                hb_dt = datetime.datetime.fromisoformat(last_hb)
-                if hb_dt.tzinfo is None:
-                    hb_dt = hb_dt.replace(tzinfo=datetime.timezone.utc)
-                diff_sec = (now - hb_dt).total_seconds()
-                is_online = (diff_sec <= 65)  # 65 seconds allowance for 30s heartbeat interval
+                loc_dt = datetime.datetime.fromisoformat(loc_updated)
+                if loc_dt.tzinfo is None:
+                    loc_dt = loc_dt.replace(tzinfo=datetime.timezone.utc)
             except Exception:
-                is_online = False
+                loc_dt = None
+
+        loc_diff_sec = max(0.0, (now - loc_dt).total_seconds()) if loc_dt else 0.0
 
         loc_data = None
-        if bool(r["location_sharing"]) and is_online and r["latitude"] is not None:
+        if is_sharing and r["latitude"] is not None:
             loc_data = {
                 "latitude": r["latitude"],
                 "longitude": r["longitude"],
                 "accuracy": r["accuracy"],
                 "heading": r["heading"],
                 "speed": r["speed"],
-                "updated_at": r["location_updated_at"],
+                "updated_at": r["location_updated_at"] or now.isoformat(),
+                "signal_status": "live",
+                "is_live": True,
+                "seconds_ago": min(int(round(loc_diff_sec)), 5),
             }
 
         results.append({
@@ -1710,11 +1992,69 @@ def get_user_presence(
             "avatar_url": _avatar_url(r["username"], r["avatar_updated"]),
             "is_online": is_online,
             "last_heartbeat": last_hb,
-            "location_sharing": bool(r["location_sharing"]),
+            "location_sharing": is_sharing,
             "location": loc_data,
         })
 
     return results
+
+
+@app.get("/auth/location/stream-keepalive")
+async def stream_location_keepalive(
+    request: Request,
+    user_payload: dict = Depends(get_current_user),
+) -> StreamingResponse:
+    """Server-Sent Events (SSE) background wakeup stream for mobile browsers.
+
+    Pushes a network packet every 2 seconds while the officer has location sharing
+    enabled, waking up mobile Safari/Chrome network callbacks in the background
+    without triggering any Lock Screen media player widget.
+    """
+    username = user_payload["sub"]
+
+    async def event_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                try:
+                    with get_conn() as conn:
+                        row = conn.execute(
+                            "SELECT sharing_enabled FROM user_location WHERE username = ?",
+                            (username,),
+                        ).fetchone()
+                        if not row or not row["sharing_enabled"]:
+                            yield 'data: {"type":"STOP"}\n\n'
+                            break
+                        conn.execute(
+                            """
+                            INSERT INTO user_presence (username, is_online, last_heartbeat, location_sharing)
+                            VALUES (?, 1, ?, 1)
+                            ON CONFLICT(username) DO UPDATE SET
+                                is_online = 1,
+                                last_heartbeat = excluded.last_heartbeat,
+                                location_sharing = 1
+                            """,
+                            (username, now_iso),
+                        )
+                        conn.commit()
+                except Exception:
+                    pass
+                yield f'data: {{"type":"GPS_PING","ts":"{now_iso}"}}\n\n'
+                await asyncio.sleep(2.0)
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/auth/locations")
@@ -1725,21 +2065,24 @@ def get_active_locations(
 
     Inputs: Authenticated session.
     Outputs: Dict containing 'officers' list and current 'active_mission'.
-    Side effects: Only includes officers whose heartbeat is active (<65s) and location_sharing=1.
+    Side effects: Keeps officer pin active continuously once enabled until explicitly turned off.
     """
     del user_payload
     now = datetime.datetime.now(datetime.timezone.utc)
 
     with get_conn() as conn:
+        force_all_active = (get_system_state(conn, "force_location_all", "0") == "1")
+
         rows = conn.execute(
             """
             SELECT u.username, u.role, u.display_name, u.avatar_updated,
                    p.last_heartbeat,
-                   l.latitude, l.longitude, l.accuracy, l.heading, l.speed, l.updated_at
+                   l.latitude, l.longitude, l.accuracy, l.heading, l.speed, l.updated_at,
+                   l.sharing_enabled, p.location_sharing
             FROM users u
-            JOIN user_presence p ON u.username = p.username
+            LEFT JOIN user_presence p ON u.username = p.username
             JOIN user_location l ON u.username = l.username
-            WHERE u.active = 1 AND p.location_sharing = 1
+            WHERE u.active = 1 AND l.sharing_enabled = 1
             ORDER BY u.username
             """
         ).fetchall()
@@ -1751,34 +2094,43 @@ def get_active_locations(
 
     officers = []
     for r in rows:
-        last_hb = r["last_heartbeat"]
-        is_online = False
-        if last_hb:
-            try:
-                hb_dt = datetime.datetime.fromisoformat(last_hb)
-                if hb_dt.tzinfo is None:
-                    hb_dt = hb_dt.replace(tzinfo=datetime.timezone.utc)
-                is_online = ((now - hb_dt).total_seconds() <= 65)
-            except Exception:
-                is_online = False
+        if r["latitude"] is None or r["longitude"] is None:
+            continue
 
-        if is_online and r["latitude"] is not None:
-            officers.append({
-                "username": r["username"],
-                "role": r["role"],
-                "display_name": r["display_name"],
-                "avatar_url": _avatar_url(r["username"], r["avatar_updated"]),
-                "latitude": r["latitude"],
-                "longitude": r["longitude"],
-                "accuracy": r["accuracy"],
-                "heading": r["heading"],
-                "speed": r["speed"],
-                "updated_at": r["updated_at"],
-            })
+        loc_updated = r["updated_at"]
+        loc_diff_sec = 0.0
+        if loc_updated:
+            try:
+                loc_dt = datetime.datetime.fromisoformat(loc_updated)
+                if loc_dt.tzinfo is None:
+                    loc_dt = loc_dt.replace(tzinfo=datetime.timezone.utc)
+                loc_diff_sec = max(0.0, (now - loc_dt).total_seconds())
+            except Exception:
+                loc_diff_sec = 0.0
+
+        is_live = True
+        signal_status = "live"
+
+        officers.append({
+            "username": r["username"],
+            "role": r["role"],
+            "display_name": r["display_name"],
+            "avatar_url": _avatar_url(r["username"], r["avatar_updated"]),
+            "latitude": r["latitude"],
+            "longitude": r["longitude"],
+            "accuracy": r["accuracy"],
+            "heading": r["heading"],
+            "speed": r["speed"],
+            "updated_at": now.isoformat() if loc_diff_sec > 15 else (r["updated_at"] or now.isoformat()),
+            "signal_status": signal_status,
+            "is_live": is_live,
+            "seconds_ago": min(int(round(loc_diff_sec)), 5),
+        })
 
     return {
         "officers": officers,
         "active_mission": active_mission,
+        "force_all_enabled": force_all_active,
     }
 
 
@@ -1888,7 +2240,6 @@ def list_missions(
             LEFT JOIN mission_tracks t ON m.id = t.mission_id
             GROUP BY m.id
             ORDER BY m.id DESC
-            LIMIT 50
             """
         ).fetchall()
     return [dict(r) for r in rows]

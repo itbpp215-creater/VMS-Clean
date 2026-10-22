@@ -9,10 +9,10 @@
 <link rel="icon" type="image/png" href="assets/BPP215.png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0a0c">
-<!-- Cache versions change with the same-page LPR status filters and card badges. -->
-<link rel="stylesheet" href="assets/app.css?v=153">
+<!-- Cache versions change with 24-hour time selector controls for AI and alert schedules. -->
+<link rel="stylesheet" href="assets/app.css?v=165">
   <!-- Phase 4 Analytics: Leaflet.js + Leaflet.heat + Chart.js (all served locally, CSP-safe) -->
-  <link rel="stylesheet" href="assets/leaflet.min.css">
+  <link rel="stylesheet" href="assets/leaflet.min.css?v=2">
   <script src="assets/leaflet.min.js"></script>
   <script src="assets/leaflet-heat.js"></script>
   <script src="assets/chart.umd.min.js"></script>
@@ -158,6 +158,17 @@
             <line x1="16" y1="6" x2="16" y2="22"/>
           </svg>
         </button>
+        <!-- ปุ่ม แผนที่ยุทธวิธีและติดตามพิกัด GPS (Tactical Map) เต็มจอ -->
+        <button id="btnTacticalMap" class="icon-btn" title="แผนที่ยุทธวิธี กล้องและติดตามพิกัด GPS เต็มจอ (Tactical Map)" aria-label="แผนที่ยุทธวิธี" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="22" y1="12" x2="18" y2="12"/>
+            <line x1="6" y1="12" x2="2" y2="12"/>
+            <line x1="12" y1="6" x2="12" y2="2"/>
+            <line x1="12" y1="22" x2="12" y2="18"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
         <!-- ปุ่ม Phase 5: คลังบันทึกจับกุมและแฟ้มบุคคล (Arrest Dossier Vault) -->
         <button id="btnArrestVault" class="icon-btn" title="คลังบันทึกจับกุมและแฟ้มบุคคล (Arrest Vault)" aria-label="คลังบันทึกจับกุมและแฟ้มบุคคล" aria-pressed="false">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -208,7 +219,10 @@
     <div class="mid">
       <main id="grid" class="grid" aria-label="ตารางกล้อง"></main>
 
-      <aside id="eventsRail" class="events-rail" aria-label="เหตุการณ์ล่าสุด">
+      <!-- Incident 2.172: Backdrop for mobile overlay dismiss -->
+      <div id="eventsBackdrop" class="events-backdrop" hidden></div>
+
+      <aside id="eventsRail" class="events-rail" aria-label="เหตุการณ์ล่าสุด" hidden>
         <div class="events-head">
           <span class="glow-dot" aria-hidden="true"></span>
           <span class="events-title">เหตุการณ์</span>
@@ -238,10 +252,13 @@
       <div class="brand">
         <div class="footer-logo-tile">
           <div class="footer-logo-bg"></div>
-          <img src="assets/things-logo.png" alt="Things Analytic" class="footer-logo-img">
+          <img src="assets/arm215-logo.png?v=2" alt="ARM 215" class="footer-logo-img">
         </div>
         <div class="footer-brand-text">
-          <div class="footer-brand-name">Things Analytic Co., Ltd.</div>
+          <div class="footer-brand-name">
+            <span class="footer-brand-main">Sucahkree Arm 215</span>
+            <span class="footer-brand-partner">+ Things Analytic Co., Ltd.</span>
+          </div>
           <div class="footer-brand-sub">Ai CCTV Surveillance Platform</div>
         </div>
       </div>
@@ -268,7 +285,7 @@
       <div class="cv-top">
         <span id="cvChip" class="ch-chip">CH01</span>
         <span id="cvName" class="cv-name"></span>
-        <span class="cv-main-badge" title="กำลังแสดงสตรีมหลัก (mainstream)">MAIN</span>
+        <button id="btnCvStreamMode" type="button" class="cv-main-badge" title="คลิกเพื่อสลับสตรีมหลัก (คมชัดสูง) / สตรีมรอง (เชื่อมต่อไว ลื่นไหล)">MAIN</button>
         <button id="btnCvAudio" type="button" class="zoom-btn cv-audio-btn" title="เปิดเสียง (คลิกเพื่อฟังเสียงสด)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
         </button>
@@ -311,6 +328,10 @@
             <button id="btnTabMyAlerts" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
               การแจ้งเตือนส่วนตัว
+            </button>
+            <button id="btnTabSystemUpdate" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              อัปเดตระบบ
             </button>
           </div>
 
@@ -521,19 +542,25 @@
 
           <div class="ch-form">
             <div class="ch-form-head">
-              <span id="selChLabel" class="ch-chip">CH01</span>
-              <span id="selChName" class="ch-form-name"></span>
-              <span id="selChStatus" class="ch-form-status"><span class="dot small"></span><span></span></span>
-              <button id="btnSysStream" type="button" class="ch-enable-btn sys-stream-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>สตรีมระบบ: เปิด</button>
-              <button id="btnChEnabled" type="button" class="ch-enable-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>เปิดใช้งานอยู่</button>
-              <button id="btnChDetect" type="button" class="ch-enable-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg> AI เปิด</button>
-              <!-- เปิด/ปิดระบบอ่านป้ายทะเบียน (LPR) รายกล้อง — เขียนไฟล์ runtime ให้
-                   lpr-service hot-reload เอง มีผลใน ≤60 วิ ไม่ต้อง restart -->
-              <button id="btnChLpr" type="button" class="ch-enable-btn lpr-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="9" x2="10" y2="9"></line><line x1="6" y1="13" x2="14" y2="13"></line></svg> LPR ปิด</button>
-              <!-- ตีกรอบโซนจับป้ายทะเบียนบนภาพจริงของกล้อง (เปิด modal) -->
-              <button id="btnChLprZone" type="button" class="ch-enable-btn lpr-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>โซนป้าย</button>
-              <!-- ปุ่มพิกัด GPS — กระโดดไปยังตำแหน่งกล้องบนแผนที่ Heatmap ทันที -->
-              <button id="btnChGps" type="button" class="ch-enable-btn gps-btn" title="คลิกเพื่อเด้งไปยังพิกัดกล้องนี้บนแผนที่ Heatmap" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>พิกัด 📍</button>
+              <div class="ch-form-title-row">
+                <span id="selChLabel" class="ch-chip">CH01</span>
+                <span id="selChName" class="ch-form-name"></span>
+                <span id="selChStatus" class="ch-form-status"><span class="dot small"></span><span></span></span>
+              </div>
+              <div class="ch-form-actions">
+                <button id="btnSysStream" type="button" class="ch-enable-btn sys-stream-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>สตรีมระบบ: เปิด</button>
+                <button id="btnChEnabled" type="button" class="ch-enable-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>เปิดใช้งานอยู่</button>
+                <button id="btnChDetect" type="button" class="ch-enable-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg> AI เปิด</button>
+                <!-- เปิด/ปิดระบบอ่านป้ายทะเบียน (LPR) รายกล้อง — เขียนไฟล์ runtime ให้
+                     lpr-service hot-reload เอง มีผลใน ≤60 วิ ไม่ต้อง restart -->
+                <button id="btnChLpr" type="button" class="ch-enable-btn lpr-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="6" y1="9" x2="10" y2="9"></line><line x1="6" y1="13" x2="14" y2="13"></line></svg> LPR ปิด</button>
+                <!-- เปิด/ปิดระบบตรวจจับใบหน้า & เทียบหมายจับ (Face AI 512-D) รายกล้อง -->
+                <button id="btnChFace" type="button" class="ch-enable-btn face-btn" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> ใบหน้า เปิด</button>
+                <!-- ตีกรอบโซนจับป้ายทะเบียนบนภาพจริงของกล้อง (เปิด modal) -->
+                <button id="btnChLprZone" type="button" class="ch-enable-btn lpr-btn lpr-zone-btn" title="ตีกรอบบริเวณที่ป้ายทะเบียนเห็นชัด — รถแตะกรอบ = ระบบดึงภาพเต็มความละเอียดมาอ่าน" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>โซนป้าย</button>
+                <!-- ปุ่มพิกัด GPS — กระโดดไปยังตำแหน่งกล้องบนแผนที่ Heatmap ทันที -->
+                <button id="btnChGps" type="button" class="ch-enable-btn gps-btn" title="คลิกเพื่อเด้งไปยังพิกัดกล้องนี้บนแผนที่ Heatmap" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>พิกัด 📍</button>
+              </div>
             </div>
 
             <label class="field">
@@ -578,6 +605,75 @@
               <div id="objGrid" class="obj-grid" role="group" aria-label="เลือกวัตถุที่ตรวจจับ"></div>
               <div class="field-hint" id="objHint">เลือกชนิดวัตถุได้สูงสุด 10 ชนิดต่อกล้อง (เหลี่ยมม่วง = เลือกอยู่) — เมื่อกดบันทึก ระบบจะปรับให้มีผลทันที (ไม่ต้องรีสตาร์ท) จากนั้นเหตุการณ์ที่ AI ตรวจจับได้จะขึ้นในแถบเหตุการณ์</div>
             </div>
+
+            <!-- Per-Camera AI Detection Schedule UI -->
+            <div class="field" id="aiScheduleField">
+              <div class="obj-head">
+                <span class="field-label" style="margin-bottom:0; display:flex; align-items:center; gap:6px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  ตั้งช่วงเวลาตรวจจับ AI รายกล้อง (AI Schedule)
+                </span>
+                <div class="obj-quick" id="schedPresetBar">
+                  <button type="button" id="btnSchedPresetNight" class="obj-chip-btn" title="ตั้งเวลาตรวจจับเฉพาะช่วงกลางคืน 18:00 - 06:00 น. ทุกวัน">🌙 กลางคืน (18:00–06:00)</button>
+                  <button type="button" id="btnSchedPresetLate" class="obj-chip-btn" title="ตั้งเวลาตรวจจับช่วงดึก 22:00 - 05:00 น. ทุกวัน">🌌 ช่วงดึก (22:00–05:00)</button>
+                  <button type="button" id="btnSchedPresetWork" class="obj-chip-btn" title="ตั้งเวลาตรวจจับเฉพาะเวลาทำการ 08:00 - 17:00 น. จันทร์-ศุกร์">🏢 เวลาทำการ (08:00–17:00)</button>
+                  <button type="button" id="btnSchedPreset24h" class="obj-chip-btn" title="ตรวจจับตลอด 24 ชั่วโมง (ปิดการจำกัดช่วงเวลา)">🕒 24 ชม.</button>
+                </div>
+              </div>
+              <div id="aiScheduleBox" class="ai-sched-box">
+                <div id="aiSchedMainWrap">
+                  <div class="ai-sched-top">
+                    <label class="ai-sched-switch-wrap">
+                      <input type="checkbox" id="chkAiSchedEnabled">
+                      <span class="ai-sched-switch-slider"></span>
+                      <span class="ai-sched-switch-label">เปิดใช้งานการตรวจจับตามช่วงเวลา (เฉพาะกล้องนี้)</span>
+                    </label>
+                    <span id="aiSchedStatusBadge" class="ai-sched-badge mode-24h">🕒 ทำงานตลอด 24 ชม.</span>
+                  </div>
+                  <div id="aiSchedControls" class="ai-sched-controls">
+                    <div class="ai-sched-time-row">
+                      <div class="ai-sched-time-group">
+                        <span class="ai-sched-sublabel">ตั้งแต่เวลา (24 ชม.)</span>
+                        <div class="ai-24h-picker-wrap">
+                          <select id="selAiSchedStartH" class="inp mono ai-24h-select" title="ชั่วโมง (00-23)"></select>
+                          <span class="ai-24h-colon">:</span>
+                          <select id="selAiSchedStartM" class="inp mono ai-24h-select" title="นาที (00-59)"></select>
+                          <span class="ai-24h-unit">น.</span>
+                        </div>
+                        <input type="hidden" id="inpAiSchedStart" value="18:00">
+                      </div>
+                      <span class="ai-sched-arrow">➔</span>
+                      <div class="ai-sched-time-group">
+                        <span class="ai-sched-sublabel">สิ้นสุดเวลา (24 ชม.)</span>
+                        <div class="ai-24h-picker-wrap">
+                          <select id="selAiSchedEndH" class="inp mono ai-24h-select" title="ชั่วโมง (00-23)"></select>
+                          <span class="ai-24h-colon">:</span>
+                          <select id="selAiSchedEndM" class="inp mono ai-24h-select" title="นาที (00-59)"></select>
+                          <span class="ai-24h-unit">น.</span>
+                        </div>
+                        <input type="hidden" id="inpAiSchedEnd" value="06:00">
+                      </div>
+                      <span id="aiSchedOvernightTag" class="ai-sched-overnight-tag" hidden>🌙 ข้ามคืน (ถึงเช้าวันถัดไป)</span>
+                    </div>
+                    <div class="ai-sched-days-row">
+                      <span class="ai-sched-sublabel">วันที่ตรวจจับ:</span>
+                      <div id="aiSchedDaysWrap" class="ai-sched-days-wrap" role="group" aria-label="เลือกวันในสัปดาห์">
+                        <button type="button" class="ai-sched-day-btn on" data-day="1">จ.</button>
+                        <button type="button" class="ai-sched-day-btn on" data-day="2">อ.</button>
+                        <button type="button" class="ai-sched-day-btn on" data-day="3">พ.</button>
+                        <button type="button" class="ai-sched-day-btn on" data-day="4">พฤ.</button>
+                        <button type="button" class="ai-sched-day-btn on" data-day="5">ศ.</button>
+                        <button type="button" class="ai-sched-day-btn on" data-day="6">ส.</button>
+                        <button type="button" class="ai-sched-day-btn on" data-day="7">อา.</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="aiSchedNote" class="obj-note" hidden></div>
+              </div>
+              <div class="field-hint" id="aiSchedHint">เมื่อเปิดใช้งาน ระบบจะสั่งเปิด-ปิด AI ของกล้องนี้อัตโนมัติตามเวลาไทย (UTC+7) โดยไม่ต้องรีสตาร์ท และวิดีโอ 24 ชม. ยังคงบันทึกตามปกติ</div>
+            </div>
+
 
             <div class="conn-box">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="conn-icon"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
@@ -704,10 +800,22 @@
                     </b>
                     <div class="field-hint" style="margin-top:4px;">กำหนดช่วงเวลาที่จะให้ส่งการแจ้งเตือน (นอกเวลาที่กำหนดจะไม่ส่งข้อความ)</div>
                   </div>
-                  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <input type="time" id="inpMyScheduleStart" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
-                    <span style="color:#94a3b8; font-size:13px;">ถึง</span>
-                    <input type="time" id="inpMyScheduleEnd" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
+                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <div class="ai-24h-picker-wrap">
+                      <select id="selMySchedStartH" class="inp mono ai-24h-select" title="ชั่วโมง (00-23)"></select>
+                      <span class="ai-24h-colon">:</span>
+                      <select id="selMySchedStartM" class="inp mono ai-24h-select" title="นาที (00-59)"></select>
+                      <span class="ai-24h-unit">น.</span>
+                    </div>
+                    <input type="hidden" id="inpMyScheduleStart" value="00:00">
+                    <span style="color:#94a3b8; font-size:13px; font-weight:600;">ถึง</span>
+                    <div class="ai-24h-picker-wrap">
+                      <select id="selMySchedEndH" class="inp mono ai-24h-select" title="ชั่วโมง (00-23)"></select>
+                      <span class="ai-24h-colon">:</span>
+                      <select id="selMySchedEndM" class="inp mono ai-24h-select" title="นาที (00-59)"></select>
+                      <span class="ai-24h-unit">น.</span>
+                    </div>
+                    <input type="hidden" id="inpMyScheduleEnd" value="23:59">
                     <label class="switch" style="margin-left: 10px;">
                       <input id="chkMyScheduleAlert" type="checkbox">
                       <span class="slider round"></span>
@@ -777,6 +885,72 @@
               </div>
             </div>
           </div><!-- close tabMyAlerts -->
+
+          <div id="tabSystemUpdate" class="settings-tab-pane" style="display:none; flex:1; min-height:0; overflow:auto; padding:18px 20px; flex-direction:column; gap:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(16,185,129,0.14), rgba(56,189,248,0.08)); padding:12px 16px; border-radius:10px; border:1px solid rgba(16,185,129,0.35); flex-wrap:wrap; gap:10px;">
+              <div>
+                <b style="color:#e2e8f0; font-size:14px; display:inline-flex; align-items:center; gap:8px;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                  ระบบอัปเดตและซิงค์หน้าเว็บอัตโนมัติ (In-App Updater &amp; Hot Web Sync)
+                </b>
+                <div class="field-hint" style="margin-top:3px;">เชื่อมต่อกับ Git Repository หลักเพื่อซิงค์หน้าเว็บระหว่างเซิร์ฟเวอร์ HQ และโปรแกรม Native .exe ให้ตรงกัน 100% ตลอดเวลา</div>
+              </div>
+              <span id="badgeSysUpdateState" style="font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px; background:rgba(16,185,129,0.18); color:#34d399; border:1px solid rgba(16,185,129,0.4);">พร้อมใช้งาน</span>
+            </div>
+
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <b>สถานะเวอร์ชันปัจจุบัน (Git Commit &amp; Branch)</b>
+                  <button id="btnCheckSystemUpdate" type="button" class="btn-ghost" style="padding:5px 12px; font-size:12px;">🔍 ตรวจสอบอัปเดตล่าสุด</button>
+                </div>
+                <div id="sysUpdateSummary" class="field-hint" style="margin-top:10px; line-height:1.7; font-size:12.5px; color:#cbd5e1;">กำลังตรวจสอบข้อมูลเวอร์ชัน…</div>
+                <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; align-items:center;">
+                  <button id="btnSyncWebUiNow" type="button" class="btn-ghost" style="border-color:rgba(56,189,248,0.45); color:#38bdf8; padding:7px 14px; font-size:12.5px; font-weight:600;">⚡ ซิงค์เฉพาะหน้าเว็บทันที (Zero-Downtime)</button>
+                  <button id="btnApplyFullUpdate" type="button" class="btn-primary" style="padding:7px 16px; font-size:12.5px; font-weight:600;">🚀 อัปเดตระบบทั้งหมด (Web + Backend + AI)</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="flex:1 1 240px;">
+                    <b>ซิงค์หน้าเว็บอัตโนมัติ (Auto-Sync Web UI)</b>
+                    <div class="field-hint" style="margin-top:4px;">เมื่อเปิดใช้งาน ระบบจะตรวจสอบและอัปเดตเฉพาะไฟล์หน้าเว็บ (HTML/JS/CSS) อัตโนมัติแบบไม่ต้องรีสตาร์ทกล้อง</div>
+                  </div>
+                  <label class="switch" style="flex:none;">
+                    <input id="chkAutoWebSync" type="checkbox" checked>
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap;">
+                  <span style="font-size:12.5px; color:#cbd5e1;">รอบเวลาตรวจสอบอัตโนมัติ (นาที):</span>
+                  <input id="inpAutoWebSyncMins" class="inp mono" type="number" min="5" max="1440" step="5" value="15" style="max-width:110px;">
+                  <button id="btnSaveUpdateSettings" type="button" class="btn-primary" style="padding:6px 14px; font-size:12px;">บันทึกการตั้งค่าซิงค์</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <b>รายการอัปเดตที่รอติดตั้ง (Pending Commits)</b>
+                <div id="sysUpdateCommitsList" class="field-hint" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">ระบบเป็นเวอร์ชันล่าสุดแล้ว</div>
+              </div>
+            </div>
+
+            <div class="conn-box" style="margin:0; border-color:rgba(168,85,247,0.35);">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <b style="color:#c084fc;">⚡ สถานะฮาร์ดแวร์ AI (All-GPU) · โดรน RTMP (:1935) · DuckDNS &amp; เชื่อมต่อ vms.local</b>
+                  <span id="badgeNativeMode" style="font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; background:rgba(168,85,247,0.18); color:#d8b4fe; border:1px solid rgba(168,85,247,0.4);">กำลังตรวจสอบโหมด…</span>
+                </div>
+                <div id="nativeRuntimeDiagSummary" class="field-hint" style="margin-top:8px; line-height:1.7; font-size:12.5px; color:#cbd5e1;">
+                  รองรับทั้งโหมดเซิร์ฟเวอร์หลัก (https://vms.local) และโหมดพกพาภาคสนาม BPP-VMS.exe (Zero-Docker)
+                </div>
+              </div>
+            </div>
+          </div><!-- close tabSystemUpdate -->
         </div><!-- close modal-body -->
         <div class="modal-foot">
           <span id="syncSpin" class="sync-spin" hidden></span>
@@ -944,6 +1118,10 @@ SOFTWARE.</pre>
               <button type="button" id="tabBtnEmgrNas" class="emgr-view-tab" data-view="nas" style="display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:8px; font-size:12.5px; font-weight:500; cursor:pointer; background:rgba(255,255,255,0.03); color:#9aa0bd; border:1px solid rgba(255,255,255,0.08); transition:all .15s;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><polygon points="10 11 15 14 10 17 10 11" fill="currentColor"></polygon></svg>
                 <span>🗄️ คลังวิดีโอ NAS &amp; กู้คืนไฟล์</span>
+              </button>
+              <button type="button" id="btnOpenHistoryPullFromEmgr" class="hp-trigger-btn" title="ดึงภาพย้อนหลังจาก NVR หลายกล้องพร้อมกันและให้ AI สแกนหารถอัตโนมัติ">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l3 2"></path></svg>
+                <span>ดึงภาพย้อนหลัง &amp; สแกน AI</span>
               </button>
             </div>
             <span id="emgrCount" class="events-total">0 รายการ</span>
@@ -1223,6 +1401,10 @@ SOFTWARE.</pre>
           </div>
           <span id="pbDayInfo" class="pb-dayinfo"></span>
           <span class="spacer"></span>
+          <button id="btnOpenHistoryPullFromPb" type="button" class="hp-trigger-btn" title="ดึงภาพย้อนหลังจาก NVR หลายกล้องพร้อมกันและให้ AI สแกนหารถอัตโนมัติ">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l3 2"></path></svg>
+            <span>ดึงภาพย้อนหลัง &amp; สแกน AI</span>
+          </button>
           <div class="pb-layouts" role="group" aria-label="จำนวนจอ">
             <button type="button" class="pb-layout-btn" data-n="1" title="1 จอ">1</button>
             <button type="button" class="pb-layout-btn" data-n="2" title="2 จอ">2</button>
@@ -1284,7 +1466,7 @@ SOFTWARE.</pre>
             <div id="pbTlHint" class="pb-tl-hint">แถบม่วง = ช่วงบันทึก / แถบสีล่าง = เหตุการณ์ AI — คลิกเพื่อเล่นจากจุดนั้น</div>
             <span class="spacer"></span>
             <div class="pb-evclass-wrap">
-              <button id="btnPbEvClass" type="button" class="pb-tl-btn pb-evclass-btn" aria-expanded="false" aria-haspopup="menu" title="เลือกชนิดเหตุการณ์ที่แสดงบนไทม์ไลน์ (เลือกได้หลายชนิด)">Class <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:2px;"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+              <button id="btnPbEvClass" type="button" class="pb-tl-btn pb-evclass-btn" aria-expanded="false" aria-haspopup="menu" title="เลือกชนิดเหตุการณ์ที่แสดงบนไทม์ไลน์ (เลือกได้หลายชนิด)">Class <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
               <div id="pbEvClassPop" class="pb-evclass-pop" hidden></div>
             </div>
             <div class="pb-tl-toolbar" role="group" aria-label="ซูมไทม์ไลน์">
@@ -1293,6 +1475,167 @@ SOFTWARE.</pre>
               <button id="pbPanR" type="button" class="pb-tl-btn" aria-label="เลื่อนขวา" hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
               <button id="pbZoomOut" type="button" class="pb-tl-btn" aria-label="ซูมออก" disabled><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
               <button id="pbZoomIn" type="button" class="pb-tl-btn" aria-label="ซูมเข้า"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== MULTI-CAMERA HISTORICAL PULL & AI SCANNER MODAL ========== -->
+    <div id="historyPullOverlay" class="overlay hp-overlay" hidden>
+      <div class="modal hp-modal" role="dialog" aria-modal="true" aria-label="ดึงภาพย้อนหลังและสแกน AI หลายกล้องพร้อมกัน">
+        <div class="modal-head">
+          <div class="modal-head-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v5h5"></path>
+              <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path>
+              <polyline points="12 7 12 12 15.5 14"></polyline>
+            </svg>
+          </div>
+          <div class="modal-head-text">
+            <div class="modal-title">ดึงภาพย้อนหลัง &amp; สแกนหารถด้วย AI</div>
+            <div class="modal-sub">ดึงไฟล์บันทึกย้อนหลังจาก NVR หลายกล้องพร้อมกันเข้าสู่ไทม์ไลน์ดูย้อนหลัง และให้ AI ตีกรอบบันทึกเข้าคลังเหตุการณ์อัตโนมัติ</div>
+          </div>
+          <span class="nvr-chip">
+            <span class="dot green small"></span>
+            <span>รองรับ 26 กล้อง (4 NVR)</span>
+          </span>
+          <button id="btnCloseHistoryPull" class="modal-close" aria-label="ปิด">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="hp-body">
+          <!-- Left Column: Multi-Camera Checklist -->
+          <div class="hp-card">
+            <div class="hp-card-head">
+              <div class="hp-card-title">
+                <span class="hp-card-title-ico">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                </span>
+                <span>1. เลือกกล้องที่ต้องการดึงย้อนหลัง</span>
+                <span id="hpSelectedCamBadge" class="hp-sel-badge">เลือกแล้ว 0 กล้อง</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button type="button" id="btnHpSelectAllCams" class="obj-chip-btn" style="display:inline-flex; align-items:center; gap:5px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34e2a8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>เลือกทั้งหมด</span>
+                </button>
+                <button type="button" id="btnHpClearAllCams" class="obj-chip-btn" style="display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.14); color:#9aa0bd;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>ล้างที่เลือก</span>
+                </button>
+              </div>
+            </div>
+            <div id="hpCameraGroupsContainer" class="hp-groups-list"></div>
+          </div>
+
+          <!-- Right Column: Date/Time + AI Scan Filters + Start Button -->
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="hp-card">
+              <div class="hp-card-title">
+                <span class="hp-card-title-ico">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </span>
+                <span>2. กำหนดวันและช่วงเวลาที่ต้องการดึง (สูงสุด 60 นาที/ครั้ง)</span>
+              </div>
+              <div style="display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:10px;">
+                <label class="field">
+                  <span class="field-label">วันที่บันทึก</span>
+                  <input type="date" id="hpInputDate" class="inp" style="height:38px; font-size:12.5px; color-scheme:dark;">
+                </label>
+                <label class="field">
+                  <span class="field-label">เวลาเริ่มต้น</span>
+                  <input type="time" id="hpInputStartTime" class="inp" step="60" value="14:00" style="height:38px; font-size:12.5px; color-scheme:dark;">
+                </label>
+                <label class="field">
+                  <span class="field-label">เวลาสิ้นสุด</span>
+                  <input type="time" id="hpInputEndTime" class="inp" step="60" value="14:15" style="height:38px; font-size:12.5px; color-scheme:dark;">
+                </label>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span style="font-size:11.5px; color:#9aa0bd;">ตั้งช่วงเวลาด่วน:</span>
+                <button type="button" class="obj-chip-btn hp-dur-preset" data-mins="5">+5 นาที</button>
+                <button type="button" class="obj-chip-btn hp-dur-preset active" data-mins="15">+15 นาที</button>
+                <button type="button" class="obj-chip-btn hp-dur-preset" data-mins="30">+30 นาที</button>
+                <button type="button" class="obj-chip-btn hp-dur-preset" data-mins="60">+60 นาที</button>
+              </div>
+            </div>
+
+            <div class="hp-card">
+              <label style="display:flex; align-items:center; gap:9px; cursor:pointer; font-family:var(--font-ui); font-weight:600; font-size:13.5px; color:#eef0f8; user-select:none;">
+                <input type="checkbox" id="hpInputAiScan" checked style="width:16px; height:16px; accent-color:#a855f7; cursor:pointer; margin:0;">
+                <span class="hp-card-title-ico" style="background:rgba(52,226,168,0.14); border-color:rgba(52,226,168,0.4); color:#34e2a8;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+                </span>
+                <span>3. สแกนหารถด้วย AI + ตีกรอบ Frigate + บันทึกเข้าคลังเหตุการณ์</span>
+              </label>
+              <div id="hpAiFilterFields" style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <label class="field">
+                    <span class="field-label">ประเภทรถที่ต้องการหา</span>
+                    <select id="hpInputVehicleType" class="inp" style="height:38px; font-size:12.5px;">
+                      <option value="all">รถทุกประเภท (All Vehicles)</option>
+                      <option value="pickup">รถกระบะ (Pickup Truck)</option>
+                      <option value="sedan">รถเก๋ง / SUV (Sedan / SUV)</option>
+                      <option value="truck">รถบรรทุก (Truck)</option>
+                      <option value="motorcycle">รถจักรยานยนต์ (Motorcycle)</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field-label">สีรถที่ต้องการหา</span>
+                    <select id="hpInputVehicleColor" class="inp" style="height:38px; font-size:12.5px;">
+                      <option value="all">ทุกสี (All Colors)</option>
+                      <option value="white_silver">ขาว / บรอนซ์เงิน / เทา (กล้องกลางคืน)</option>
+                      <option value="white">สีขาว (White)</option>
+                      <option value="silver">สีบรอนซ์เงิน / เทา (Silver / Grey)</option>
+                      <option value="black">สีดำ (Black)</option>
+                      <option value="red">สีแดง (Red)</option>
+                      <option value="blue">สีน้ำเงิน / ฟ้า (Blue)</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="field">
+                  <span class="field-label">ป้ายแท็ก / ชื่อเคส (สำหรับค้นหาในคลัง &amp; สร้างไทม์ไลน์เส้นทางอัตโนมัติ)</span>
+                  <input type="text" id="hpInputCaseTag" class="inp" placeholder="เช่น นักบินกระนวล 2.4 ล้านเม็ด หรือ รถเป้าหมายสายข่าว..." style="height:38px; font-size:12.5px;">
+                </label>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <button type="button" id="btnHpStartJob" class="btn-primary" style="flex:1; height:42px; font-weight:600;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>เริ่มดึงภาพย้อนหลัง &amp; สแกน AI ทันที</span>
+              </button>
+              <button type="button" id="btnHpCancelJob" class="btn-ghost" hidden style="height:42px; padding:0 16px; border-color:rgba(251,91,120,0.5); background:rgba(251,91,120,0.12); color:#fb5b78; gap:6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                <span>ยกเลิกงาน</span>
+              </button>
+            </div>
+
+            <!-- Live Job Progress & Results Card -->
+            <div id="hpJobStatusBox" class="hp-card" style="flex:1; min-height:130px; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <span id="hpJobStatusTitle" style="font-size:12.5px; font-weight:600; color:#eef0f8; display:inline-flex; align-items:center; gap:7px;">
+                  <span class="dot green small"></span>
+                  <span>สถานะการทำงาน: พร้อมรับคำสั่ง</span>
+                </span>
+                <span id="hpJobPercentLabel" style="font-size:12px; font-weight:700; color:#34e2a8; font-variant-numeric:tabular-nums;">0%</span>
+              </div>
+              <div class="hp-progress-track">
+                <div id="hpJobProgressBar" class="hp-progress-fill"></div>
+              </div>
+              <div id="hpJobCameraPills" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;"></div>
+              <div id="hpJobResultsActions" hidden style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; padding-top:8px; border-top:1px solid rgba(168,85,247,0.2);">
+                <button type="button" id="btnHpOpenPlaybackResult" class="ch-enable-btn purple" style="height:32px; padding:0 12px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  <span>เปิดดูวิดีโอย้อนหลังที่ดึงมา</span>
+                </button>
+                <button type="button" id="btnHpOpenEmgrResult" class="ch-enable-btn" style="height:32px; padding:0 12px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"></rect><line x1="7" y1="21" x2="17" y2="21"></line></svg>
+                  <span>เปิดคลังเหตุการณ์ &amp; ดูไทม์ไลน์เส้นทาง</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1326,18 +1669,18 @@ SOFTWARE.</pre>
       </div>
     </div>
 
-    <!-- ========== WATCHLIST MODAL (ทะเบียนเฝ้าระวัง CRUD) ========== -->
+    <!-- ========== WATCHLIST MODAL (ทะเบียนเฝ้าระวัง & ใบหน้าเฝ้าระวัง CRUD) ========== -->
     <!-- เปิดจากปุ่ม Watchlist บน Top Bar -->
     <!-- CRUD ผ่าน /api/watchlist/ (nginx proxy → watchlist-api:5001) -->
     <div id="watchlistOverlay" class="overlay" hidden>
-      <div class="modal wl-modal" role="dialog" aria-modal="true" aria-label="ทะเบียนเฝ้าระวัง">
+      <div class="modal wl-modal" role="dialog" aria-modal="true" aria-label="บัญชีเฝ้าระวัง (ทะเบียนรถ &amp; ใบหน้าบุคคล)">
         <div class="modal-head">
           <div class="modal-head-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fb5b78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>
           </div>
           <div class="modal-head-text">
-            <div class="modal-title">ทะเบียนเฝ้าระวัง</div>
-            <div class="modal-sub">จัดการรายชื่อทะเบียนรถที่ต้องสงสัย — ระบบจะแจ้งเตือน Discord/Telegram ทันทีเมื่อกล้องตรวจพบ</div>
+            <div class="modal-title">ศูนย์เฝ้าระวังอัจฉริยะ (LPR &amp; AI Face Recognition)</div>
+            <div class="modal-sub">จัดการบัญชีป้ายทะเบียนรถต้องสงสัย และฐานข้อมูลใบหน้าบุคคลเฝ้าระวัง (ArcFace 512-D + YOLO26 Face) แจ้งเตือนทันทีเมื่อกล้องตรวจพบ</div>
           </div>
           <!-- Watchlist reads remain available to authenticated operators, while
                mutations are admin-only in both UI and watchlist-api. -->
@@ -1350,39 +1693,232 @@ SOFTWARE.</pre>
           </button>
         </div>
 
-        <!-- แถบค้นหา + สรุปสถานะ -->
-        <div class="wl-toolbar">
-          <label class="search wl-search">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa0bd" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input id="wlSearch" placeholder="ค้นหาทะเบียน / ชื่อ / เครือข่าย" autocomplete="off">
-            <button id="btnWlSearchClear" class="search-clear-btn" type="button" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" hidden>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-          </label>
-          <span id="wlCount" class="events-total" style="flex:none;">0 รายการ</span>
-          <button id="btnWlRefresh" class="icon-btn" title="รีเฟรช" aria-label="รีเฟรช" style="flex:none;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>
+        <!-- แถบสลับโหมด: ทะเบียนรถเฝ้าระวัง vs ใบหน้าบุคคลเฝ้าระวัง -->
+        <div style="display:flex; gap:8px; padding:10px 18px; border-bottom:1px solid var(--border); background:rgba(12,10,28,0.55); flex-wrap:wrap;">
+          <button id="btnWlTabPlates" type="button" style="padding:7px 14px; border-radius:8px; border:1px solid rgba(168,85,247,0.45); background:rgba(168,85,247,0.18); color:#fff; font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">
+            🚗 ทะเบียนรถเฝ้าระวัง (LPR)
+          </button>
+          <button id="btnWlTabFaces" type="button" style="padding:7px 14px; border-radius:8px; border:1px solid transparent; background:transparent; color:#9aa0bd; font-family:var(--font-ui); font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">
+            👤 ใบหน้าบุคคลเฝ้าระวัง &amp; ค้นหาด้วย AI (ArcFace 512-D)
           </button>
         </div>
 
-        <!-- ตารางรายการทะเบียนเฝ้าระวัง -->
-        <div class="wl-table-wrap">
-          <table class="wl-table" aria-label="รายการทะเบียนเฝ้าระวัง">
-            <thead>
-              <tr>
-                <th>ทะเบียน</th>
-                <th>ชื่อผู้ครอบครอง</th>
-                <th>เครือข่าย</th>
-                <th>ระดับอันตราย</th>
-                <th>สถานะ</th>
-                <th style="width:96px;">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody id="wlTableBody"></tbody>
-          </table>
-          <div id="wlEmpty" class="wl-empty" hidden>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6b7099" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-            <p>ยังไม่มีทะเบียนเฝ้าระวัง<br><span style="font-size:12px;color:#6b7099;">กดปุ่ม "เพิ่มทะเบียน" เพื่อเริ่มต้น</span></p>
+        <!-- โหมดที่ 1: ทะเบียนรถเฝ้าระวัง -->
+        <div id="wlPanePlates" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+          <!-- แถบค้นหา + สรุปสถานะ -->
+          <div class="wl-toolbar">
+            <label class="search wl-search">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9aa0bd" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input id="wlSearch" placeholder="ค้นหาทะเบียน / ชื่อ / เครือข่าย" autocomplete="off">
+              <button id="btnWlSearchClear" class="search-clear-btn" type="button" aria-label="ล้างคำค้นหา" title="ล้างคำค้นหา" hidden>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </label>
+            <span id="wlCount" class="events-total" style="flex:none;">0 รายการ</span>
+            <button id="btnWlRefresh" class="icon-btn" title="รีเฟรช" aria-label="รีเฟรช" style="flex:none;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>
+            </button>
+          </div>
+
+          <!-- ตารางรายการทะเบียนเฝ้าระวัง -->
+          <div class="wl-table-wrap">
+            <table class="wl-table" aria-label="รายการทะเบียนเฝ้าระวัง">
+              <thead>
+                <tr>
+                  <th>ทะเบียน</th>
+                  <th>ชื่อผู้ครอบครอง</th>
+                  <th>เครือข่าย</th>
+                  <th>ระดับอันตราย</th>
+                  <th>สถานะ</th>
+                  <th style="width:96px;">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="wlTableBody"></tbody>
+            </table>
+            <div id="wlEmpty" class="wl-empty" hidden>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6b7099" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              <p>ยังไม่มีทะเบียนเฝ้าระวัง<br><span style="font-size:12px;color:#6b7099;">กดปุ่ม "เพิ่มทะเบียน" เพื่อเริ่มต้น</span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- โหมดที่ 2: ใบหน้าบุคคลเฝ้าระวัง & ค้นหา/เปรียบเทียบด้วย AI (ArcFace 512-D) -->
+        <div id="wlPaneFaces" style="display:none; flex-direction:column; flex:1; min-height:0; overflow-y:auto; padding:16px 18px; gap:16px;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(310px, 1fr)); gap:14px;">
+            <!-- การ์ดลงทะเบียนใบหน้าบุคคลเฝ้าระวัง -->
+            <div style="background:rgba(22,19,44,0.85); border:1px solid rgba(168,85,247,0.32); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="font-weight:700; font-size:13.5px; color:#f8fafc; display:flex; align-items:center; justify-content:space-between;">
+                <span>➕ ลงทะเบียนใบหน้าบุคคลเฝ้าระวัง (Enroll 512-D)</span>
+                <span id="wlFaceTotalBadge" style="font-size:11.5px; padding:2px 8px; border-radius:999px; background:rgba(168,85,247,0.2); color:#d8b4fe;">0 รายชื่อ</span>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <input id="inpFacePersonName" class="inp" placeholder="ชื่อ-สกุล หรือฉายาเป้าหมาย *" autocomplete="off">
+                <input id="inpFacePersonGroup" class="inp" placeholder="กลุ่ม/เครือข่าย (เช่น เป้าหมายหมายจับ)" value="บุคคลเฝ้าระวัง" autocomplete="off">
+              </div>
+              <input id="inpFacePersonNotes" class="inp" placeholder="หมายเหตุ / เลขหมายจับ / พฤติการณ์" autocomplete="off">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input id="inpFaceRegisterFile" type="file" accept="image/*" style="flex:1; font-size:12px; color:#cbd5e1;">
+                <button id="btnFaceRegisterSubmit" type="button" class="btn-primary" style="padding:7px 14px; font-size:12.5px;">บันทึกใบหน้าเข้า Watchlist</button>
+              </div>
+            </div>
+
+            <!-- การ์ดค้นหาใบหน้าด้วยรูปภาพ (1:N) & เปรียบเทียบใบหน้า 2 รูป (1:1) -->
+            <div style="background:rgba(15,23,42,0.85); border:1px solid rgba(56,189,248,0.32); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="font-weight:700; font-size:13.5px; color:#f8fafc; display:flex; align-items:center; justify-content:space-between;">
+                <span>🔍 ค้นหาใบหน้าด้วยรูป (1:N) &amp; เปรียบเทียบ 2 รูป (1:1)</span>
+                <button id="btnFaceReloadAll" type="button" class="btn-ghost" style="padding:3px 9px; font-size:11.5px;">↻ รีเฟรช</button>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <label style="font-size:11.5px; color:#94a3b8;">รูปที่ 1 (ใช้ค้นหา 1:N หรือเทียบ 1:1)
+                  <input id="inpFaceSearchFile1" type="file" accept="image/*" style="width:100%; margin-top:4px; font-size:11.5px;">
+                </label>
+                <label style="font-size:11.5px; color:#94a3b8;">รูปที่ 2 (ใช้เฉพาะเทียบ 1:1)
+                  <input id="inpFaceSearchFile2" type="file" accept="image/*" style="width:100%; margin-top:4px; font-size:11.5px;">
+                </label>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button id="btnFaceSearch1N" type="button" class="btn-primary" style="padding:6px 12px; font-size:12px;">🔎 ค้นหาในฐานข้อมูลเฝ้าระวัง (1:N)</button>
+                <button id="btnFaceCompare11" type="button" class="btn-ghost" style="padding:6px 12px; font-size:12px; border-color:rgba(56,189,248,0.45); color:#38bdf8;">⚖️ เปรียบเทียบใบหน้า 2 รูป (1:1)</button>
+              </div>
+              <div id="wlFaceSearchResultBox" style="min-height:38px; padding:8px 10px; border-radius:8px; background:rgba(10,14,28,0.75); border:1px dashed rgba(148,163,184,0.25); font-size:12px; color:#94a3b8;">
+                อัปโหลดรูปใบหน้าเพื่อค้นหาในบัญชีเฝ้าระวัง หรือเปรียบเทียบความเหมือนระดับ 512 มิติ
+              </div>
+            </div>
+          </div>
+
+          <!-- รายชื่อใบหน้าบุคคลเฝ้าระวังที่ลงทะเบียนไว้ + ซิงค์จากคลังข้อมูลจับกุม -->
+          <div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+              <div style="font-weight:700; font-size:13px; color:#e2e8f0;">📋 ฐานข้อมูลใบหน้าทั้งหมด (คลังข้อมูลจับกุม &amp; หมายจับ ArcFace 512-D)</div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input id="inpFaceFilterQuery" class="inp" placeholder="ค้นหาชื่อ / เลขบัตร 13 หลัก / ข้อหา…" style="width:240px; height:32px; font-size:12px;" autocomplete="off">
+                <button id="btnFaceSyncDossiers" type="button" class="btn-ghost" style="padding:5px 11px; font-size:12px; border-color:rgba(16,185,129,0.45); color:#34d399;">🔄 ซิงค์จากคลังข้อมูลจับกุม</button>
+              </div>
+            </div>
+            <!-- แถบเลือกหมวดหมู่: ทั้งหมด / ผู้ต้องหาตามหมายจับ / บุคคลเฝ้าระวัง / คลังข้อมูลอื่น -->
+            <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+              <button id="btnFaceFilterAll" type="button" class="btn-ghost active" style="padding:4px 10px; font-size:11.5px; border-radius:6px; background:rgba(168,85,247,0.22); color:#fff; border-color:rgba(168,85,247,0.5);">ทั้งหมด</button>
+              <button id="btnFaceFilterWarrant" type="button" class="btn-ghost" style="padding:4px 10px; font-size:11.5px; border-radius:6px; border-color:rgba(239,68,68,0.45); color:#fca5a5;">⚖️ ผู้ต้องหาตามหมายจับ (<span id="cntWarrantFilter">100</span>)</button>
+              <button id="btnFaceFilterWatchlist" type="button" class="btn-ghost" style="padding:4px 10px; font-size:11.5px; border-radius:6px; border-color:rgba(168,85,247,0.4); color:#d8b4fe;">🚨 บุคคลเฝ้าระวัง (<span id="cntWatchlistFilter">0</span>)</button>
+              <button id="btnFaceFilterGeneral" type="button" class="btn-ghost" style="padding:4px 10px; font-size:11.5px; border-radius:6px; border-color:rgba(16,185,129,0.4); color:#6ee7b7;">📁 คลังข้อมูลอื่น (<span id="cntGeneralFilter">0</span>)</button>
+            </div>
+            <div id="wlFaceRegisteredGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px;"></div>
+          </div>
+
+          <!-- ใบหน้าที่กล้องตรวจพบล่าสุด -->
+          <div>
+            <div style="font-weight:700; font-size:13px; color:#e2e8f0; margin-bottom:8px;">📸 ใบหน้าที่กล้อง AI ตรวจพบล่าสุด (กดเพิ่มเข้าบัญชีเฝ้าระวังได้ทันที)</div>
+            <div id="wlFaceRecentGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== WARRANT COMPARISON MODAL (ตรวจเทียบหมายจับ & ตรวจสอบ AI Face Match) ========== -->
+    <div id="warrantCompareOverlay" class="overlay" hidden style="z-index:90;">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="ตรวจเทียบหมายจับ" style="max-width:820px; width:95%; max-height:92vh; display:flex; flex-direction:column; background:rgba(15,12,32,0.95); border:1px solid rgba(239,68,68,0.55); box-shadow:0 10px 40px rgba(0,0,0,0.8), 0 0 30px rgba(239,68,68,0.25); border-radius:14px; overflow:hidden;">
+        <div class="modal-head" style="background:linear-gradient(90deg, rgba(239,68,68,0.2), rgba(168,85,247,0.15)); border-bottom:1px solid rgba(239,68,68,0.3); padding:12px 18px;">
+          <div class="modal-head-text">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:18px;">⚖️</span>
+              <span class="modal-title" style="color:#fecaca; font-weight:800; font-size:16px;">ศูนย์ตรวจเทียบหมายจับบุคคล (Warrant AI Verification)</span>
+              <span id="wcVerdictPill" style="font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid rgba(239,68,68,0.5);">🚨 ตรงกับหมายจับ</span>
+            </div>
+            <div class="modal-sub" style="color:#cbd5e1; font-size:11.5px; margin-top:2px;">เปรียบเทียบอัตลักษณ์ใบหน้าระดับ 512 มิติ (ArcFace) กับฐานข้อมูลหมายจับและคลังข้อมูลจับกุม ตชด.215</div>
+          </div>
+          <button id="btnCloseWarrantCompare" class="modal-close" aria-label="ปิด" style="color:#cbd5e1;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="modal-body" style="padding:16px 20px; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
+          <!-- ส่วนเปรียบเทียบภาพ 2 ฝั่ง (Captured vs Warrant Photo) -->
+          <div style="background:rgba(20,16,42,0.85); border:1px solid rgba(168,85,247,0.3); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:12.5px; font-weight:700; color:#e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+              <span>📸 การเปรียบเทียบใบหน้า (Visual &amp; Biometric Verification)</span>
+              <span id="wcSimilarityScoreText" style="font-size:13px; font-weight:800; color:#34d399;">ความคล้ายคลึง: 0.0% (Cosine: 0.000)</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:14px; align-items:center;">
+              <!-- ฝั่งซ้าย: ภาพที่ตรวจพบจากกล้อง / ภาพค้นหา -->
+              <div style="display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;">
+                <div style="font-size:11px; font-weight:600; color:#94a3b8;" id="wcQueryLabel">ภาพตรวจจับจากกล้อง / รูปค้นหา</div>
+                <div style="width:130px; height:130px; border-radius:10px; overflow:hidden; border:2px solid rgba(56,189,248,0.5); background:#0b0f19; display:flex; align-items:center; justify-content:center;">
+                  <img id="wcQueryImg" src="assets/arm215-logo.png" alt="Query Face" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div id="wcQueryMeta" style="font-size:10.5px; color:#64748b;">กล้อง / วันที่เวลา</div>
+              </div>
+              <!-- ตรงกลาง: VS & Score badge -->
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <div style="width:36px; height:36px; border-radius:50%; background:rgba(239,68,68,0.25); border:1px solid rgba(239,68,68,0.5); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fca5a5; font-size:12px;">VS</div>
+                <div id="wcMatchBadge" style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(52,211,153,0.2); color:#34d399; border:1px solid rgba(52,211,153,0.4);">MATCH</div>
+              </div>
+              <!-- ฝั่งขวา: ภาพในหมายจับจากแฟ้มคลังข้อมูล -->
+              <div style="display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center;">
+                <div style="font-size:11px; font-weight:600; color:#fca5a5;">ภาพถ่ายในหมายจับ (แฟ้มคลังข้อมูล)</div>
+                <div style="width:130px; height:130px; border-radius:10px; overflow:hidden; border:2px solid rgba(239,68,68,0.6); background:#0b0f19; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px rgba(239,68,68,0.2);">
+                  <img id="wcWarrantImg" src="assets/arm215-logo.png" alt="Warrant Face" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div id="wcWarrantMeta" style="font-size:10.5px; color:#fca5a5;">แฟ้มคลังข้อมูลจับกุม</div>
+              </div>
+            </div>
+            <!-- แถบแสดงเปอร์เซ็นต์ความคล้ายคลึง -->
+            <div style="width:100%; height:7px; background:rgba(255,255,255,0.08); border-radius:999px; overflow:hidden;">
+              <div id="wcSimilarityBar" style="width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #34d399); transition:width 0.4s ease;"></div>
+            </div>
+          </div>
+
+          <!-- ข้อมูลทางกฎหมายและรายละเอียดหมายจับ (Legal Warrant Details) -->
+          <div style="background:rgba(25,18,36,0.85); border:1px solid rgba(239,68,68,0.35); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+            <div style="font-size:13px; font-weight:700; color:#fca5a5; display:flex; align-items:center; justify-content:space-between;">
+              <span>📋 สาระสำคัญตามหมายจับ (Legal Details)</span>
+              <span id="wcCountdownBadge" style="font-size:11.5px; padding:2px 8px; border-radius:999px; background:rgba(245,158,11,0.2); color:#fcd34d; border:1px solid rgba(245,158,11,0.4);">⏳ นับถอยหลังอายุความ</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; font-size:12px;">
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">ชื่อ-สกุล ผู้ต้องหาตามหมาย:</div>
+                <div id="wcSuspectName" style="color:#fff; font-weight:700; font-size:13.5px; margin-top:2px;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">เลขประจำตัวประชาชน 13 หลัก:</div>
+                <div id="wcIdCard" style="color:#38bdf8; font-weight:700; font-size:13px; margin-top:2px; font-family:monospace;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">หมายเลขหมายจับ:</div>
+                <div id="wcWarrantNo" style="color:#f87171; font-weight:700; font-size:13px; margin-top:2px;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">ศาลที่ออกหมาย:</div>
+                <div id="wcCourt" style="color:#e2e8f0; font-weight:600; margin-top:2px;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">สถานีตำรวจ / ท้องที่เกิดเหตุ:</div>
+                <div id="wcStation" style="color:#e2e8f0; margin-top:2px;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">คดีหมายเลข:</div>
+                <div id="wcCaseNo" style="color:#e2e8f0; margin-top:2px;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">วันออกหมาย - วันสิ้นสุดอายุความ:</div>
+                <div id="wcDates" style="color:#e2e8f0; margin-top:2px;">-</div>
+              </div>
+              <div style="background:rgba(12,10,24,0.6); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="color:#94a3b8; font-size:11px;">สถานะหมายจับ:</div>
+                <div id="wcStatus" style="color:#34d399; font-weight:600; margin-top:2px;">มีผลบังคับใช้ตามกฎหมาย</div>
+              </div>
+            </div>
+            <!-- ข้อหาความผิด -->
+            <div style="background:rgba(12,10,24,0.6); padding:10px; border-radius:8px; border:1px solid rgba(239,68,68,0.25);">
+              <div style="color:#fca5a5; font-size:11.5px; font-weight:700;">⚖️ ฐานความผิด / ข้อกล่าวหา:</div>
+              <div id="wcCharge" style="color:#f1f5f9; font-size:12px; margin-top:4px; line-height:1.5;">-</div>
+            </div>
+          </div>
+        </div>
+        <!-- Modal Footer Actions -->
+        <div class="modal-foot" style="background:rgba(12,9,24,0.95); border-top:1px solid rgba(255,255,255,0.08); padding:12px 18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:11px; color:#64748b;">รหัสแฟ้ม: <span id="wcDossierIdText" style="font-family:monospace; color:#cbd5e1;">-</span></div>
+          <div style="display:flex; gap:8px;">
+            <button id="btnWcOpenDossier" type="button" class="btn-primary" style="padding:7px 14px; font-size:12px; background:linear-gradient(135deg, #10b981, #059669); border-color:#10b981;">📁 เปิดดูแฟ้มประวัติฉบับเต็มในคลังข้อมูล</button>
+            <button id="btnWcClose" type="button" class="btn-ghost" style="padding:7px 14px; font-size:12px;">✖️ ปิดหน้าต่าง</button>
           </div>
         </div>
       </div>
@@ -2010,27 +2546,6 @@ SOFTWARE.</pre>
     </div>
   </div>
 </div>
-<!-- Pin Chart.js so the dashboard never executes a different release merely
-     because the CDN's package alias advanced. -->
-<script src="assets/chart.umd.min.js"></script>
-<!-- Federation client disabled: standalone site deployment -->
-<!-- Hls.js client-side video buffering for KhonKaen HLS camera streams -->
-<script src="assets/hls.min.js"></script>
-<!-- v158: Comprehensive removal of officer pins, clearLayers & window.officerPointLayer sync (Incident 2.99) -->
-<script src="assets/app.js?v=158"></script>
-<script src="assets/account-label.js?v=1"></script>
-<!-- v17: Proper error icon in toast & Thai validation messages (Incident 2.82) -->
-<script src="assets/admin.js?v=17"></script>
-<!-- v11: Display observed plate and tier indicator badge for partial match history (ADR 0031) -->
-<script src="assets/watchlist.js?v=11"></script>
-<script src="assets/chat-widget.js?v=11"></script>
-<!-- v80: Comprehensive removal of officer pins, clearLayers & window.officerPointLayer sync (Incident 2.99) -->
-<script src="assets/analytics.js?v=83"></script>
-<!-- v27: Replace redundant vault/case ID with Person Address/Domicile in table & cards -->
-<script src="assets/arrest-vault.js?v=29"></script>
-<!-- v101: Mobile text layout fix - increase lineHeight, adaptive card width, fix parallel edge overlap -->
-<script src="assets/i2-graph.js?v=102"></script>
-<script src="assets/nas-video-archive.js?v=3"></script>
 <input type="file" id="logoUpload" accept="image/png, image/jpeg, image/webp" style="display:none">
 
     <!-- ========== NVR AUTO-DISCOVERY MODAL ========== -->
@@ -2141,6 +2656,27 @@ SOFTWARE.</pre>
         </div>
       </div>
     </div>
+
+<!-- Federation client disabled: standalone site deployment -->
+<!-- Hls.js client-side video buffering for KhonKaen HLS camera streams -->
+<script src="assets/hls.min.js"></script>
+<!-- v211: Mobile events rail auto-dismiss, backdrop swipe, empty state & safe API origin heal (Incident 2.172) -->
+<script src="assets/app.js?v=211"></script>
+<script defer src="assets/account-label.js?v=1"></script>
+<!-- v17: Proper error icon in toast & Thai validation messages (Incident 2.82) -->
+<script defer src="assets/admin.js?v=17"></script>
+<!-- v11: Display observed plate and tier indicator badge for partial match history (ADR 0031) -->
+<script defer src="assets/watchlist.js?v=11"></script>
+<script defer src="assets/chat-widget.js?v=12"></script>
+<!-- v122: Eliminate pink stop badge clutter on map, 2.5MB live_trail bloat, and instant 0ms GPS disable (Incident 2.171) -->
+<script defer src="assets/analytics.js?v=123"></script>
+<!-- v4: Dedicated Tactical Map Controller (Respect hidden camera filter on map & quick search) -->
+<script defer src="assets/tactical-map.js?v=4"></script>
+<!-- v30: Auto-sync face database when new photos/dossiers are uploaded -->
+<script defer src="assets/arrest-vault.js?v=30"></script>
+<!-- v101: Mobile text layout fix - increase lineHeight, adaptive card width, fix parallel edge overlap -->
+<script defer src="assets/i2-graph.js?v=102"></script>
+<script defer src="assets/nas-video-archive.js?v=4"></script>
 </body>
 </html>
 

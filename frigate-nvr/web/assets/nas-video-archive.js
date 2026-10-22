@@ -84,10 +84,12 @@
     // Populate hour options 00-23
     populateHourSelects();
 
-    // Check status periodically in background
-    loadSyncStatus();
-    loadAvailableCameras();
-    setInterval(loadSyncStatus, 30000);
+    // Lazy-load NAS sync status & cameras only when modal/tab is active so startup is never blocked by SMB scans
+    setInterval(() => {
+      if (nasArchiveOverlay && !nasArchiveOverlay.hidden) {
+        loadSyncStatus();
+      }
+    }, 30000);
   }
 
   function populateHourSelects() {

@@ -6,14 +6,14 @@ FROM ultralytics/ultralytics:latest
 # Runtime, contextual OCR, and reviewed training worker share one image so model
 # compatibility is identical at train, validation, and hot-reload time.
 WORKDIR /app
-# Install transformers for CLIP MMCR zero-shot classification
-RUN pip install transformers pillow
+# Install transformers for CLIP MMCR zero-shot classification and onnxruntime-gpu for ONNX vehicle attributes
+RUN pip install transformers pillow onnxruntime-gpu
 # Pre-download CLIP model to ensure offline availability
 RUN python3 -c "from transformers import CLIPProcessor, CLIPModel; CLIPProcessor.from_pretrained('openai/clip-vit-base-patch32'); CLIPModel.from_pretrained('openai/clip-vit-base-patch32')"
 
 # Copy the heartbeat module and CLI with both workers so Compose health checks
 # validate the same atomic-file contract used by the running processes.
-COPY helper.py line_ocr.py runtime_health.py app.py train_pipeline.py /app/
+COPY helper.py line_ocr.py runtime_health.py thlprv2_onnx.py face_onnx.py vehicle_attr_onnx.py vehicle_mmcr.py app.py train_pipeline.py /app/
 
 # โฟลเดอร์ mount จากเครื่อง host (กำหนดใน docker-compose.yml):
 #   /models      = โมเดล .pt ของทีม (machine-local, gitignored)

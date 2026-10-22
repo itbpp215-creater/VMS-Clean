@@ -40,9 +40,21 @@ Camera `nongwang1` currently adds `bicycle`, `knife`, `backpack` and `dog`.
 
 ## Per-camera configuration
 
-Dashboard สามารถแก้ object tracking ของแต่ละ camera ผ่าน admin-only Config flow โดยต้องรักษา placeholder `{FRIGATE_*}` และไม่ทำลาย config ส่วนอื่น
+Dashboard สามารถแก้ object tracking ของแต่ละ camera ผ่าน Config flow โดยต้องรักษา placeholder `{FRIGATE_*}` และไม่ทำลาย config ส่วนอื่น
 
 Browser write operation ต้องแนบ CSRF header ที่ระบบต้องการ
+
+## Per-camera AI detection scheduling (ตั้งเวลาเปิด-ปิด AI รายกล้อง)
+
+- **Storage:** `/config/ai_schedules.json` (เก็บแยกต่อชื่อกล้องใน Frigate)
+- **Timezone:** `Asia/Bangkok` (UTC+7)
+- **Capabilities:**
+  - รองรับช่วงเวลาวันเดียวกัน (เช่น `08:00` – `17:00`) และช่วงเวลาข้ามเที่ยงคืน (เช่น `18:00` – `06:00`)
+  - รองรับการเลือกวันในสัปดาห์ (`จ.` ถึง `อา.`, ISO weekday `1..7`)
+  - ปุ่มลัด Presets บนหน้า UI (`ตั้งค่ากล้อง -> ผังหน้าจอ`): `🌙 กลางคืน (18:00–06:00)`, `🏢 เวลาทำการ (08:00–17:00)`, `🕒 24 ชม.`
+- **Zero-Restart Runtime Enforcement:**
+  - `config-api` มี Background Worker ตรวจสอบตารางเวลาทุก 30 วินาที (`enforce_ai_schedules_internal()`) และประสานงานกับรอบ Reconciliation ทุก 2 นาที
+  - สั่งเปิด/ปิดเฉพาะ `frigate/{camera}/detect/set` (`ON`/`OFF`) ผ่าน MQTT และ `/internal/frigate-runtime-sync` โดยไม่แตะต้อง `record` จึงบันทึกวิดีโอต่อเนื่อง 24/7 โดยไม่ต้องรีสตาร์ทคอนเทนเนอร์ Frigate
 
 ## Model migration history
 

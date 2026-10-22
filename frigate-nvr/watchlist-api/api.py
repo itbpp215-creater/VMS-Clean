@@ -2762,6 +2762,89 @@ def delete_lpr_event_crop(
     return {"status": "ok", "event_id": event_id, "frigate_sync_errors": errors}
 
 
+
+
+LPR_FACE_RPC_URL = os.environ.get("LPR_FACE_RPC_URL", "http://lpr:5008")
+
+
+def _call_lpr_face_rpc(method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    url = f"{LPR_FACE_RPC_URL.rstrip('/')}{path}"
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(url, data=data, method=method)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            err_body = json.loads(exc.read().decode("utf-8"))
+            raise HTTPException(status_code=exc.code, detail=err_body.get("error", str(exc)))
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=exc.code, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Face AI engine unavailable: {exc}")
+
+
+@app.get("/watchlist/faces")
+def watchlist_faces_list(_identity: TrustedIdentity = Depends(require_authenticated)):
+    return _call_lpr_face_rpc("GET", "/faces")
+
+
+@app.get("/watchlist/faces/recent")
+def watchlist_faces_recent(_identity: TrustedIdentity = Depends(require_authenticated)):
+    return _call_lpr_face_rpc("GET", "/faces/recent")
+
+
+@app.post("/watchlist/faces/register")
+async def watchlist_faces_register(request: Request, _identity: TrustedIdentity = Depends(require_admin)):
+    body = await request.json()
+    return _call_lpr_face_rpc("POST", "/faces/register", body if isinstance(body, dict) else {})
+
+
+@app.delete("/watchlist/faces/{person_name}")
+def watchlist_faces_delete(person_name: str, _identity: TrustedIdentity = Depends(require_admin)):
+    import urllib.parse
+    return _call_lpr_face_rpc("DELETE", f"/faces/{urllib.parse.quote(person_name)}")
+
+
+@app.post("/watchlist/faces/search")
+async def watchlist_faces_search(request: Request, _identity: TrustedIdentity = Depends(require_authenticated)):
+    body = await request.json()
+    return _call_lpr_face_rpc("POST", "/faces/search", body if isinstance(body, dict) else {})
+
+
+@app.post("/watchlist/faces/compare")
+async def watchlist_faces_compare(request: Request, _identity: TrustedIdentity = Depends(require_authenticated)):
+    body = await request.json()
+    return _call_lpr_face_rpc("POST", "/faces/compare", body if isinstance(body, dict) else {})
+
+
+@app.post("/watchlist/faces/sync-dossiers")
+async def watchlist_faces_sync_dossiers(request: Request, _identity: TrustedIdentity = Depends(require_authenticated)):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return _call_lpr_face_rpc("POST", "/faces/sync-dossiers", body if isinstance(body, dict) else {})
+
+
+@app.get("/watchlist/faces/cameras")
+def watchlist_faces_cameras_get(_identity: TrustedIdentity = Depends(require_authenticated)):
+    return _call_lpr_face_rpc("GET", "/faces/cameras")
+
+
+@app.post("/watchlist/faces/cameras")
+async def watchlist_faces_cameras_post(request: Request, _identity: TrustedIdentity = Depends(require_authenticated)):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return _call_lpr_face_rpc("POST", "/faces/cameras", body if isinstance(body, dict) else {})
+
+
 @app.get("/health")
 def health():
     """Health check endpoint — ใช้โดย docker-compose healthcheck"""
@@ -3645,7 +3728,206 @@ def delete_lpr_event(
     }
 
 
-@app.get("/health")
-def health():
-    """Health check endpoint"""
-    return {"status": "ok"}
+class FrigateRuntimeSyncRequest(BaseModel):
+    camera: str
+    enabled: bool
+    detect_enabled: bool
+    record_enabled: bool
+    objects_track: Optional[List[str]] = None
+    go2rtc_streams: Optional[Dict[str, Any]] = None
+
+
+def _frigate_put_config_set(query: str, update_topic: str, timeout: float = 12.0) -> bool:
+    url = f"{FRIGATE_URL}/api/config/set?{query}"
+    payload = json.dumps({"requires_restart": 0, "update_topic": update_topic}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "X-Forwarded-User": "admin",
+            "remote-role": "admin",
+        },
+        method="PUT",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status == 200
+
+
+@app.post("/internal/frigate-runtime-sync")
+def internal_frigate_runtime_sync(request: Request, body: FrigateRuntimeSyncRequest):
+    """Internal bridge for config-api to sync go2rtc streams and Frigate runtime camera state."""
+    secret = get_federation_secret()
+    provided = request.headers.get("X-BPP-Federation", "")
+    if not secret or not hmac.compare_digest(provided, secret):
+        raise HTTPException(status_code=401, detail="Unauthorized internal sync")
+
+    name = body.camera
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", name):
+        raise HTTPException(status_code=422, detail="Invalid camera name")
+
+    actions = []
+    if body.go2rtc_streams:
+        existing_streams = {}
+        try:
+            with urllib.request.urlopen("http://frigate:1984/api/streams", timeout=4) as gs_resp:
+                existing_streams = json.loads(gs_resp.read().decode("utf-8")) or {}
+        except Exception:
+            pass
+        for s_name, s_src in body.go2rtc_streams.items():
+            if not s_name or not s_src or s_name in existing_streams:
+                continue
+            try:
+                srcs = s_src if isinstance(s_src, list) else [s_src]
+                srcs = [str(x) for x in srcs if x]
+                if not srcs:
+                    continue
+                q_name = urllib.parse.quote(str(s_name), safe="")
+                q_srcs = "&".join(f"src={urllib.parse.quote(s, safe='')}" for s in srcs)
+                g_req = urllib.request.Request(
+                    f"http://frigate:1984/api/streams?name={q_name}&{q_srcs}",
+                    method="PUT",
+                )
+                with urllib.request.urlopen(g_req, timeout=5) as g_resp:
+                    if g_resp.status in (200, 201):
+                        actions.append(f"go2rtc:{s_name}")
+            except Exception:
+                pass
+
+    try:
+        stats_req = urllib.request.Request(f"{FRIGATE_URL}/api/stats", method="GET")
+        with urllib.request.urlopen(stats_req, timeout=5) as sr:
+            f_stats = json.loads(sr.read().decode("utf-8"))
+        cfg_req = urllib.request.Request(f"{FRIGATE_URL}/api/config", method="GET")
+        with urllib.request.urlopen(cfg_req, timeout=5) as cr:
+            f_cfg = json.loads(cr.read().decode("utf-8"))
+
+        cam_stats = (f_stats.get("cameras") or {}).get(name) or {}
+        has_capture = bool(cam_stats.get("capture_pid"))
+        f_cam = (f_cfg.get("cameras") or {}).get(name)
+
+        if body.enabled and not has_capture:
+            _frigate_put_config_set(
+                f"cameras.{name}.enabled=True",
+                f"config/cameras/{name}/add",
+            )
+            actions.append("add")
+            return {"status": "ok", "camera": name, "actions": actions}
+
+        if f_cam is not None:
+            if body.objects_track is not None:
+                _frigate_put_config_set(
+                    f"cameras.{name}.enabled={'True' if body.enabled else 'False'}",
+                    f"config/cameras/{name}/objects",
+                )
+                actions.append("objects")
+            cur_det = bool((f_cam.get("detect") or {}).get("enabled", False))
+            cur_rec = bool((f_cam.get("record") or {}).get("enabled", False))
+            cur_en = bool(f_cam.get("enabled", False))
+            if cur_det != body.detect_enabled:
+                _frigate_put_config_set(
+                    f"cameras.{name}.detect.enabled={'True' if body.detect_enabled else 'False'}",
+                    f"config/cameras/{name}/detect",
+                )
+                actions.append("detect")
+            if cur_rec != body.record_enabled:
+                _frigate_put_config_set(
+                    f"cameras.{name}.record.enabled={'True' if body.record_enabled else 'False'}",
+                    f"config/cameras/{name}/record",
+                )
+                actions.append("record")
+            if cur_en != body.enabled or (not body.enabled and has_capture):
+                _frigate_put_config_set(
+                    f"cameras.{name}.enabled={'True' if body.enabled else 'False'}",
+                    f"config/cameras/{name}/enabled",
+                )
+                actions.append("enabled")
+    except Exception as exc:
+        return {"status": "warning", "camera": name, "error": str(exc), "actions": actions}
+
+    return {"status": "ok", "camera": name, "actions": actions}
+
+
+class HistoryPullCandidateRequest(BaseModel):
+    event_id: str
+    camera: str
+    plate_text: Optional[str] = None
+    province: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    vehicle_color: Optional[str] = None
+    vehicle_brand: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    description: Optional[str] = None
+    detector_confidence: Optional[float] = 0.88
+    crop_base64: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+@app.post("/internal/history-pull-candidate")
+def register_history_pull_candidate(body: HistoryPullCandidateRequest):
+    """Internal endpoint for history-pull-worker to register AI-scanned historical vehicle events into watchlist.db."""
+    crop_path = None
+    if body.crop_base64:
+        decoded = _decode_crop(body.crop_base64)
+        if decoded:
+            stored = _write_unique_image(CROPS_DIR, f"hist_{body.camera}", decoded)
+            crop_path = os.path.basename(stored)
+    ts = body.created_at or lpr_learning.utc_now()
+    plate_val = (body.plate_text or "").strip() or "ไม่พบทะเบียน"
+    prov_val = (body.province or "").strip()
+    with get_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        existing = conn.execute(
+            "SELECT id FROM lpr_candidates WHERE event_id = ? LIMIT 1",
+            (body.event_id,),
+        ).fetchone()
+        if existing:
+            cid = int(existing["id"])
+            conn.execute(
+                """
+                UPDATE lpr_candidates
+                SET camera = ?, plate_text = ?, province = ?,
+                    vehicle_type = COALESCE(?, vehicle_type),
+                    vehicle_color = COALESCE(?, vehicle_color),
+                    vehicle_brand = COALESCE(?, vehicle_brand),
+                    vehicle_model = COALESCE(?, vehicle_model),
+                    description = COALESCE(?, description),
+                    crop_path = COALESCE(?, crop_path),
+                    operational_visible = 1, human_confirmed = 1,
+                    review_state = 'adjudicated', updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    body.camera, plate_val, prov_val,
+                    body.vehicle_type, body.vehicle_color,
+                    body.vehicle_brand, body.vehicle_model,
+                    body.description, crop_path, ts, cid,
+                ),
+            )
+        else:
+            cur = conn.execute(
+                """
+                INSERT INTO lpr_candidates (
+                    event_id, camera, status, review_state,
+                    plate_text, province, detector_confidence, ocr_confidence,
+                    polygon_json, crop_path, operational_visible, human_confirmed,
+                    source, model_version, created_at, updated_at,
+                    vehicle_color, vehicle_type, vehicle_brand, vehicle_model, description
+                ) VALUES (?, ?, 'readable', 'adjudicated', ?, ?, ?, 0.90, '[[0,0],[100,0],[100,100],[0,100]]', ?, 1, 1, 'history-ai-scan', 'yolov9c-mmcr', ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    body.event_id, body.camera, plate_val, prov_val,
+                    float(body.detector_confidence or 0.88), crop_path,
+                    ts, ts,
+                    body.vehicle_color, body.vehicle_type,
+                    body.vehicle_brand, body.vehicle_model, body.description,
+                ),
+            )
+            cid = int(cur.lastrowid)
+        conn.execute(
+            "INSERT OR IGNORE INTO lpr_candidate_event_links (candidate_id, event_id, relation) VALUES (?, ?, 'primary')",
+            (cid, body.event_id),
+        )
+        conn.commit()
+    return {"status": "ok", "candidate_id": cid, "event_id": body.event_id, "crop_path": crop_path}
+

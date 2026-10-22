@@ -22,6 +22,9 @@ config/dashboard-settings/
 config/go2rtc_homekit.yml
 config/*.bak
 config/*.bak.*
+config/*.lock
+config/.*.lock
+config/backup_config.yaml
 
 # Auth database, rotated JWT key, one-time bootstrap output, and TLS private
 # material are machine-local security state. Never add them to source control.
@@ -94,6 +97,9 @@ test-results/
 
 # ACME/Let's Encrypt state (มี private key ของบัญชี ACME + cert) — ห้าม commit
 config/acme/
+
+# Face Recognition local biometric cache & enrolled photos
+config/faces/
 
 # Decoupled node-specific configs
 config/camera_sources.json

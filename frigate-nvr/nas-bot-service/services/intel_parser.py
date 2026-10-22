@@ -24,6 +24,18 @@ def parse_intel_text(text: str) -> Optional[Dict[str, Any]]:
     if len(cleaned_text) < 3:
         return None
 
+    # 0. Incident / Arrest / Seizure Report Guard:
+    # If the text contains formal police report indicators, it must NOT be hijacked
+    # by intelligence snippets. It must fall through to submit_plain_text_report!
+    REPORT_INDICATORS = [
+        "จับกุม", "ตรวจยึด", "ผู้ต้องหา", "ของกลาง", "ยาบ้า", "ไอซ์", "ยาเสพติด",
+        "ข้อกล่าวหา", "นำของกลางนำส่ง", "ปจว.", "ประจำวัน", "สภ.", "ชปส.", "ร้อย ตชด.",
+        "จึงเรียนมาเพื่อ", "พฤติการณ์", "เหตุเกิดที่", "พนักงานสอบสวน"
+    ]
+    matched_rep = [k for k in REPORT_INDICATORS if k in cleaned_text]
+    if len(matched_rep) >= 2 or any(k in cleaned_text for k in ["จับกุม", "ตรวจยึด", "นำของกลางนำส่ง"]):
+        return None
+
     result: Dict[str, Any] = {
         "intel_type": None,
         "id_card": None,
@@ -155,50 +167,72 @@ def parse_intel_text(text: str) -> Optional[Dict[str, Any]]:
         return result
 
     # 4. Vehicle Intelligence Detection (e.g. ขฒ 4719 กทม. รถเก๋ง, ทะเบียน 1ฒฮ 8899 บุรีรัมย์)
-    # Remove common Thai month + year patterns to prevent matching "ยน 2569" as a vehicle plate
-    text_for_veh = re.sub(r'(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*\d{2,4}', ' ', cleaned_text)
-    veh_match = re.search(r'(?:ทะเบียน(?:รถ)?|ป้ายทะเบียน|รถ(?:เก๋ง|กระบะ|ยนต์|ตู้|มอเตอร์ไซค์|จักรยานยนต์)?)?\s*([1-9]?[ก-ฮ]{1,2}\s*[0-9]{1,4})', text_for_veh)
-    if veh_match:
-        cand_plate = veh_match.group(1).strip()
-        if re.search(r'[ก-ฮ]', cand_plate) and re.search(r'[0-9]', cand_plate):
-            cand_prov = None
-            for prov in [
-                "กรุงเทพมหานคร", "กรุงเทพ", "กทม", "บุรีรัมย์", "นครราชสีมา", "ขอนแก่น", "สุรินทร์", "ศรีสะเกษ",
-                "อุบลราชธานี", "อุดรธานี", "เชียงใหม่", "ชลบุรี", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", "พระนครศรีอยุธยา"
-            ]:
-                if prov in cleaned_text:
-                    cand_prov = "กรุงเทพมหานคร" if prov in ["กทม", "กรุงเทพ"] else prov
+    # Strip dates / times / addresses / section numbers to prevent false positives (e.g. "ณ 11.00 น.", "กันยายน ๒๕๖๙")
+    text_for_veh = re.sub(r'(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|[ยค]น|คม)\s*[\d๑-๙]{2,4}', ' ', cleaned_text)
+    text_for_veh = re.sub(r'(?:พ\.ศ\.|ปี)\s*[\d๑-๙]{2,4}', ' ', text_for_veh)
+    text_for_veh = re.sub(r'\b25\d{2}\b|\b๒๕[๐-๙]{2}\b', ' ', text_for_veh)
+    text_for_veh = re.sub(r'(?:ณ|เวลา)\s*\d{1,2}[.:]\d{2}(?:\s*น\.)?', ' ', text_for_veh)
+    text_for_veh = re.sub(r'(?:หมู่ที่?|ม\.)\s*\d{1,3}', ' ', text_for_veh)
+    text_for_veh = re.sub(r'(?:บ้าน)?เลขที่\s*\d+(?:/\d+)?', ' ', text_for_veh)
+    text_for_veh = re.sub(r'ข้อ\s*\d+', ' ', text_for_veh)
+
+    cand_plate = None
+    explicit_veh_m = re.search(r'(?:ทะเบียน(?:รถ)?|ป้ายทะเบียน|รถ(?:เก๋ง|กระบะ|ยนต์|ตู้|มอเตอร์ไซค์|จักรยานยนต์|บรรทุก)?)\s*[:\s]*([1-9]?[ก-ฮ]{1,2}\s*[0-9]{1,4})', text_for_veh)
+    if explicit_veh_m:
+        cand_plate = explicit_veh_m.group(1).strip()
+    else:
+        # Standard plate format (requires at least 2 letters, e.g. ขฒ 4719, or 1 digit + 2 letters, e.g. 1ฒฮ 8899)
+        # Single letter alone is strictly forbidden without explicit vehicle prefix.
+        has_veh_kw = any(k in cleaned_text for k in ["รถ", "ทะเบียน", "ป้ายทะเบียน", "เก๋ง", "กระบะ", "มอเตอร์ไซค์", "จักรยานยนต์", "สี", "คัน"])
+        is_short = len(cleaned_text) <= 30
+        if has_veh_kw or is_short:
+            plate_m = re.search(r'\b([1-9][ก-ฮ]{1,2}|[ก-ฮ]{2})\s*([0-9]{1,4})\b', text_for_veh)
+            if plate_m:
+                cand_plate = f"{plate_m.group(1)} {plate_m.group(2)}".strip()
+
+    if cand_plate and re.search(r'[ก-ฮ]', cand_plate) and re.search(r'[0-9]', cand_plate):
+        cand_prov = None
+        for prov in [
+            "กรุงเทพมหานคร", "กรุงเทพ", "กทม", "บุรีรัมย์", "นครราชสีมา", "ขอนแก่น", "สุรินทร์", "ศรีสะเกษ",
+            "อุบลราชธานี", "อุดรธานี", "เชียงใหม่", "ชลบุรี", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", "พระนครศรีอยุธยา"
+        ]:
+            if prov in cleaned_text:
+                cand_prov = "กรุงเทพมหานคร" if prov in ["กทม", "กรุงเทพ"] else prov
+                break
+        
+        has_veh_keyword = any(k in cleaned_text for k in ["รถ", "ทะเบียน", "เก๋ง", "กระบะ", "มอเตอร์ไซค์", "จักรยานยนต์", "สี", "คัน"])
+        is_short_plate_text = bool(re.fullmatch(r'^[1-9]?[ก-ฮ]{1,2}\s*[0-9]{1,4}(?:\s+[ก-๙]+)?$', cleaned_text))
+        
+        # In multi-word text, a vehicle keyword or explicit vehicle prefix is MANDATORY.
+        # A province name alone cannot make ordinary text a vehicle.
+        if is_short_plate_text or has_veh_keyword or explicit_veh_m:
+            result["intel_type"] = "vehicle_intel"
+            v_type = None
+            for vt in ["รถเก๋ง", "รถกระบะ", "รถจักรยานยนต์", "มอเตอร์ไซค์", "รถตู้", "รถบรรทุก", "รถยนต์"]:
+                if vt in cleaned_text:
+                    v_type = vt
                     break
             
-            has_veh_keyword = any(k in cleaned_text for k in ["รถ", "ทะเบียน", "เก๋ง", "กระบะ", "มอเตอร์ไซค์", "จักรยานยนต์", "สี", "คัน"])
-            if cand_prov or has_veh_keyword or re.fullmatch(r'[1-9]?[ก-ฮ]{1,2}\s*\d{1,4}', cleaned_text):
-                result["intel_type"] = "vehicle_intel"
-                v_type = None
-                for vt in ["รถเก๋ง", "รถกระบะ", "รถจักรยานยนต์", "มอเตอร์ไซค์", "รถตู้", "รถบรรทุก", "รถยนต์"]:
-                    if vt in cleaned_text:
-                        v_type = vt
-                        break
-                
-                v_color = None
-                for vc in ["สีดำ", "สีขาว", "สีบรอนซ์", "สีเทา", "สีแดง", "สีน้ำเงิน", "สีเขียว", "สีเหลือง"]:
-                    if vc in cleaned_text:
-                        v_color = vc.replace("สี", "")
-                        break
-                
-                m_name = re.search(r'(?:ของ|เจ้าของ|ชื่อ)\s*((?:นาย|นางสาว|น\.ส\.|นาง)\s*[ก-๙]{2,}(?:\s+[ก-๙]{2,})?)', cleaned_text)
-                owner = m_name.group(1).strip() if m_name else None
+            v_color = None
+            for vc in ["สีดำ", "สีขาว", "สีบรอนซ์", "สีเทา", "สีแดง", "สีน้ำเงิน", "สีเขียว", "สีเหลือง"]:
+                if vc in cleaned_text:
+                    v_color = vc.replace("สี", "")
+                    break
+            
+            m_name = re.search(r'(?:ของ|เจ้าของ|ชื่อ)\s*((?:นาย|นางสาว|น\.ส\.|นาง)\s*[ก-๙]{2,}(?:\s+[ก-๙]{2,})?)', cleaned_text)
+            owner = m_name.group(1).strip() if m_name else None
 
-                result["vehicle_info"] = {
-                    "plate": cand_plate,
-                    "province": cand_prov or "กรุงเทพมหานคร",
-                    "type": v_type or "รถยนต์",
-                    "color": v_color,
-                    "owner_name": owner,
-                    "raw_text": cleaned_text
-                }
-                if owner:
-                    result["suspect_name"] = owner
-                return result
+            result["vehicle_info"] = {
+                "plate": cand_plate,
+                "province": cand_prov or "กรุงเทพมหานคร",
+                "type": v_type or "รถยนต์",
+                "color": v_color,
+                "owner_name": owner,
+                "raw_text": cleaned_text
+            }
+            if owner:
+                result["suspect_name"] = owner
+            return result
 
     # 5. Standalone Phone Number or ID Card
     if re.fullmatch(r'0[689]\d{8}', cleaned_text):

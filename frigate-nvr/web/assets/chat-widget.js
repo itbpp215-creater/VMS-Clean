@@ -1225,7 +1225,12 @@
       }
     }
 
-    loadCasesDropdown();
+    if (btnBotChat) {
+      btnBotChat.addEventListener('click', () => {
+        if (windowEl.classList.contains('open')) loadCasesDropdown();
+      });
+    }
+    setTimeout(loadCasesDropdown, 12000);
 
     fileBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {

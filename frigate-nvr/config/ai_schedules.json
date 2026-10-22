@@ -1,0 +1,47 @@
+{
+  "Doonsad1": {
+    "enabled": false,
+    "start_time": "01:00",
+    "end_time": "05:00",
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "timezone": "Asia/Bangkok"
+  },
+  "Doonsad5": {
+    "enabled": false,
+    "start_time": "01:00",
+    "end_time": "05:00",
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "timezone": "Asia/Bangkok"
+  },
+  "Doonsad6": {
+    "enabled": false,
+    "start_time": "01:00",
+    "end_time": "05:00",
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "timezone": "Asia/Bangkok"
+  }
+}

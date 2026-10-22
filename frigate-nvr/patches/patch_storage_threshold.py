@@ -15,13 +15,20 @@ from pathlib import Path
 # closed if either this path or the expected source block changes on an upgrade.
 TARGET_PATH = Path("/opt/frigate/frigate/storage.py")
 
-# This exact upstream block is the 0.17.2 cleanup decision.  Matching it as one
-# block prevents a partially applied patch from silently weakening protection.
-UPSTREAM_BLOCK = '''        remaining_storage = round(shutil.disk_usage(RECORD_DIR).free / pow(2, 20), 1)
+# Support both 0.17 and 0.18 cleanup decision patterns.
+# Matching prevents a partially applied patch from silently weakening protection.
+UPSTREAM_BLOCK_017 = '''        remaining_storage = round(shutil.disk_usage(RECORD_DIR).free / pow(2, 20), 1)
         logger.debug(
             f"Storage cleanup check: {hourly_bandwidth} hourly with remaining storage: {remaining_storage}."
         )
         return remaining_storage < hourly_bandwidth
+'''
+
+UPSTREAM_BLOCK_018 = '''        remaining_storage = round(shutil.disk_usage(RECORD_DIR).free / pow(2, 20), 1)
+        logger.debug(
+            f"Storage cleanup check: {hourly_bandwidth} hourly with remaining storage: {remaining_storage}."
+        )
+        return remaining_storage < float(hourly_bandwidth)
 '''
 
 # The replacement reads the dashboard override every five-minute maintenance
@@ -30,7 +37,7 @@ PATCHED_BLOCK = '''        disk_usage = shutil.disk_usage(RECORD_DIR)
         remaining_storage = round(disk_usage.free / pow(2, 20), 1)
         storage_percent = _bpp_storage_min_free_percent()
         percentage_reserve = round(disk_usage.total * storage_percent / 100 / pow(2, 20), 1)
-        cleanup_threshold = max(hourly_bandwidth, percentage_reserve)
+        cleanup_threshold = max(float(hourly_bandwidth), percentage_reserve)
         logger.debug(
             "Storage cleanup check: "
             f"{hourly_bandwidth} hourly, {storage_percent}% reserve "
@@ -80,17 +87,24 @@ def patch_storage_threshold(target_path: Path = TARGET_PATH) -> None:
     source = target_path.read_text(encoding="utf-8")
     if "def _bpp_storage_min_free_percent()" in source:
         raise RuntimeError(f"BPP storage threshold patch is already present: {target_path}")
-    if UPSTREAM_BLOCK not in source:
+
+    upstream_matched = None
+    for block in (UPSTREAM_BLOCK_018, UPSTREAM_BLOCK_017):
+        if block in source:
+            upstream_matched = block
+            break
+
+    if not upstream_matched:
         raise RuntimeError(
-            "Frigate storage cleanup source no longer matches the pinned 0.17.2 "
-            f"pattern: {target_path}"
+            "Frigate storage cleanup source no longer matches known 0.17/0.18 "
+            f"patterns: {target_path}"
         )
     if HELPER_INSERTION_ANCHOR not in source:
         raise RuntimeError(f"Frigate storage helper anchor is missing: {target_path}")
 
     # Replace the complete decision block and inject the helper atomically in
     # memory so a failed compatibility check leaves upstream source untouched.
-    patched = source.replace(UPSTREAM_BLOCK, PATCHED_BLOCK, 1).replace(
+    patched = source.replace(upstream_matched, PATCHED_BLOCK, 1).replace(
         HELPER_INSERTION_ANCHOR,
         HELPER_INSERTION_ANCHOR + HELPER_BLOCK,
         1,
