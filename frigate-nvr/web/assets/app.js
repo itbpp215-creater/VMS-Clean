@@ -3,6 +3,22 @@
 (() => {
 'use strict';
 
+// Global error telemetry to detect any runtime exceptions on mobile Safari or edge clients
+window.addEventListener('error', function(e) {
+  const detail = (e.message || e.error || 'Unknown error') + ' at ' + (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '');
+  console.error('[BPP-VMS Global Error]', detail, e.error);
+  try {
+    new Image().src = '/api/client-error?err=' + encodeURIComponent(detail) + '&ua=' + encodeURIComponent(navigator.userAgent || '');
+  } catch(_) {}
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const detail = 'Unhandled Promise Rejection: ' + (e.reason ? (e.reason.stack || e.reason.message || e.reason) : 'unknown');
+  console.error('[BPP-VMS Unhandled Rejection]', detail);
+  try {
+    new Image().src = '/api/client-error?err=' + encodeURIComponent(detail) + '&ua=' + encodeURIComponent(navigator.userAgent || '');
+  } catch(_) {}
+});
+
 /* ============ AUTHENTICATION ============ */
 let userRole = '';
 const originalFetch = window.fetch.bind(window);
@@ -7063,6 +7079,15 @@ let pvZoom = null, edZoom = null, pbMainZoom = null; // สร้างจริ
 
 function makeVideoZoom(container, video, opts) {
   opts = opts || {};
+  if (!container || !video) {
+    return {
+      hasSrc: () => false,
+      arm: () => {},
+      reset: () => {},
+      level: () => 0,
+      zoomAt: () => {},
+    };
+  }
   const st = { k: 1, tx: 0, ty: 0, level: 0, layer: null };
   function apply() {
     video.style.transform = st.k === 1 ? '' : 'scale(' + st.k + ') translate(' + st.tx + '%, ' + st.ty + '%)';
@@ -7202,6 +7227,7 @@ document.addEventListener('keydown', e => {
 // ผูกปุ่มแว่น+ (popover 2-5×) + แว่น− ของแต่ละ surface — o: {btnIn, pop, btnOut, canArm, arm, reset}
 function wireZoomControls(o) {
   const btnIn = $(o.btnIn), pop = $(o.pop), btnOut = $(o.btnOut);
+  if (!btnIn || !pop || !btnOut) return;
   ZOOM_POPS.push({ pop: pop, btn: btnIn });
   [2, 3, 4, 5].forEach(z => {
     const b = document.createElement('button');
@@ -10397,65 +10423,77 @@ function bind() {
     }
   }
   window.addEventListener('resize', updateResponsiveSearchPlaceholders, { passive: true });
-  updateResponsiveSearchPlaceholders();
-  $('btnEvents').addEventListener('click', () => setEventsOpen($('eventsRail').hidden));
-  $('btnHideEvents').addEventListener('click', () => setEventsOpen(false));
-  $('railTab').addEventListener('click', () => setEventsOpen(true));
+  try { updateResponsiveSearchPlaceholders(); } catch (e) {}
 
-  // Incident 2.172: Mobile Events Drawer Backdrop Dismiss & Swipe-to-Close
-  const eventsBackdrop = $('eventsBackdrop');
-  if (eventsBackdrop) {
-    eventsBackdrop.addEventListener('click', () => setEventsOpen(false));
-  }
-  document.addEventListener('click', e => {
-    if (window.innerWidth <= 899 && $('eventsRail') && !$('eventsRail').hidden) {
-      if (!e.target.closest('#eventsRail') && !e.target.closest('#btnEvents') && !e.target.closest('#railTab') && !e.target.closest('#eventsBackdrop')) {
-        setEventsOpen(false);
-      }
+  // ---- Events Rail & Backdrop Dismiss ----
+  try {
+    $('btnEvents')?.addEventListener('click', () => setEventsOpen($('eventsRail')?.hidden));
+    $('btnHideEvents')?.addEventListener('click', () => setEventsOpen(false));
+    $('railTab')?.addEventListener('click', () => setEventsOpen(true));
+
+    // Incident 2.172: Mobile Events Drawer Backdrop Dismiss & Swipe-to-Close
+    const eventsBackdrop = $('eventsBackdrop');
+    if (eventsBackdrop) {
+      eventsBackdrop.addEventListener('click', () => setEventsOpen(false));
     }
-  });
-  const railEl = $('eventsRail');
-  if (railEl) {
-    let tStartX = 0;
-    let tStartY = 0;
-    railEl.addEventListener('touchstart', e => {
-      if (e.touches && e.touches[0]) {
-        tStartX = e.touches[0].clientX;
-        tStartY = e.touches[0].clientY;
-      }
-    }, { passive: true });
-    railEl.addEventListener('touchend', e => {
-      if (e.changedTouches && e.changedTouches[0]) {
-        const dx = e.changedTouches[0].clientX - tStartX;
-        const dy = e.changedTouches[0].clientY - tStartY;
-        if (window.innerWidth <= 899 && dx > 45 && Math.abs(dx) > Math.abs(dy)) {
+    document.addEventListener('click', e => {
+      if (window.innerWidth <= 899 && $('eventsRail') && !$('eventsRail').hidden) {
+        if (!e.target.closest('#eventsRail') && !e.target.closest('#btnEvents') && !e.target.closest('#railTab') && !e.target.closest('#eventsBackdrop')) {
           setEventsOpen(false);
         }
       }
-    }, { passive: true });
-  }
-  // เลือก class โฟกัสของแถบเหตุการณ์
-  $('btnRailClasses').addEventListener('click', () => {
-    const pop = $('railClassPop');
-    pop.hidden = !pop.hidden;
-    $('btnRailClasses').setAttribute('aria-expanded', String(!pop.hidden));
-    if (!pop.hidden) renderRailClassPop();
-  });
-  document.addEventListener('click', e => {
-    if (!$('railClassPop').hidden && !e.target.closest('.rail-pick-wrap')) {
-      $('railClassPop').hidden = true; $('btnRailClasses').setAttribute('aria-expanded', 'false');
-    }
-  });
-  $('btnCloseViewer').addEventListener('click', closeViewer);
-  $('btnReconnect').addEventListener('click', reconnectAll);
-  // ---- โหมดจัดเรียง Layout (drag & drop) ----
-  $('btnEditLayout').addEventListener('click', () => setEditLayout(!state.editLayout));
-  // CLAUDE.md Section 10: Wire reset layout button to restore system master template
-  const btnResetLayout = $('btnResetLayout');
-  if (btnResetLayout) {
-    btnResetLayout.addEventListener('click', () => {
-      window.resetUserChannelsToDefault();
     });
+    const railEl = $('eventsRail');
+    if (railEl) {
+      let tStartX = 0;
+      let tStartY = 0;
+      railEl.addEventListener('touchstart', e => {
+        if (e.touches && e.touches[0]) {
+          tStartX = e.touches[0].clientX;
+          tStartY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+      railEl.addEventListener('touchend', e => {
+        if (e.changedTouches && e.changedTouches[0]) {
+          const dx = e.changedTouches[0].clientX - tStartX;
+          const dy = e.changedTouches[0].clientY - tStartY;
+          if (window.innerWidth <= 899 && dx > 45 && Math.abs(dx) > Math.abs(dy)) {
+            setEventsOpen(false);
+          }
+        }
+      }, { passive: true });
+    }
+    // เลือก class โฟกัสของแถบเหตุการณ์
+    $('btnRailClasses')?.addEventListener('click', () => {
+      const pop = $('railClassPop');
+      if (!pop) return;
+      pop.hidden = !pop.hidden;
+      $('btnRailClasses')?.setAttribute('aria-expanded', String(!pop.hidden));
+      if (!pop.hidden) renderRailClassPop();
+    });
+    document.addEventListener('click', e => {
+      const pop = $('railClassPop');
+      if (pop && !pop.hidden && !e.target.closest('.rail-pick-wrap')) {
+        pop.hidden = true; $('btnRailClasses')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+  } catch (errEvents) {
+    console.error('[BPP-VMS] Error binding events drawer:', errEvents);
+  }
+
+  // ---- Viewer & Layout Controls ----
+  try {
+    $('btnCloseViewer')?.addEventListener('click', closeViewer);
+    $('btnReconnect')?.addEventListener('click', reconnectAll);
+    $('btnEditLayout')?.addEventListener('click', () => setEditLayout(!state.editLayout));
+    const btnResetLayout = $('btnResetLayout');
+    if (btnResetLayout) {
+      btnResetLayout.addEventListener('click', () => {
+        window.resetUserChannelsToDefault();
+      });
+    }
+  } catch (errLayout) {
+    console.error('[BPP-VMS] Error binding layout controls:', errLayout);
   }
   $('btnLayoutSave').addEventListener('click', async () => {
     saveCfg();
@@ -10761,194 +10799,231 @@ function bind() {
   });
 
   // ขนาดภาพย่อ (sm/md/lg) — CSS var ตัวเดียว inherit ลง .emgr-grid ทุกกลุ่ม + persist ใน cfg
-  const EMGR_THUMB_MIN = { sm: '110px', md: '150px', lg: '240px', xl: '480px', xxl: '720px' };
-  const applyEmgrThumb = () => {
-    $('emgrBody').style.setProperty('--emgr-thumb-min', EMGR_THUMB_MIN[cfg.emgrThumb] || EMGR_THUMB_MIN.md);
-    document.querySelectorAll('.emgr-size-btn').forEach(b => b.classList.toggle('on', b.dataset.size === cfg.emgrThumb));
-  };
-  document.querySelectorAll('.emgr-size-btn').forEach(b =>
-    b.addEventListener('click', () => { cfg.emgrThumb = b.dataset.size; saveCfg(); applyEmgrThumb(); }));
-  applyEmgrThumb();
-  $('btnCloseDetail').addEventListener('click', closeEmgrDetail);
-  $('emgrDetailOverlay').addEventListener('click', e => { if (e.target === $('emgrDetailOverlay')) closeEmgrDetail(); });
-  $('btnClosePlateModal')?.addEventListener('click', closePlateModal);
-  $('plateModalOverlay')?.addEventListener('click', e => { if (e.target === $('plateModalOverlay')) closePlateModal(); });
+  try {
+    const EMGR_THUMB_MIN = { sm: '110px', md: '150px', lg: '240px', xl: '480px', xxl: '720px' };
+    const applyEmgrThumb = () => {
+      const emgrBodyEl = $('emgrBody');
+      if (emgrBodyEl && emgrBodyEl.style) {
+        emgrBodyEl.style.setProperty('--emgr-thumb-min', EMGR_THUMB_MIN[cfg.emgrThumb] || EMGR_THUMB_MIN.md);
+      }
+      document.querySelectorAll('.emgr-size-btn').forEach(b => b.classList.toggle('on', b.dataset.size === cfg.emgrThumb));
+    };
+    document.querySelectorAll('.emgr-size-btn').forEach(b =>
+      b.addEventListener('click', () => { cfg.emgrThumb = b.dataset.size; saveCfg(); applyEmgrThumb(); }));
+    applyEmgrThumb();
+    $('btnCloseDetail')?.addEventListener('click', closeEmgrDetail);
+    $('emgrDetailOverlay')?.addEventListener('click', e => { if (e.target === $('emgrDetailOverlay')) closeEmgrDetail(); });
+    $('btnClosePlateModal')?.addEventListener('click', closePlateModal);
+    $('plateModalOverlay')?.addEventListener('click', e => { if (e.target === $('plateModalOverlay')) closePlateModal(); });
+  } catch (errEmgrThumb) {
+    console.error('[BPP-VMS] Error in emgrThumb init:', errEmgrThumb);
+  }
   
   // ---- LPR Interactive Training & Annotation ----
-  $('btnEdPlateTrain')?.addEventListener('click', () => {
-    if (state.emgrEv) openOrCreateLprTraining(state.emgrEv);
-  });
-  $('btnEdPlateAdd')?.addEventListener('click', () => {
-    if (state.emgrEv) openOrCreateLprTraining(state.emgrEv);
-  });
-  // Rejecting a crop must teach the model why it is not a plate.  The legacy
-  // immediate-delete routine remains as an API compatibility helper, but the
-  // operator button always enters reviewed non-plate flow and preserves video.
-  $('btnEdPlateDelete')?.addEventListener('click', () => {
-    if (state.emgrEv) openOrCreateLprTraining(state.emgrEv, 'non_plate');
-  });
-  $('btnCloseLprTrain')?.addEventListener('click', closeLprTrainModal);
-  $('btnLprTrainCancel')?.addEventListener('click', closeLprTrainModal);
-  $('lprTrainOverlay')?.addEventListener('click', e => { if (e.target === $('lprTrainOverlay')) closeLprTrainModal(); });
-  $('btnLprTrainSave')?.addEventListener('click', saveLprTrainingSample);
-  const provinceList = $('lprProvinceList');
-  if (provinceList && !provinceList.childElementCount) {
-    THAI_PROVINCES.forEach(province => {
-      const option = document.createElement('option');
-      option.value = province;
-      provinceList.appendChild(option);
+  try {
+    $('btnEdPlateTrain')?.addEventListener('click', () => {
+      if (state.emgrEv) openOrCreateLprTraining(state.emgrEv);
     });
-  }
-  $('selLprDecision')?.addEventListener('change', updateLprDecisionFields);
-  $('selLprNonPlateReason')?.addEventListener('change', updateLprDecisionFields);
-  initLprAnnotationStage();
-
-  $('edTabSnapBtn').addEventListener('click', () => switchEmgrTab('snap'));
-  $('edTabVideoBtn').addEventListener('click', () => switchEmgrTab('video'));
-  $('edTabTrackBtn').addEventListener('click', () => switchEmgrTab('track'));
-  $('btnSaveDesc').addEventListener('click', saveEmgrDesc);
-  $('btnDeleteEmgrEvent')?.addEventListener('click', deleteCurrentEmgrEvent);
-  $('btnEdDownload').addEventListener('click', emgrDownload);
-  $('btnEdShare').addEventListener('click', () => { const p = $('edSharePop'); p.hidden = !p.hidden; $('btnEdShare').setAttribute('aria-expanded', String(!p.hidden)); });
-  document.querySelectorAll('#edSharePop .share-item').forEach(b => b.addEventListener('click', () => emgrShare(b.dataset.edshare)));
-
-  // ---- Playback (ดูย้อนหลัง) ----
-  $('btnPlayback').addEventListener('click', openPlayback);
-  $('btnClosePb').addEventListener('click', closePlayback);
-  $('playbackOverlay').addEventListener('click', e => { if (e.target === $('playbackOverlay')) closePlayback(); });
-  $('pbCam').addEventListener('change', e => { pb.cam = e.target.value; pbResetVideo(); pbLoadDay(); pbLoadRecDays(); });
-  // ปฏิทิน custom (จุดแดง = วันมีบันทึก) — เขียนค่าลง hidden #pbDate แล้วเรียก flow เดิมเอง
-  $('btnPbCal').addEventListener('click', () => {
-    const pop = $('pbCalPop');
-    pop.hidden = !pop.hidden;
-    $('btnPbCal').setAttribute('aria-expanded', String(!pop.hidden));
-    if (!pop.hidden) { const [sy, sm] = pbSelectedYmd(); pb.calYm = [sy, sm - 1]; pbRenderCal(); }
-  });
-  $('pbCalPrev').addEventListener('click', () => { pb.calYm = pb.calYm[1] === 0 ? [pb.calYm[0] - 1, 11] : [pb.calYm[0], pb.calYm[1] - 1]; pbRenderCal(); });
-  $('pbCalNext').addEventListener('click', () => { pb.calYm = pb.calYm[1] === 11 ? [pb.calYm[0] + 1, 0] : [pb.calYm[0], pb.calYm[1] + 1]; pbRenderCal(); });
-  document.addEventListener('click', e => { if (!$('pbCalPop').hidden && !e.target.closest('.pb-cal-wrap')) pbCalClose(); });
-  $('pbTimeline').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); pbLoadClip(pbPct2t(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)))); });
-  $('pbZoomIn').addEventListener('click', () => pbZoom(1));
-  $('pbZoomOut').addEventListener('click', () => pbZoom(-1));
-  $('pbPanL').addEventListener('click', () => pbPan(-1));
-  $('pbPanR').addEventListener('click', () => pbPan(1));
-  // dropdown เลือก class บนไทม์ไลน์ (multi-select)
-  $('btnPbEvClass').addEventListener('click', () => {
-    const pop = $('pbEvClassPop');
-    pop.hidden = !pop.hidden;
-    $('btnPbEvClass').setAttribute('aria-expanded', String(!pop.hidden));
-    if (!pop.hidden) pbRenderEvClassPop();
-  });
-  document.addEventListener('click', e => {
-    if (!$('pbEvClassPop').hidden && !e.target.closest('.pb-evclass-wrap')) {
-      $('pbEvClassPop').hidden = true; $('btnPbEvClass').setAttribute('aria-expanded', 'false');
+    $('btnEdPlateAdd')?.addEventListener('click', () => {
+      if (state.emgrEv) openOrCreateLprTraining(state.emgrEv);
+    });
+    $('btnEdPlateDelete')?.addEventListener('click', () => {
+      if (state.emgrEv) openOrCreateLprTraining(state.emgrEv, 'non_plate');
+    });
+    $('btnCloseLprTrain')?.addEventListener('click', closeLprTrainModal);
+    $('btnLprTrainCancel')?.addEventListener('click', closeLprTrainModal);
+    $('lprTrainOverlay')?.addEventListener('click', e => { if (e.target === $('lprTrainOverlay')) closeLprTrainModal(); });
+    $('btnLprTrainSave')?.addEventListener('click', saveLprTrainingSample);
+    const provinceList = $('lprProvinceList');
+    if (provinceList && !provinceList.childElementCount) {
+      THAI_PROVINCES.forEach(province => {
+        const option = document.createElement('option');
+        option.value = province;
+        provinceList.appendChild(option);
+      });
     }
-  });
-  $('pbPlay').addEventListener('click', () => {
-    const v = $('pbVideo'); if (!v.getAttribute('src')) return;
-    const fvs = pb.followers.filter(f => f.video.getAttribute('src')).map(f => f.video);
-    if (v.paused) { v.play().catch(() => {}); fvs.forEach(fv => fv.play().catch(() => {})); }
-    else { v.pause(); fvs.forEach(fv => fv.pause()); }
-    // สถานะปุ่ม UI อิงอีเวนต์ play/pause ของจอหลักเท่านั้น
-  });
-  document.querySelectorAll('.pb-layout-btn').forEach(b => b.addEventListener('click', () => pbSetLayout(parseInt(b.dataset.n, 10))));
-  $('btnPbSync').addEventListener('click', () => {
-    const abs = pbCurrentAbs();
-    if (!abs) { toast('เลือกช่วงเวลาบนไทม์ไลน์ก่อน'); return; }
-    pbSyncFollowers(abs); // โหลด/seek ทุกจอให้ตรงเวลาจอหลัก (แก้ drift จาก buffer)
-    toast('ซิงค์ทุกจอที่ ' + fmtClock(abs));
-  });
+    $('selLprDecision')?.addEventListener('change', updateLprDecisionFields);
+    $('selLprNonPlateReason')?.addEventListener('change', updateLprDecisionFields);
+    initLprAnnotationStage();
+  } catch (errLpr) {
+    console.error('[BPP-VMS] Error in LPR training init:', errLpr);
+  }
 
-  // ---- Digital zoom (ตีกรอบแดงซูม 2-5×) — 3 surface: player modal / คลังวิดีโอ / playback ----
-  pvZoom = makeVideoZoom($('pvStage'), $('pvVideo'), { onChange: updatePvZoomUi });
-  edZoom = makeVideoZoom(document.querySelector('.emgr-video-wrap'), $('edVideo'), { nativeControls: true, onChange: updateEdZoomUi });
-  pbMainZoom = makeVideoZoom(document.querySelector('#pbGrid .pb-cell-main'), $('pbVideo'), { onChange: updatePbZoomUi });
-  pbMainZoom.onApplied = pbZoomApplied;
-  wireZoomControls({ btnIn: 'btnPvZoomIn', pop: 'pvZoomPop', btnOut: 'btnPvZoomOut',
-    canArm: () => !cfg.demo && pvZoom.hasSrc(), arm: l => pvZoom.arm(l), reset: () => pvZoom.reset() });
-  wireZoomControls({ btnIn: 'btnEdZoomIn', pop: 'edZoomPop', btnOut: 'btnEdZoomOut',
-    canArm: () => !cfg.demo && edZoom.hasSrc(), arm: l => edZoom.arm(l), reset: () => edZoom.reset() });
-  wireZoomControls({ btnIn: 'btnPbZoomIn', pop: 'pbZoomPop', btnOut: 'btnPbZoomOut',
-    canArm: () => !cfg.demo && pbAllZooms().some(zi => zi.hasSrc()),
-    arm: l => pbAllZooms().forEach(zi => { if (zi.hasSrc()) zi.arm(l); }), // ทุก cell ที่มีภาพขึ้น layer — วาดบน cell ไหนซูม cell นั้น
-    reset: () => pbAllZooms().forEach(zi => zi.reset()) });
-  document.addEventListener('click', e => { // คลิกนอก = ปิด popover ระดับซูม
-    if (e.target.closest('.zoom-wrap')) return;
-    ZOOM_POPS.forEach(o => { if (!o.pop.hidden) { o.pop.hidden = true; o.btn.setAttribute('aria-expanded', 'false'); } });
-  });
-
-  // ---- Snapshot / Record → Downloads ----
-  $('btnPvSnap').addEventListener('click', () => snapVideoFrame($('pvVideo'), 'event_' + ((state.playerEv && state.playerEv.label) || 'clip')));
-  $('btnEdVideoSnap').addEventListener('click', () => snapVideoFrame($('edVideo'), 'event_' + ((state.emgrEv && state.emgrEv.label) || 'clip')));
-  $('btnPbSnap').addEventListener('click', () => snapVideoFrame($('pbVideo'), pb.cam || 'playback'));
-  $('btnEdSnapDl').addEventListener('click', () => {
-    const ev = state.emgrEv; if (!ev || !ev.has_snapshot || cfg.demo) return;
-    const dlUrl = emgrThumb(ev) || apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/snapshot.jpg?download=1');
-    const a = document.createElement('a');
-    a.href = dlUrl;
-    a.download = `snapshot-${ev.id}.jpg`;
-    document.body.appendChild(a); a.click(); a.remove();
-    toast('กำลังบันทึกภาพ Snapshot ลง Downloads');
-  });
-  const btnCvAudio = $('btnCvAudio');
-  if (btnCvAudio) {
-    btnCvAudio.addEventListener('click', () => {
-      const cvVid = activeViewerVideo();
-      if (!cvVid) return;
-      const willUnmute = cvVid.muted;
-      if (willUnmute) {
-        state.unmutedSrc = state.viewingSrc;
-        cvVid.muted = false;
-        cvVid.volume = 1.0;
-        if (state.viewerCam) state.viewerCam.unmutedByUser = true;
-        if (cvVid.srcObject && cvVid.srcObject.getAudioTracks) {
-          cvVid.srcObject.getAudioTracks().forEach(tr => { tr.enabled = true; });
-        }
-        cvVid.play().catch(() => {});
-        btnCvAudio.classList.add('audio-on');
-        btnCvAudio.innerHTML = CV_SVG_AUDIO_ON;
-        btnCvAudio.title = 'ปิดเสียง (กำลังเปิดเสียงสด)';
-        if (state.viewerIdx !== null && state.tiles[state.viewerIdx]) {
-          const t = state.tiles[state.viewerIdx];
-          t.audioUnmuted = true;
-          if (t.cam) t.cam.unmutedByUser = true;
-          if (t.audioBtn) {
-            t.audioBtn.classList.add('audio-on');
-            t.audioBtn.innerHTML = TILE_SVG_AUDIO_ON;
-            t.audioBtn.title = 'ปิดเสียง (กำลังเปิดเสียงสด)';
-          }
-        }
-        toast('🔊 เปิดเสียง: ' + ($('cvName') ? $('cvName').textContent : 'สตรีมหลัก'));
-      } else {
-        state.unmutedSrc = null;
-        cvVid.muted = true;
-        const rawCvVid = $('cvVideo');
-        if (rawCvVid) rawCvVid.muted = true;
-        if (state.viewerCam) state.viewerCam.unmutedByUser = false;
-        btnCvAudio.classList.remove('audio-on');
-        btnCvAudio.innerHTML = CV_SVG_AUDIO_MUTE;
-        btnCvAudio.title = 'เปิดเสียง (คลิกเพื่อฟังเสียงสด)';
-        if (state.viewerIdx !== null && state.tiles[state.viewerIdx]) {
-          const t = state.tiles[state.viewerIdx];
-          t.audioUnmuted = false;
-          if (t.cam) t.cam.unmutedByUser = false;
-          if (t.video) t.video.muted = true;
-          if (t.audioBtn) {
-            t.audioBtn.classList.remove('audio-on');
-            t.audioBtn.innerHTML = TILE_SVG_AUDIO_MUTE;
-            t.audioBtn.title = 'เปิดเสียง (สตรีมสด)';
-          }
-        }
-        toast('🔇 ปิดเสียงกล้องแล้ว');
+  // ---- Event Manager Details & Tabs ----
+  try {
+    $('edTabSnapBtn')?.addEventListener('click', () => switchEmgrTab('snap'));
+    $('edTabVideoBtn')?.addEventListener('click', () => switchEmgrTab('video'));
+    $('edTabTrackBtn')?.addEventListener('click', () => switchEmgrTab('track'));
+    $('btnSaveDesc')?.addEventListener('click', saveEmgrDesc);
+    $('btnDeleteEmgrEvent')?.addEventListener('click', deleteCurrentEmgrEvent);
+    $('btnEdDownload')?.addEventListener('click', emgrDownload);
+    $('btnEdShare')?.addEventListener('click', () => {
+      const p = $('edSharePop');
+      if (p) {
+        p.hidden = !p.hidden;
+        $('btnEdShare')?.setAttribute('aria-expanded', String(!p.hidden));
       }
     });
+    document.querySelectorAll('#edSharePop .share-item').forEach(b => b.addEventListener('click', () => emgrShare(b.dataset.edshare)));
+  } catch (errEmgr) {
+    console.error('[BPP-VMS] Error in event manager detail:', errEmgr);
   }
-  $('btnCvSnap').addEventListener('click', () => snapVideoFrame(activeViewerVideo(), $('cvChip').textContent + '_main'));
-  $('btnCvRec').addEventListener('click', () => {
-    if (!state.viewingSrc) return;
-    const ch = (cfg.channels && cfg.channels[state.viewerIdx]) || {};
-    toggleNvrManualRecord(state.viewingSrc, $('btnCvRec'), ch.name);
-  });
+
+  // ---- Playback (ดูย้อนหลัง) ----
+  try {
+    $('btnPlayback')?.addEventListener('click', openPlayback);
+    $('btnClosePb')?.addEventListener('click', closePlayback);
+    $('playbackOverlay')?.addEventListener('click', e => { if (e.target === $('playbackOverlay')) closePlayback(); });
+    $('pbCam')?.addEventListener('change', e => { pb.cam = e.target.value; pbResetVideo(); pbLoadDay(); pbLoadRecDays(); });
+    // ปฏิทิน custom (จุดแดง = วันมีบันทึก) — เขียนค่าลง hidden #pbDate แล้วเรียก flow เดิมเอง
+    $('btnPbCal')?.addEventListener('click', () => {
+      const pop = $('pbCalPop');
+      if (!pop) return;
+      pop.hidden = !pop.hidden;
+      $('btnPbCal')?.setAttribute('aria-expanded', String(!pop.hidden));
+      if (!pop.hidden) { const [sy, sm] = pbSelectedYmd(); pb.calYm = [sy, sm - 1]; pbRenderCal(); }
+    });
+    $('pbCalPrev')?.addEventListener('click', () => { pb.calYm = pb.calYm[1] === 0 ? [pb.calYm[0] - 1, 11] : [pb.calYm[0], pb.calYm[1] - 1]; pbRenderCal(); });
+    $('pbCalNext')?.addEventListener('click', () => { pb.calYm = pb.calYm[1] === 11 ? [pb.calYm[0] + 1, 0] : [pb.calYm[0], pb.calYm[1] + 1]; pbRenderCal(); });
+    document.addEventListener('click', e => {
+      const pop = $('pbCalPop');
+      if (pop && !pop.hidden && !e.target.closest('.pb-cal-wrap')) pbCalClose();
+    });
+    $('pbTimeline')?.addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); pbLoadClip(pbPct2t(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)))); });
+    $('pbZoomIn')?.addEventListener('click', () => pbZoom(1));
+    $('pbZoomOut')?.addEventListener('click', () => pbZoom(-1));
+    $('pbPanL')?.addEventListener('click', () => pbPan(-1));
+    $('pbPanR')?.addEventListener('click', () => pbPan(1));
+    // dropdown เลือก class บนไทม์ไลน์ (multi-select)
+    $('btnPbEvClass')?.addEventListener('click', () => {
+      const pop = $('pbEvClassPop');
+      if (!pop) return;
+      pop.hidden = !pop.hidden;
+      $('btnPbEvClass')?.setAttribute('aria-expanded', String(!pop.hidden));
+      if (!pop.hidden) pbRenderEvClassPop();
+    });
+    document.addEventListener('click', e => {
+      const pop = $('pbEvClassPop');
+      if (pop && !pop.hidden && !e.target.closest('.pb-evclass-wrap')) {
+        pop.hidden = true; $('btnPbEvClass')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+    $('pbPlay')?.addEventListener('click', () => {
+      const v = $('pbVideo'); if (!v || !v.getAttribute('src')) return;
+      const fvs = pb.followers.filter(f => f.video && f.video.getAttribute('src')).map(f => f.video);
+      if (v.paused) { v.play().catch(() => {}); fvs.forEach(fv => fv.play().catch(() => {})); }
+      else { v.pause(); fvs.forEach(fv => fv.pause()); }
+    });
+    document.querySelectorAll('.pb-layout-btn').forEach(b => b.addEventListener('click', () => pbSetLayout(parseInt(b.dataset.n, 10))));
+    $('btnPbSync')?.addEventListener('click', () => {
+      const abs = pbCurrentAbs();
+      if (!abs) { toast('เลือกช่วงเวลาบนไทม์ไลน์ก่อน'); return; }
+      pbSyncFollowers(abs);
+      toast('ซิงค์ทุกจอที่ ' + fmtClock(abs));
+    });
+  } catch (errPlayback) {
+    console.error('[BPP-VMS] Error in playback init:', errPlayback);
+  }
+
+  // ---- Digital zoom (ตีกรอบแดงซูม 2-5×) — 3 surface: player modal / คลังวิดีโอ / playback ----
+  try {
+    pvZoom = makeVideoZoom($('pvStage'), $('pvVideo'), { onChange: updatePvZoomUi });
+    edZoom = makeVideoZoom(document.querySelector('.emgr-video-wrap'), $('edVideo'), { nativeControls: true, onChange: updateEdZoomUi });
+    pbMainZoom = makeVideoZoom(document.querySelector('#pbGrid .pb-cell-main'), $('pbVideo'), { onChange: updatePbZoomUi });
+    if (pbMainZoom) pbMainZoom.onApplied = pbZoomApplied;
+    wireZoomControls({ btnIn: 'btnPvZoomIn', pop: 'pvZoomPop', btnOut: 'btnPvZoomOut',
+      canArm: () => !cfg.demo && pvZoom && pvZoom.hasSrc(), arm: l => pvZoom && pvZoom.arm(l), reset: () => pvZoom && pvZoom.reset() });
+    wireZoomControls({ btnIn: 'btnEdZoomIn', pop: 'edZoomPop', btnOut: 'btnEdZoomOut',
+      canArm: () => !cfg.demo && edZoom && edZoom.hasSrc(), arm: l => edZoom && edZoom.arm(l), reset: () => edZoom && edZoom.reset() });
+    wireZoomControls({ btnIn: 'btnPbZoomIn', pop: 'pbZoomPop', btnOut: 'btnPbZoomOut',
+      canArm: () => !cfg.demo && pbAllZooms().some(zi => zi && zi.hasSrc()),
+      arm: l => pbAllZooms().forEach(zi => { if (zi && zi.hasSrc()) zi.arm(l); }),
+      reset: () => pbAllZooms().forEach(zi => { if (zi) zi.reset(); }) });
+    document.addEventListener('click', e => {
+      if (e.target.closest('.zoom-wrap')) return;
+      ZOOM_POPS.forEach(o => { if (o && o.pop && !o.pop.hidden) { o.pop.hidden = true; o.btn?.setAttribute('aria-expanded', 'false'); } });
+    });
+  } catch (errZoom) {
+    console.error('[BPP-VMS] Error in zoom controls init:', errZoom);
+  }
+
+  // ---- Snapshot / Record → Downloads ----
+  try {
+    $('btnPvSnap')?.addEventListener('click', () => snapVideoFrame($('pvVideo'), 'event_' + ((state.playerEv && state.playerEv.label) || 'clip')));
+    $('btnEdVideoSnap')?.addEventListener('click', () => snapVideoFrame($('edVideo'), 'event_' + ((state.emgrEv && state.emgrEv.label) || 'clip')));
+    $('btnPbSnap')?.addEventListener('click', () => snapVideoFrame($('pbVideo'), pb.cam || 'playback'));
+    $('btnEdSnapDl')?.addEventListener('click', () => {
+      const ev = state.emgrEv; if (!ev || !ev.has_snapshot || cfg.demo) return;
+      const dlUrl = emgrThumb(ev) || apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/snapshot.jpg?download=1');
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = `snapshot-${ev.id}.jpg`;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast('กำลังบันทึกภาพ Snapshot ลง Downloads');
+    });
+    const btnCvAudio = $('btnCvAudio');
+    if (btnCvAudio) {
+      btnCvAudio.addEventListener('click', () => {
+        const cvVid = activeViewerVideo();
+        if (!cvVid) return;
+        const willUnmute = cvVid.muted;
+        if (willUnmute) {
+          state.unmutedSrc = state.viewingSrc;
+          cvVid.muted = false;
+          cvVid.volume = 1.0;
+          if (state.viewerCam) state.viewerCam.unmutedByUser = true;
+          if (cvVid.srcObject && cvVid.srcObject.getAudioTracks) {
+            cvVid.srcObject.getAudioTracks().forEach(tr => { tr.enabled = true; });
+          }
+          cvVid.play().catch(() => {});
+          btnCvAudio.classList.add('audio-on');
+          btnCvAudio.innerHTML = CV_SVG_AUDIO_ON;
+          btnCvAudio.title = 'ปิดเสียง (กำลังเปิดเสียงสด)';
+          if (state.viewerIdx !== null && state.tiles[state.viewerIdx]) {
+            const t = state.tiles[state.viewerIdx];
+            t.audioUnmuted = true;
+            if (t.cam) t.cam.unmutedByUser = true;
+            if (t.audioBtn) {
+              t.audioBtn.classList.add('audio-on');
+              t.audioBtn.innerHTML = TILE_SVG_AUDIO_ON;
+              t.audioBtn.title = 'ปิดเสียง (กำลังเปิดเสียงสด)';
+            }
+          }
+          toast('🔊 เปิดเสียง: ' + ($('cvName') ? $('cvName').textContent : 'สตรีมหลัก'));
+        } else {
+          state.unmutedSrc = null;
+          cvVid.muted = true;
+          const rawCvVid = $('cvVideo');
+          if (rawCvVid) rawCvVid.muted = true;
+          if (state.viewerCam) state.viewerCam.unmutedByUser = false;
+          btnCvAudio.classList.remove('audio-on');
+          btnCvAudio.innerHTML = CV_SVG_AUDIO_MUTE;
+          btnCvAudio.title = 'เปิดเสียง (คลิกเพื่อฟังเสียงสด)';
+          if (state.viewerIdx !== null && state.tiles[state.viewerIdx]) {
+            const t = state.tiles[state.viewerIdx];
+            t.audioUnmuted = false;
+            if (t.cam) t.cam.unmutedByUser = false;
+            if (t.video) t.video.muted = true;
+            if (t.audioBtn) {
+              t.audioBtn.classList.remove('audio-on');
+              t.audioBtn.innerHTML = TILE_SVG_AUDIO_MUTE;
+              t.audioBtn.title = 'เปิดเสียง (สตรีมสด)';
+            }
+          }
+          toast('🔇 ปิดเสียงกล้องแล้ว');
+        }
+      });
+    }
+    $('btnCvSnap')?.addEventListener('click', () => snapVideoFrame(activeViewerVideo(), ($('cvChip')?.textContent || 'camera') + '_main'));
+    $('btnCvRec')?.addEventListener('click', () => {
+      if (!state.viewingSrc) return;
+      const ch = (cfg.channels && cfg.channels[state.viewerIdx]) || {};
+      const recBtn = $('btnCvRec');
+      if (recBtn) toggleNvrManualRecord(state.viewingSrc, recBtn, ch.name);
+    });
+  } catch (errSnap) {
+    console.error('[BPP-VMS] Error in snap/audio init:', errSnap);
+  }
   document.querySelectorAll('.pb-speed').forEach(b => b.addEventListener('click', () => pbSetSpeed(parseFloat(b.dataset.rate))));
   $('btnPbDownload').addEventListener('click', pbDownload);
   const pbv = $('pbVideo');
@@ -12441,28 +12516,51 @@ function initLiveAssetVersionWatcher() {
 }
 
 async function init() {
-  // Immediately hide events rail on mobile and bind UI controls so the screen
-  // is never blocked by the drawer while startup API requests are in flight.
-  if (window.innerWidth <= 899) {
-    setEventsOpen(false);
-  }
-  bind();
-
-  // Restore cached camera names & user profile from localStorage so 0ms initial render is accurate
-  if (cfg._cachedCameraNames && typeof cfg._cachedCameraNames === 'object') {
-    state.cameraNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...state.cameraNames, ...cfg._cachedCameraNames };
-  }
-  if (cfg._cachedUserProfile && typeof cfg._cachedUserProfile === 'object' && !state.userProfile) {
-    state.userProfile = cfg._cachedUserProfile;
+  // 1. Clock starts immediately in 0ms so the screen displays live system time right away
+  try {
+    tickClock();
+    setInterval(tickClock, 1000);
+  } catch (errClock) {
+    console.error('[BPP-VMS] tickClock failed:', errClock);
   }
 
-  // Render clock and camera grid immediately (0ms) so the screen is never blank while network APIs load
-  tickClock();
-  setInterval(tickClock, 1000);
-  state.manualLayoutOverride = false;
-  cfg.layout = getOptimalAutoLayout();
-  buildLayoutSwitch();
-  rebuildGrid();
+  // 2. Hide events drawer on mobile screen widths so UI is never obstructed
+  try {
+    if (window.innerWidth <= 899) {
+      setEventsOpen(false);
+    }
+  } catch (errEvents) {
+    console.error('[BPP-VMS] setEventsOpen failed:', errEvents);
+  }
+
+  // 3. Restore cached camera names & user profile from localStorage so initial render uses local state
+  try {
+    if (cfg._cachedCameraNames && typeof cfg._cachedCameraNames === 'object') {
+      state.cameraNames = { ...DEFAULT_SPECIAL_CAMERA_NAMES, ...state.cameraNames, ...cfg._cachedCameraNames };
+    }
+    if (cfg._cachedUserProfile && typeof cfg._cachedUserProfile === 'object' && !state.userProfile) {
+      state.userProfile = cfg._cachedUserProfile;
+    }
+  } catch (errCache) {
+    console.error('[BPP-VMS] Cache restore failed:', errCache);
+  }
+
+  // 4. Render layout switch and camera grid IMMEDIATELY (0ms) so the viewport is NEVER blank
+  try {
+    state.manualLayoutOverride = false;
+    cfg.layout = getOptimalAutoLayout();
+    buildLayoutSwitch();
+    rebuildGrid();
+  } catch (errGrid) {
+    console.error('[BPP-VMS] rebuildGrid failed:', errGrid);
+  }
+
+  // 5. Bind UI event listeners in isolated try/catch so listener issues never break the grid or clock
+  try {
+    bind();
+  } catch (errBind) {
+    console.error('[BPP-VMS] bind() uncaught error:', errBind);
+  }
 
   // Stop initialization when the authoritative server session is absent; this
   // avoids briefly issuing protected API calls while the login redirect runs.
@@ -13844,12 +13942,23 @@ function initUserHeartbeat() {
   setInterval(sendPresenceHeartbeat, 15000);
 }
 
+const startDashboardApp = () => {
+  try {
+    const p = init();
+    if (p && typeof p.catch === 'function') {
+      p.catch(e => console.error('[BPP-VMS] init() top-level rejected:', e));
+    }
+  } catch (err) {
+    console.error('[BPP-VMS] startDashboardApp sync throw:', err);
+  }
+};
+
 if ($('grid') && $('scanNvrOverlay')) {
-  init();
+  startDashboardApp();
 } else if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', startDashboardApp);
 } else {
-  init();
+  startDashboardApp();
 }
 
 // ---- NVR Camera Settings UI (config-api) ----
