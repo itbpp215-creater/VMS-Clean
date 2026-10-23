@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$OutputDir = "D:\Sloth-BPP215\native",
     [string]$SlothSourceDir = "D:\Sloth-BPP215\native\bin"
 )
@@ -142,10 +142,15 @@ if (Test-Path $setupCsFile) {
 
     $workspaceRoot = Split-Path -Parent $OutputDir
     if (Test-Path $workspaceRoot) {
-        Copy-Item $setupOutExe (Join-Path $workspaceRoot "BPP-VMS-Setup.exe") -Force
-        Copy-Item $coreDll (Join-Path $workspaceRoot "Microsoft.Web.WebView2.Core.dll") -Force
-        Copy-Item $winformsDll (Join-Path $workspaceRoot "Microsoft.Web.WebView2.WinForms.dll") -Force
-        Copy-Item $loaderDll (Join-Path $workspaceRoot "WebView2Loader.dll") -Force
+        try {
+            Copy-Item $setupOutExe (Join-Path $workspaceRoot "BPP-VMS-Setup.exe") -Force -ErrorAction Stop
+        } catch {
+            # BPP-VMS-Setup.exe may be currently running the wizard; ignore overwrite lock
+        }
+        foreach ($legacyFile in @("Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll", "Install-On-New-PC.bat", "Install-Or-Start-BPP-VMS.bat")) {
+            $lfPath = Join-Path $workspaceRoot $legacyFile
+            if (Test-Path $lfPath) { Remove-Item $lfPath -Force -ErrorAction SilentlyContinue }
+        }
         Write-Host "[Build-BppNativeExe] Published root installer: $(Join-Path $workspaceRoot 'BPP-VMS-Setup.exe')" -ForegroundColor Cyan
     }
 }

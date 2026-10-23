@@ -1,0 +1,12 @@
+[
+  {
+    "id": "log_1792680347529",
+    "timestamp": "2026-10-22 14:45:47",
+    "epoch": 1792680347,
+    "username": "system",
+    "category": "ระบบ",
+    "action": "SYSTEM_READY",
+    "details": "เริ่มต้นระบบบันทึกประวัติการทำงาน (Program & Activity Log Engine) พร้อมใช้งาน",
+    "ip_address": "127.0.0.1"
+  }
+]

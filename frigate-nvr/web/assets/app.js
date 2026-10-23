@@ -4443,10 +4443,14 @@ function openPlayer(ev) {
   } else {
     stage.classList.remove('demo');
     stage.style.background = '#05060c';
-    if (isIOSBrowser) {
+    const isManualRec = Boolean(ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'));
+    const clipUrl = isManualRec
+      ? (ev.customClipUrl || ('/api/config/manual_clips/' + encodeURIComponent(ev.id) + '/clip.mp4'))
+      : apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/clip.mp4');
+    if (isIOSBrowser && !isManualRec) {
       prepareAndPlayVideoCompat({ purpose: 'playback', event_id: ev.id }, video, () => setPlayingUi(true), () => setPlayingUi(false));
     } else {
-      video.src = apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/clip.mp4');
+      video.src = clipUrl;
       video.play().then(() => setPlayingUi(true)).catch(() => setPlayingUi(false));
     }
   }
@@ -4531,7 +4535,11 @@ async function downloadClip() {
   b.classList.add('downloading');
   $('dlLabel').textContent = 'กำลังดาวน์โหลด 0%';
   try {
-    const res = await fetch(apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/clip.mp4'));
+    const isManualRec = Boolean(ev.source === 'manual_rec' || String(ev.id).startsWith('mrec_'));
+    const dlUrl = isManualRec
+      ? (ev.customClipUrl || ('/api/config/manual_clips/' + encodeURIComponent(ev.id) + '/clip.mp4'))
+      : apiUrl('/api/events/' + encodeURIComponent(ev.id) + '/clip.mp4');
+    const res = await fetch(dlUrl);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const total = +res.headers.get('content-length') || 0;
     const reader = res.body.getReader();
@@ -5124,7 +5132,8 @@ async function fetchEmgrLprIndex(forceFull = false) {
     }
     const response = await fetch(url, { signal: timeoutSignal(12000) });
     if (!response.ok) throw new Error('LPR candidates ' + response.status);
-    const candidates = await response.json();
+    const rawCandidates = await response.json();
+    const candidates = Array.isArray(rawCandidates) ? rawCandidates : (rawCandidates?.candidates || rawCandidates?.items || []);
     const newMap = new Map();
     const mmcrMap = new Map();
     const bounds = emgrArchiveDayBounds(state.emgrDateFilter);
@@ -11065,7 +11074,8 @@ function bind() {
         try {
           const res = await fetch('/api/watchlist/lpr/candidates?q=' + encodeURIComponent(q) + '&limit=500', { signal: timeoutSignal(8000) });
           if (res.ok) {
-            const foundCands = await res.json();
+            const rawFoundCands = await res.json();
+            const foundCands = Array.isArray(rawFoundCands) ? rawFoundCands : (rawFoundCands?.candidates || rawFoundCands?.items || []);
             if (Array.isArray(foundCands) && foundCands.length > 0) {
               if (!state.emgrLprByEvent) state.emgrLprByEvent = new Map();
               if (!state.emgrMmcrByEvent) state.emgrMmcrByEvent = new Map();

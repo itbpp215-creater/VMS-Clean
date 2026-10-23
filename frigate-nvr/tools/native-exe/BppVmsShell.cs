@@ -187,6 +187,30 @@ namespace BppVmsNative
             }
         }
 
+        private void OpenSetupWizard()
+        {
+            try
+            {
+                string setupExe = Path.Combine(_baseDir, "..", "BPP-VMS-Setup.exe");
+                if (!File.Exists(setupExe))
+                {
+                    setupExe = Path.Combine(_baseDir, "BPP-VMS-Setup.exe");
+                }
+                if (File.Exists(setupExe))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = Path.GetFullPath(setupExe),
+                        WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(setupExe)),
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch
+            {
+            }
+        }
+
         private void InitializeTrayIcon()
         {
             _trayMenu = new ContextMenuStrip();
@@ -219,6 +243,7 @@ namespace BppVmsNative
                 await StartGatewayIfNeededAsync();
                 if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
             });
+            _trayMenu.Items.Add("⚙️ ตั้งค่าโหมด Server / Client (เปิด BPP-VMS-Setup.exe)", null, (s, e) => OpenSetupWizard());
             _trayMenu.Items.Add("เปิดในเบราว์เซอร์ (" + _gatewayUrl + ")", null, (s, e) =>
             {
                 Process.Start(new ProcessStartInfo(_gatewayUrl) { UseShellExecute = true });
@@ -377,14 +402,48 @@ namespace BppVmsNative
                     if (_coreWebView != null)
                     {
                         try { await _coreWebView.CallDevToolsProtocolMethodAsync("Network.clearBrowserCache", "{}"); } catch { }
-                        _coreWebView.Reload();
+                        _coreWebView.Navigate(_gatewayUrl + "/");
                     }
                 }));
+            }
+            else if (msg == "switch-cloud")
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    _isClientMode = true;
+                    _gatewayUrl = "https://sloth.bpp215.com";
+                    SaveRoleConfiguration("client", _gatewayUrl);
+                    Text = "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")";
+                    if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
+                }));
+            }
+            else if (msg == "switch-lan")
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    _isClientMode = true;
+                    _gatewayUrl = "http://192.168.1.200:8443";
+                    SaveRoleConfiguration("client", _gatewayUrl);
+                    Text = "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")";
+                    if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
+                }));
+            }
+            else if (msg == "open-setup")
+            {
+                BeginInvoke(new Action(() => { OpenSetupWizard(); }));
             }
         }
 
         private string GetCyberSplashHtml()
         {
+            string editionLabel = _isClientMode
+                ? "INTELLIGENT SURVEILLANCE PLATFORM · DESKTOP CLIENT EDITION"
+                : "INTELLIGENT SURVEILLANCE PLATFORM · NATIVE SERVER EDITION";
+            string statusLeft = _isClientMode
+                ? "💻 โหมดเครื่องลูกข่าย กำลังเชื่อมต่อเครื่องแม่ข่าย..."
+                : "⚡ กำลังเชื่อมต่อ Zero-Drop Stream & All-GPU AI...";
+            string statusRight = _isClientMode ? _gatewayUrl : "PORT :8443";
+
             return @"<!DOCTYPE html>
 <html lang='th'>
 <head>
@@ -439,11 +498,8 @@ namespace BppVmsNative
   .brand-sub {
     margin-top: 6px; font-size: 11.5px; letter-spacing: 3.5px; color: #38bdf8; font-weight: 600;
   }
-  .brand- motto {
-    margin-top: 8px; font-size: 13px; color: #94a3b8;
-  }
   .progress-box {
-    margin-top: 32px; width: 380px; background: rgba(15, 23, 42, 0.75);
+    margin-top: 32px; width: 420px; background: rgba(15, 23, 42, 0.75);
     border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 12px; padding: 14px 18px;
     backdrop-filter: blur(12px);
   }
@@ -456,7 +512,7 @@ namespace BppVmsNative
     background: linear-gradient(90deg, #38bdf8, #a855f7, #34d399);
     animation: slide 1.4s ease-in-out infinite;
   }
-  .status-line { font-size: 12.5px; color: #e2e8f0; display: flex; justify-content: space-between; }
+  .status-line { font-size: 12.5px; color: #e2e8f0; display: flex; justify-content: space-between; gap: 8px; }
   .pills {
     margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
   }
@@ -480,18 +536,17 @@ namespace BppVmsNative
     <div class='core-shield'>🛡️</div>
   </div>
   <div class='brand-title'>SLOTH × BPP-VMS 215</div>
-  <div class='brand-sub'>INTELLIGENT SURVEILLANCE PLATFORM · NATIVE EDITION</div>
+  <div class='brand-sub'>" + editionLabel + @"</div>
   <div class='progress-box'>
     <div class='progress-bar-bg'><div class='progress-bar-fill'></div></div>
     <div class='status-line'>
-      <span>⚡ กำลังเชื่อมต่อ Zero-Drop Stream & All-GPU AI...</span>
-      <span style='color:#34d399'>PORT :8443</span>
+      <span>" + statusLeft + @"</span>
+      <span style='color:#34d399'>" + statusRight + @"</span>
     </div>
   </div>
   <div class='pills'>
     <span class='pill'>🟢 Zero-Docker Native .EXE</span>
-    <span class='pill'>⚡ All-GPU (CUDA / DirectML / NVENC)</span>
-    <span class='pill'>🔄 Auto-Sync Web 15m</span>
+    <span class='pill'>🔄 1-Click Program Update</span>
     <span class='pill'>📡 531 Cameras Ready</span>
   </div>
 </body>
@@ -504,14 +559,21 @@ namespace BppVmsNative
 <html lang='th'><head><meta charset='utf-8'>
 <style>
   body { height:100vh; margin:0; background:#07090f; color:#f8fafc; font-family:'Segoe UI',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .card { background:#111827; border:1px solid #ef4444; border-radius:14px; padding:28px; max-width:480px; text-align:center; }
-  button { margin-top:16px; padding:8px 18px; border-radius:8px; border:1px solid #38bdf8; background:#1e293b; color:#fff; cursor:pointer; }
+  .card { background:#111827; border:1px solid #ef4444; border-radius:14px; padding:28px; max-width:540px; text-align:center; }
+  .btn-row { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; }
+  button { padding:9px 16px; border-radius:8px; border:1px solid #38bdf8; background:#1e293b; color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
+  button:hover { background:#334155; }
 </style></head><body>
   <div class='card'>
-    <h2 style='color:#f87171'>⚠️ ไม่สามารถเชื่อมต่อพอร์ต :8443</h2>
-    <p style='color:#94a3b8;font-size:13px;margin-top:8px'>กรุณารันไฟล์ Install-On-New-PC.bat (หากเป็นเครื่องใหม่) หรือตรวจสอบไฟล์ native\runtime\gateway.log</p>
-    <button onclick=""window.chrome.webview.postMessage('reload')"">🔄 ลองเชื่อมต่อใหม่อีกครั้ง</button>
-    <button onclick=""window.chrome.webview.postMessage('exit-app')"">✕ ปิดโปรแกรม</button>
+    <h2 style='color:#f87171'>⚠️ ไม่สามารถเชื่อมต่อปลายทาง (" + _gatewayUrl + @")</h2>
+    <p style='color:#94a3b8;font-size:13px;margin-top:8px'>คุณสามารถกดสลับโหมดการเชื่อมต่อ หรือเปิดหน้าตั้งค่า BPP-VMS-Setup.exe ได้ทันทีจากปุ่มด้านล่าง:</p>
+    <div class='btn-row'>
+      <button onclick=""window.chrome.webview.postMessage('reload')"">🔄 ลองเชื่อมต่อใหม่อีกครั้ง</button>
+      <button onclick=""window.chrome.webview.postMessage('switch-cloud')"">🌐 เชื่อมผ่านเน็ต (sloth.bpp215.com)</button>
+      <button onclick=""window.chrome.webview.postMessage('switch-lan')"">🖧 เชื่อมผ่านวงแลน (192.168.1.200:8443)</button>
+      <button onclick=""window.chrome.webview.postMessage('open-setup')"">⚙️ เปิดหน้าตั้งค่า Server / Client</button>
+      <button style='border-color:#ef4444' onclick=""window.chrome.webview.postMessage('exit-app')"">✕ ปิดโปรแกรม</button>
+    </div>
   </div>
 </body></html>";
         }
@@ -814,6 +876,7 @@ namespace BppVmsNative
         {
             await Task.Run(() =>
             {
+                // 1. Trigger Server / Gateway Update & Web Sync
                 try
                 {
                     var req = (HttpWebRequest)WebRequest.Create(_gatewayUrl + "/api/config/system/update/apply");
@@ -833,6 +896,37 @@ namespace BppVmsNative
                     req2.Timeout = 25000;
                     using (var resp2 = (HttpWebResponse)req2.GetResponse())
                     {
+                    }
+                }
+                catch
+                {
+                }
+
+                // 2. Also sync local repo directory if present on this machine (Client or Server)
+                try
+                {
+                    string repoDir = Path.GetFullPath(Path.Combine(_baseDir, "..", "repo"));
+                    if (Directory.Exists(Path.Combine(repoDir, ".git")))
+                    {
+                        var psiFetch = new ProcessStartInfo
+                        {
+                            FileName = "git.exe",
+                            Arguments = "-C \"" + repoDir + "\" fetch origin",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        var p1 = Process.Start(psiFetch);
+                        if (p1 != null) p1.WaitForExit(15000);
+
+                        var psiPull = new ProcessStartInfo
+                        {
+                            FileName = "git.exe",
+                            Arguments = "-C \"" + repoDir + "\" reset --hard origin/dev/sloth-vms",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        var p2 = Process.Start(psiPull);
+                        if (p2 != null) p2.WaitForExit(10000);
                     }
                 }
                 catch
@@ -881,8 +975,10 @@ namespace BppVmsNative
                 Hide();
                 _trayIcon.ShowBalloonTip(
                     2000,
-                    "SLOTH × BPP-VMS ทำงานอยู่เบื้องหลัง",
-                    "ระบบกล้องและเว็บพอร์ต :8443 ยังทำงานอยู่ คลิกขวาที่ไอคอนมุมขวาล่างหากต้องการปิดระบบ",
+                    _isClientMode ? "SLOTH × BPP-VMS Client ซ่อนอยู่" : "SLOTH × BPP-VMS Server ทำงานอยู่เบื้องหลัง",
+                    _isClientMode
+                        ? "โปรแกรมลูกข่ายซ่อนอยู่ที่มุมขวาล่าง คลิกขวาที่ไอคอนโล่หากต้องการเปิดหรือปิดโปรแกรม"
+                        : "ระบบกล้องและเว็บพอร์ต :8443 ยังทำงานอยู่ คลิกขวาที่ไอคอนมุมขวาล่างหากต้องการปิดระบบ",
                     ToolTipIcon.Info
                 );
                 return;

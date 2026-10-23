@@ -2,6 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Net;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -110,6 +113,41 @@ namespace BppVmsSetup
             {
                 if (_isInstalling) return;
                 BeginInvoke(new Action(() => { Application.Exit(); }));
+            }
+            else if (msg.StartsWith("TEST_SERVER:"))
+            {
+                string testUrl = msg.Substring("TEST_SERVER:".Length).Trim().TrimEnd('/');
+                Task.Run(() =>
+                {
+                    bool ok = false;
+                    string detail = "";
+                    try
+                    {
+                        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+                        ServicePointManager.ServerCertificateValidationCallback = (snd, cert, chain, err) => true;
+                        var req = (HttpWebRequest)WebRequest.Create(testUrl + "/api/native/ping");
+                        req.Timeout = 4500;
+                        req.UserAgent = "BPP-VMS-Setup/215";
+                        using (var resp = (HttpWebResponse)req.GetResponse())
+                        {
+                            ok = (int)resp.StatusCode >= 200 && (int)resp.StatusCode < 400;
+                            detail = "เชื่อมต่อเครื่องแม่ข่ายสำเร็จ (" + testUrl + ") พร้อมติดตั้ง!";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        ok = false;
+                        detail = "ไม่สามารถเชื่อมต่อ " + testUrl + " (" + ex.Message + ")";
+                    }
+
+                    BeginInvoke(new Action(() =>
+                    {
+                        if (_coreWebView == null) return;
+                        string safeMsg = detail.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", " ");
+                        string js = string.Format("window.onServerTestResult({0}, '{1}');", ok ? "true" : "false", safeMsg);
+                        try { _coreWebView.ExecuteScriptAsync(js); } catch { }
+                    }));
+                });
             }
             else if (msg.StartsWith("INSTALL:"))
             {
@@ -501,10 +539,14 @@ namespace BppVmsSetup
             <div class='mode-sub'>ติดตั้งเฉพาะตัวโปรแกรม SLOTH × BPP-VMS Desktop Client สำหรับเชื่อมต่อดูกล้องจากเครื่องแม่ข่าย (ไม่รัน AI ในเครื่องนี้ กินสเปกต่ำมาก และกดปุ่ม 🔄 อัปเดตที่มุมขวาบนได้เหมือนกัน)</div>
             <div class='sub-panel' onclick='event.stopPropagation()'>
               <label style='font-size:12px;color:#cbd5e1;font-weight:600;'>URL หรือ IP ของเครื่องแม่ข่าย (Server URL):</label>
-              <input type='text' id='inpServerUrl' class='inp-box' value='https://sloth.bpp215.com' placeholder='เช่น https://sloth.bpp215.com หรือ http://192.168.1.200:8443' />
-              <div style='display:flex;gap:8px;margin-top:4px;'>
-                <button type='button' class='btn' style='padding:4px 10px;font-size:11.5px;' onclick=""document.getElementById('inpServerUrl').value='https://sloth.bpp215.com'"">🌐 ดูผ่านเน็ต (https://sloth.bpp215.com)</button>
-                <button type='button' class='btn' style='padding:4px 10px;font-size:11.5px;' onclick=""document.getElementById('inpServerUrl').value='http://192.168.1.200:8443'"">🖧 ดูผ่านวงแลนภายใน (http://192.168.1.200:8443)</button>
+              <div style='display:flex;gap:8px;align-items:center;'>
+                <input type='text' id='inpServerUrl' class='inp-box' value='https://sloth.bpp215.com' placeholder='เช่น https://sloth.bpp215.com หรือ http://192.168.1.200:8443' />
+                <button type='button' class='btn' style='padding:7px 12px;font-size:12px;white-space:nowrap;border-color:#38bdf8;color:#38bdf8;' onclick='testServerConnection()'>🔍 ทดสอบการเชื่อมต่อ</button>
+              </div>
+              <div style='display:flex;gap:8px;margin-top:4px;align-items:center;flex-wrap:wrap;'>
+                <button type='button' class='btn' style='padding:4px 10px;font-size:11.5px;' onclick=""setServerPreset('https://sloth.bpp215.com')"">🌐 ดูผ่านเน็ต (https://sloth.bpp215.com)</button>
+                <button type='button' class='btn' style='padding:4px 10px;font-size:11.5px;' onclick=""setServerPreset('http://192.168.1.200:8443')"">🖧 ดูผ่านวงแลนภายใน (http://192.168.1.200:8443)</button>
+                <span id='lblTestServerStatus' style='font-size:11.5px;color:#94a3b8;margin-left:4px;'></span>
               </div>
             </div>
           </div>
@@ -605,6 +647,28 @@ namespace BppVmsSetup
     document.getElementById('cardFull').classList.toggle('selected', m === 'full');
   }
 
+  function setServerPreset(url) {
+    document.getElementById('inpServerUrl').value = url;
+    testServerConnection();
+  }
+
+  function testServerConnection() {
+    var srv = (document.getElementById('inpServerUrl').value || 'https://sloth.bpp215.com').trim();
+    var lbl = document.getElementById('lblTestServerStatus');
+    if (lbl) {
+      lbl.style.color = '#38bdf8';
+      lbl.textContent = '⏳ กำลังทดสอบการเชื่อมต่อ...';
+    }
+    window.chrome.webview.postMessage('TEST_SERVER:' + srv);
+  }
+
+  window.onServerTestResult = function(ok, msg) {
+    var lbl = document.getElementById('lblTestServerStatus');
+    if (!lbl) return;
+    lbl.style.color = ok ? '#34d399' : '#f87171';
+    lbl.textContent = (ok ? '✅ ' : '⚠️ ') + msg;
+  };
+
   function startInstall() {
     document.getElementById('page1').classList.remove('active');
     document.getElementById('page2').classList.add('active');
@@ -656,9 +720,45 @@ namespace BppVmsSetup
 </body>
 </html>";
         }
+    }
+
+    public static class Program
+    {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool SetDllDirectory(string lpPathName);
 
         [STAThread]
         public static void Main()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string nativeSub = Path.Combine(baseDir, "native");
+            if (Directory.Exists(nativeSub))
+            {
+                try { SetDllDirectory(nativeSub); } catch { }
+            }
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                try
+                {
+                    string asmName = new AssemblyName(args.Name).Name + ".dll";
+                    string candidate = Path.Combine(baseDir, "native", asmName);
+                    if (File.Exists(candidate))
+                    {
+                        return Assembly.LoadFrom(candidate);
+                    }
+                }
+                catch
+                {
+                }
+                return null;
+            };
+
+            RunWizard();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RunWizard()
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

@@ -1,4 +1,63 @@
-﻿## Update 2026-10-23 (Early Morning 3) - Separate Server vs PC Client Installation Modes (`BPP-VMS-Setup.exe`, `client_mode.json`, & `D:\SLOTH-BPP-VMS-Client`) (Incident 2.200)
+﻿## Update 2026-10-23 (Morning) - Root-Cause Fix for `vms.local` 502 Bad Gateway (`DmlExecutionProvider` 0xc0000005 Crash in `face_onnx` / `vehicle_attr_onnx` + Built-In 24/7 Watchdog Supervisor in `native_gateway.py`) (Incident 2.202)
+- **Problem / User Request**:
+  - User uploaded screenshot showing `https://vms.local` returning **Cloudflare Error 502 Bad gateway** at `09:04` and asked: *"อันนี้คือจากโปรแกรมหรือจาก docker"* ("Is this from the program or from docker?").
+- **Root Causes Diagnosed**:
+  1. **Active Origin is the Standalone Native Program (`Sloth-BPP215`), NOT Docker**:
+     - All 18 BPP-VMS Docker containers remain intentionally stopped (Incident 2.198); `https://vms.local` is served directly by `D:\Sloth-BPP215\native\native_gateway.py` on port `:443` via `cloudflared.exe`.
+  2. **Overnight Native C++ Access Violation (`0xc0000005` in `onnxruntime_pybind11_state.pyd`) at `05:26:27 AM`**:
+     - Windows Application Event Log (`Event ID 1000` at `05:26:27 AM`) revealed that `python.exe` (PID `19812`, `native_gateway.py`) crashed in `onnxruntime_pybind11_state.pyd` with exception `0xc0000005`.
+     - While `native_ai_worker.py` (`yolov8n.onnx`) had disabled `DmlExecutionProvider`, three sub-modules in `frigate-nvr/lpr-service/` (`face_onnx.py`, `vehicle_attr_onnx.py`, and `thlprv2_onnx.py`) still had `"DmlExecutionProvider"` enabled and loaded `color.onnx`, `brand.onnx`, and `face.onnx` via `DmlExecutionProvider` at `03:37:06 AM`. Concurrent multi-session DirectML inference on the Intel iGPU caused a native C++ memory violation at `05:26:27 AM`.
+  3. **Lack of Built-In Self-Healing Watchdog Supervisor & Duplicate `cloudflared.exe` Spawning**:
+     - Because `native_gateway.py` ran as a single worker process without a parent supervisor, the `0xc0000005` crash terminated port `:443` / `:8443` until restarted.
+     - Additionally, `system_updater.py` logged `WinError 32` when replacing `system_update_settings.tmp` concurrently, and `_start_native_cloudflared_tunnel()` did not track `cloudflared.pid` across worker restarts.
+- **Resolution**:
+  1. **Disable Unstable `DmlExecutionProvider` by Default Across All ONNX Engines (`face_onnx.py`, `vehicle_attr_onnx.py`, `thlprv2_onnx.py`)**:
+     - Updated `_select_providers()` in `face_onnx.py`, `vehicle_attr_onnx.py`, and `_select_ort_providers()` in `thlprv2_onnx.py` to gate `"DmlExecutionProvider"` behind `BPP_ORT_ENABLE_DML=1` (default `"0"`), preferring `CUDAExecutionProvider` -> `OpenVINOExecutionProvider` -> `CPUExecutionProvider`.
+  2. **Built-In Zero-Overhead 24/7 Watchdog Supervisor & `cloudflared.pid` Reuse (`native_gateway.py`)**:
+     - Added `_run_watchdog_supervisor()` at the top of `native_gateway.py` so launching `native_gateway.py` automatically runs a lightweight parent watchdog that monitors the `--worker` child process and respawns it within 2 seconds if it ever exits.
+     - Updated `_start_native_cloudflared_tunnel()` to persist and check `runtime/cloudflared.pid` before spawning `cloudflared.exe`.
+  3. **Thread/Process-Safe Atomic Settings Save (`system_updater.py`)**:
+     - Updated `_save_settings()` in `frigate-nvr/config-api/system_updater.py` and `frigate-nvr/config/system_updater.py` to use PID/thread-scoped `.tmp` files with retry backoff on Windows `PermissionError` (`WinError 32`).
+  4. **Launched Detached via WMI `Win32_Process.Create` & Verified Live**:
+     - Started `native_gateway.py` (Watchdog PID `14896` -> Worker PID `21672`) and `BPP-VMS.exe` (`PID 13756`) via `Win32_Process.Create` (outside shell Job Objects) and verified `https://vms.local/` (`HTTP 200 OK`) and `https://127.0.0.1:443/` (`HTTP 200 OK`).
+- **Files Changed**: `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/lpr-service/face_onnx.py`, `frigate-nvr/lpr-service/vehicle_attr_onnx.py`, `frigate-nvr/lpr-service/thlprv2_onnx.py`, `frigate-nvr/config-api/system_updater.py`, `frigate-nvr/config/system_updater.py`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-23 (Early Morning 4) - Full Event Manager ("คลังวิดีโอเหตุการณ์") Media/Clip Resolution & Direct `go2rtc` Server-Side Manual Recording (`REC`) in Standalone Native Program (`Sloth-BPP215`) (Incident 2.201, v225)
+- **Problem / User Request**:
+  - User reported: *"กดบันทึกวีดีโอในช่อง ch แล้วมันจะโชว์ในคลังไหม"* -> *"ต้องการครับแล้วต้องการเห็นวิดีโอที่บันทึกไปอยู่ในคลังด้วยครับ"* -> *"ยังไม่มีเลย"* -> *"ผมเข้าหน้าเว็บจากโปรแกรมที่รันอยู่นะไม่ใช่ docker"* ("I'm accessing the website from the running standalone program, not Docker").
+- **Root Causes Diagnosed**:
+  1. **Direct `go2rtc` (`127.0.0.1:1984`) Manual Recording Missing When Running Without Docker (`frigate-nvr/config-api/api.py`)**:
+     - `_start_watchlist_manual_recorder` and `_stop_watchlist_manual_recorder` previously attempted to call `http://watchlist-api:5001/internal/manual-record/start` and `stop`, which does not exist when running in the standalone native Windows program (`D:\Sloth-BPP215\native\native_gateway.py`) with Docker stopped.
+     - Additionally, `shutil.which("ffmpeg")` did not locate the Windows WinGet `Gyan.FFmpeg` binary (`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*\**\ffmpeg.exe`).
+  2. **Event Snapshots, Clips & Camera Filter in `native_gateway.py` (`/nvr/api/events*`, `/lpr-crops/*`, `/api/watchlist/lpr/candidates`)**:
+     - `native_gateway.py` pointed `LPR_CROPS_DIR` and `LOCAL_CLIPS_PATH` only to `D:\Sloth-BPP215\repo\frigate-nvr\lpr-data\crops` (`0` files) instead of resolving the populated `D:\BPP-VMS\frigate-nvr\lpr-data\crops` (`3,262` files) and `D:\BPP-VMS\frigate-nvr\storage\clips` (`39,139` files) + `recordings` directories. As a result, `/nvr/api/events/{id}/snapshot.jpg` returned `404 Not Found` and `enableEmgrLazyThumbs` hid all event cards in the browser.
+     - `frigate_compat_events` (`/nvr/api/events`) ignored `camera`, `cameras`, `after`, and `before` query parameters, omitted `manual_clips` (`index.json`), hardcoded `has_clip: False`, and lacked `/nvr/api/events/{id}/clip.mp4`.
+     - `native_watchlist_candidates` (`/api/watchlist/lpr/candidates`) returned a Dict wrapper instead of a JSON Array expected by `fetchEmgrLprIndex()` in `app.js`.
+- **Resolution**:
+  1. **In-Process Direct `go2rtc` (`:1984`) Manual Recorder & WinGet `ffmpeg.exe` Resolver (`frigate-nvr/config-api/api.py`)**:
+     - Added `_local_go2rtc_base_url()`, `_capture_local_go2rtc_snapshot()`, and `_local_go2rtc_stream_worker()` directly inside `config-api/api.py` so clicking **`REC`** in Native Mode streams live `.mp4` video and `.jpg` snapshots directly from `http://127.0.0.1:1984/api/stream.mp4?src={cam}` and `/api/frame.jpeg?src={cam}`, remuxes with `_resolve_ffmpeg_bin()` (`-c copy -movflags +faststart`), and mirrors `manual_clips` across `D:\Sloth-BPP215\native\config\manual_clips` and `D:\BPP-VMS\frigate-nvr\config\manual_clips`.
+  2. **Full Event Manager Media, Clip & Filter Parity in `native_gateway.py` & `app.js?v=225`**:
+     - Added `_prefer_populated_dir()` in `native_gateway.py` to resolve `LPR_CROPS_DIR`, `STORAGE_CLIPS_DIR`, and `STORAGE_RECORDINGS_DIR` across `_FRIGATE_ROOT` and `D:\BPP-VMS\frigate-nvr`.
+     - Added `_find_event_snapshot_file()` and `_find_event_clip_file()` supporting `manual_clips`, `lpr-data/crops`, `storage/clips/{camera}-{id}-clean.webp`, `storage/recordings/{YYYY-MM-DD}/{HH}/{camera}/{MM}.{SS}.mp4`, and `storage/clips/previews`.
+     - Updated `/nvr/api/events` to filter by `camera`/`cameras`, `after`, `before`, include `manual_clips`, and set `has_clip` accurately; added `/nvr/api/events/{id}/clip.mp4`, `/nvr/api/events/{id}`, and `/lpr-crops/{crop_name}`; and updated `/api/watchlist/lpr/candidates` to return a JSON Array.
+     - Verified live on `http://127.0.0.1:8443`: `drone_bpp2` filter returns `mrec_1792664924_drone` (`HTTP 200`), event snapshots & 3.2 MB HD recording clips return `HTTP 200`, and a 3-second live manual recording on `Doonsad5` produced a `3.67 MB` MP4 + `323 KB` JPEG snapshot.
+- **Files Changed**: `frigate-nvr/config-api/api.py`, `frigate-nvr/tools/native-exe/native_gateway.py`, `frigate-nvr/web/assets/app.js`, `frigate-nvr/web/index.html`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-23 (Morning) - Single Unified `BPP-VMS-Setup.exe` Installer with Clean Root Directory (`AssemblyResolve` from `native\`), Built-In Server Connection Tester, & Zero `.bat`/`.dll` Clutter (Incident 2.201)
+- **Problem / User Request**:
+  - User requested: *"`@[Quote] (ดับเบิลคลิกไฟล์ Install-Client.bat)` ไม่เอาแบบนี้เน้นพัฒนาแบบที่ 2 ให้สมบูรณ์ มีหลายไฟล์ติดตั้งมันสับสนไม่รู้จะกดอันไหน"* ("Don't do it like this. Focus on developing Method 2 (`BPP-VMS-Setup.exe`) to perfection. Having multiple installer files is confusing and people won't know which one to click").
+- **Architecture & Improvements Implemented**:
+  1. **Single Installer Entry Point (`BPP-VMS-Setup.exe`) with Zero Root `.bat` or `.dll` Clutter (`frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `Build-BppNativeExe.ps1`)**:
+     - Added `SetDllDirectory(Path.Combine(baseDir, "native"))` and `AppDomain.CurrentDomain.AssemblyResolve` inside a dedicated `Program.Main()` entry point in `BppVmsSetupWizard.cs` (`[MethodImpl(MethodImplOptions.NoInlining)] RunWizard()`) so `BPP-VMS-Setup.exe` loads `Microsoft.Web.WebView2.Core.dll`, `Microsoft.Web.WebView2.WinForms.dll`, and `WebView2Loader.dll` directly from the `native\` subdirectory.
+     - Removed `D:\SLOTH-BPP-VMS-Client`, `D:\SLOTH-BPP-VMS-Client.zip`, `Install-On-New-PC.bat`, `Install-Or-Start-BPP-VMS.bat`, and root `.dll` files from `D:\SLOTH-BPP-VMS-Installer` and `D:\Sloth-BPP215`, leaving **`BPP-VMS-Setup.exe` as the ONLY file at the root of the installer folder**.
+  2. **Built-In Server Connection Tester (`🔍 ทดสอบการเชื่อมต่อ`) in `BPP-VMS-Setup.exe` (`BppVmsSetupWizard.cs`)**:
+     - Added `TEST_SERVER:<url>` handler in `BppVmsSetupWizard.cs` and a **`🔍 ทดสอบการเชื่อมต่อ`** button + preset buttons (`🌐 ดูผ่านเน็ต: https://vms.local` / `🖧 ดูผ่านวงแลนภายใน: http://192.168.1.200:8443`) inside Option 1 (`💻 1. ติดตั้งเป็นเครื่องลูกข่าย (PC Client Mode)`).
+  3. **Enhanced Role-Aware Splash, Error Recovery, Tray Menu, & Full Update in `BPP-VMS.exe` (`frigate-nvr/tools/native-exe/BppVmsShell.cs`)**:
+     - Updated `GetCyberSplashHtml()` and `GetErrorSplashHtml()` to adapt to Client Mode vs Server Mode and provide 1-click buttons (`🌐 เชื่อมผ่านเน็ต`, `🖧 เชื่อมผ่านวงแลน`, `⚙️ เปิดหน้าตั้งค่า Server / Client`) without referencing any legacy `.bat` scripts.
+     - Added `"⚙️ ตั้งค่าโหมด Server / Client (เปิด BPP-VMS-Setup.exe)"` to the System Tray menu and upgraded `TriggerFullProgramUpdateAsync()` to sync both the Server and local `repo\` when **`🔄 อัปเดต`** is clicked.
+- **Files Changed**: `frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `frigate-nvr/tools/native-exe/BppVmsShell.cs`, `frigate-nvr/tools/native-exe/Build-BppNativeExe.ps1`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-23 (Early Morning 3) - Separate Server vs PC Client Installation Modes (`BPP-VMS-Setup.exe`, `client_mode.json`, & `D:\SLOTH-BPP-VMS-Client`) (Incident 2.200)
 - **Problem / User Request**:
   - User requested: *"แล้วจะแยกติดตั้งได้ยังไงระหว่าง server กับ client"* ("Then how do we install them separately between server and client?").
 - **Architecture & Features Implemented**:

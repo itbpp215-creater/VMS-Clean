@@ -194,14 +194,15 @@ class FaceOnnxEngine:
         if ort is None:
             return []
         avail = ort.get_available_providers()
-        if prefer_cpu_for_dml_heavy and "DmlExecutionProvider" in avail and "CUDAExecutionProvider" not in avail:
-            return ["CPUExecutionProvider"]
+        enable_dml = os.environ.get("BPP_ORT_ENABLE_DML", "0").strip() == "1"
+        if (prefer_cpu_for_dml_heavy or not enable_dml) and "DmlExecutionProvider" in avail and "CUDAExecutionProvider" not in avail:
+            avail = [p for p in avail if p != "DmlExecutionProvider"]
         preferred = [
             p
             for p in (
                 "TensorrtExecutionProvider",
                 "CUDAExecutionProvider",
-                "DmlExecutionProvider",
+                *(("DmlExecutionProvider",) if enable_dml else ()),
                 "OpenVINOExecutionProvider",
                 "CPUExecutionProvider",
             )

@@ -106,12 +106,24 @@ class SystemUpdater:
     def _save_settings(self) -> None:
         try:
             self.settings_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = self.settings_path.with_suffix(".tmp")
-            tmp_path.write_text(
-                json.dumps(self._state, ensure_ascii=False, indent=2),
-                encoding="utf-8",
+            tmp_path = self.settings_path.with_name(
+                f"{self.settings_path.stem}.{os.getpid()}.{threading.get_ident()}.tmp"
             )
-            tmp_path.replace(self.settings_path)
+            payload = json.dumps(self._state, ensure_ascii=False, indent=2)
+            tmp_path.write_text(payload, encoding="utf-8")
+            for attempt in range(5):
+                try:
+                    tmp_path.replace(self.settings_path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        self.settings_path.write_text(payload, encoding="utf-8")
+                        try:
+                            tmp_path.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+                    else:
+                        time.sleep(0.08 * (attempt + 1))
         except Exception as exc:
             logger.warning("Failed to save %s: %s", self.settings_path, exc)
 

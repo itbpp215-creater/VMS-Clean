@@ -186,15 +186,16 @@ class VehicleAttrOnnx:
         self._loaded = False
 
     def _select_providers(self) -> List[str]:
-        """เลือก ONNX Execution Providers ที่เครื่องรองรับโดยอัตโนมัติ (NVIDIA -> AMD/Intel DirectML -> CPU)."""
+        """เลือก ONNX Execution Providers ที่เครื่องรองรับโดยอัตโนมัติ (NVIDIA -> OpenVINO -> CPU; ปิด DirectML ค่าเริ่มต้นเพื่อป้องกัน 0xc0000005)."""
         import onnxruntime as ort
 
         avail = ort.get_available_providers()
+        enable_dml = os.environ.get("BPP_ORT_ENABLE_DML", "0").strip() == "1"
         preferred: List[str] = []
         for prov in (
             "TensorrtExecutionProvider",
             "CUDAExecutionProvider",
-            "DmlExecutionProvider",
+            *(("DmlExecutionProvider",) if enable_dml else ()),
             "OpenVINOExecutionProvider",
             "CPUExecutionProvider",
         ):

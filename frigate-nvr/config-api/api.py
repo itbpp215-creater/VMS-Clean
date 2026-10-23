@@ -2179,7 +2179,60 @@ MANUAL_CLIPS_DIR = os.environ.get(
     "MANUAL_CLIPS_DIR",
     os.path.join(os.path.dirname(CONFIG_PATH), "manual_clips"),
 )
+_MIRROR_MANUAL_CLIPS_DIRS = [
+    d for d in (
+        r"D:\Sloth-BPP215\native\config\manual_clips",
+        r"D:\BPP-VMS\frigate-nvr\config\manual_clips",
+    )
+    if os.path.isdir(os.path.dirname(d)) and os.path.abspath(d) != os.path.abspath(MANUAL_CLIPS_DIR)
+]
 _manual_clips_lock = threading.Lock()
+_local_manual_rec_lock = threading.Lock()
+_local_manual_rec_sessions: dict[str, dict] = {}
+
+
+def _resolve_ffmpeg_bin() -> Optional[str]:
+    import shutil
+
+    env_bin = os.environ.get("BPP_FFMPEG_BIN", "").strip()
+    if env_bin and os.path.isfile(env_bin):
+        return env_bin
+    which_bin = shutil.which("ffmpeg")
+    if which_bin:
+        return which_bin
+    if os.name == "nt":
+        import glob
+        local_app = os.environ.get("LOCALAPPDATA", r"C:\Users\bpp215\AppData\Local")
+        patterns = [
+            os.path.join(local_app, "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg*", "**", "ffmpeg.exe"),
+            r"C:\Users\*\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg*\**\ffmpeg.exe",
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+        ]
+        for pat in patterns:
+            matches = glob.glob(pat, recursive=True)
+            if matches:
+                return matches[0]
+    return None
+
+
+def _sync_manual_clips_to_mirrors() -> None:
+    import shutil
+
+    if os.name != "nt":
+        return
+    for mirror_dir in _MIRROR_MANUAL_CLIPS_DIRS:
+        try:
+            os.makedirs(mirror_dir, exist_ok=True)
+            for fname in os.listdir(MANUAL_CLIPS_DIR):
+                if fname.endswith(".tmp"):
+                    continue
+                src_f = os.path.join(MANUAL_CLIPS_DIR, fname)
+                dst_f = os.path.join(mirror_dir, fname)
+                if os.path.isfile(src_f):
+                    if not os.path.isfile(dst_f) or os.path.getmtime(src_f) > os.path.getmtime(dst_f) or os.path.getsize(src_f) != os.path.getsize(dst_f):
+                        shutil.copy2(src_f, dst_f)
+        except Exception:
+            pass
 
 
 def _load_manual_clips_index() -> list:
@@ -2202,6 +2255,7 @@ def _save_manual_clips_index(items: list) -> None:
     with open(tmp_path, "w", encoding="utf-8") as fh:
         json.dump(items[:500], fh, ensure_ascii=False, indent=2)
     os.replace(tmp_path, idx_path)
+    _sync_manual_clips_to_mirrors()
 
 
 def _get_camera_display_name(cam_name: str) -> str:
@@ -2220,8 +2274,96 @@ def _get_camera_display_name(cam_name: str) -> str:
     return cam_name
 
 
+def _local_go2rtc_base_url() -> Optional[str]:
+    for base in (
+        os.environ.get("GO2RTC_API_URL", "").strip(),
+        "http://127.0.0.1:1984",
+        "http://127.0.0.1:21984",
+    ):
+        if not base:
+            continue
+        try:
+            with urllib.request.urlopen(f"{base.rstrip('/')}/api", timeout=0.8) as resp:
+                if resp.status == 200:
+                    return base.rstrip("/")
+        except Exception:
+            continue
+    return None
+
+
+def _capture_local_go2rtc_snapshot(base_url: str, cam_name: str) -> bytes:
+    for candidate in (f"{cam_name}_hd", cam_name, f"{cam_name}_sub"):
+        url = f"{base_url}/api/frame.jpeg?src={urllib.parse.quote(candidate)}"
+        try:
+            with urllib.request.urlopen(url, timeout=3.5) as resp:
+                if resp.status == 200:
+                    data = resp.read()
+                    if data and len(data) >= 200:
+                        return data
+        except Exception:
+            continue
+    return b""
+
+
+def _local_go2rtc_stream_worker(session: dict) -> None:
+    base_url = session["base_url"]
+    cam = session["camera"]
+    out_path = session["raw_path"]
+    stop_ev: threading.Event = session["stop_event"]
+    max_seconds = 600.0
+    t0 = time.time()
+
+    for candidate in (f"{cam}_hd", cam, f"{cam}_sub"):
+        if stop_ev.is_set():
+            break
+        url = f"{base_url}/api/stream.mp4?src={urllib.parse.quote(candidate)}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "BPP-VMS-NativeRecorder/1.0"})
+            with urllib.request.urlopen(req, timeout=8.0) as resp:
+                if resp.status != 200:
+                    continue
+                with open(out_path, "wb") as fh:
+                    while not stop_ev.is_set() and (time.time() - t0) < max_seconds:
+                        chunk = resp.read(65536)
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+                if os.path.isfile(out_path) and os.path.getsize(out_path) > 1024:
+                    session["recorded_ok"] = True
+                    return
+        except Exception as exc:
+            print(f"[config-api] local go2rtc stream.mp4 attempt for {candidate} ended: {exc}")
+            continue
+
+
 def _start_watchlist_manual_recorder(cam_name: str, start_ts: float) -> bytes:
     import base64
+    import tempfile
+
+    local_base = _local_go2rtc_base_url()
+    if local_base:
+        with _local_manual_rec_lock:
+            old = _local_manual_rec_sessions.pop(cam_name, None)
+            if old and old.get("stop_event"):
+                old["stop_event"].set()
+            fd, raw_path = tempfile.mkstemp(prefix=f"mrec_{cam_name}_", suffix=".mp4")
+            os.close(fd)
+            stop_ev = threading.Event()
+            snap_bytes = _capture_local_go2rtc_snapshot(local_base, cam_name)
+            sess = {
+                "camera": cam_name,
+                "base_url": local_base,
+                "start_time": start_ts,
+                "raw_path": raw_path,
+                "stop_event": stop_ev,
+                "snapshot_bytes": snap_bytes,
+                "recorded_ok": False,
+            }
+            t = threading.Thread(target=_local_go2rtc_stream_worker, args=(sess,), daemon=True)
+            sess["thread"] = t
+            _local_manual_rec_sessions[cam_name] = sess
+            t.start()
+            return snap_bytes
 
     try:
         secret = get_federation_secret()
@@ -2248,6 +2390,67 @@ def _start_watchlist_manual_recorder(cam_name: str, start_ts: float) -> bytes:
 
 def _stop_watchlist_manual_recorder(cam_name: str, start_ts: float, end_ts: float) -> tuple[bytes, bytes]:
     import base64
+    import subprocess
+
+    with _local_manual_rec_lock:
+        sess = _local_manual_rec_sessions.pop(cam_name, None)
+
+    if sess is not None:
+        stop_ev = sess.get("stop_event")
+        if stop_ev:
+            stop_ev.set()
+        t = sess.get("thread")
+        if t and t.is_alive():
+            t.join(timeout=4.0)
+        raw_path = sess.get("raw_path")
+        snap_bytes = sess.get("snapshot_bytes") or b""
+        if not snap_bytes and sess.get("base_url"):
+            snap_bytes = _capture_local_go2rtc_snapshot(sess["base_url"], cam_name)
+        video_bytes = b""
+        if raw_path and os.path.isfile(raw_path):
+            try:
+                if os.path.getsize(raw_path) > 512:
+                    fixed_path = raw_path + "_fast.mp4"
+                    ffmpeg_bin = _resolve_ffmpeg_bin()
+                    if ffmpeg_bin:
+                        try:
+                            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                            res = subprocess.run(
+                                [
+                                    ffmpeg_bin,
+                                    "-y",
+                                    "-i",
+                                    raw_path,
+                                    "-c",
+                                    "copy",
+                                    "-movflags",
+                                    "+faststart",
+                                    fixed_path,
+                                ],
+                                capture_output=True,
+                                timeout=10,
+                                creationflags=creationflags,
+                            )
+                            if res.returncode == 0 and os.path.isfile(fixed_path) and os.path.getsize(fixed_path) > 512:
+                                with open(fixed_path, "rb") as fh:
+                                    video_bytes = fh.read()
+                        except Exception:
+                            pass
+                        finally:
+                            if os.path.isfile(fixed_path):
+                                try:
+                                    os.remove(fixed_path)
+                                except Exception:
+                                    pass
+                    if not video_bytes:
+                        with open(raw_path, "rb") as fh:
+                            video_bytes = fh.read()
+            finally:
+                try:
+                    os.remove(raw_path)
+                except Exception:
+                    pass
+        return video_bytes, snap_bytes
 
     try:
         secret = get_federation_secret()
@@ -2311,10 +2514,11 @@ def _store_manual_clip_files(
     if video_bytes and len(video_bytes) > 256 and (not has_clip or len(video_bytes) > existing_mp4_size):
         with open(raw_video_path, "wb") as vf:
             vf.write(video_bytes)
-        ffmpeg_bin = shutil.which("ffmpeg")
+        ffmpeg_bin = _resolve_ffmpeg_bin()
         converted = False
         if ffmpeg_bin:
             try:
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 res = subprocess.run(
                     [
                         ffmpeg_bin,
@@ -2337,6 +2541,7 @@ def _store_manual_clip_files(
                     ],
                     capture_output=True,
                     timeout=25,
+                    creationflags=creationflags,
                 )
                 if res.returncode == 0 and os.path.isfile(final_mp4_path) and os.path.getsize(final_mp4_path) > 256:
                     converted = True
@@ -2492,17 +2697,18 @@ async def update_manual_clip_description(clip_id: str, request: Request, identit
 @operator_router.delete("/manual_clips/{clip_id}")
 def delete_manual_clip(clip_id: str, identity: TrustedIdentity = Depends(require_authenticated)):
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", clip_id)
+    for base_dir in [MANUAL_CLIPS_DIR, *_MIRROR_MANUAL_CLIPS_DIRS]:
+        for ext in (".mp4", ".webm", ".jpg"):
+            p = os.path.join(base_dir, f"{safe_id}{ext}")
+            if os.path.isfile(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
     with _manual_clips_lock:
         items = _load_manual_clips_index()
         items = [x for x in items if x.get("id") != safe_id]
         _save_manual_clips_index(items)
-    for ext in (".mp4", ".webm", ".jpg"):
-        p = os.path.join(MANUAL_CLIPS_DIR, f"{safe_id}{ext}")
-        if os.path.isfile(p):
-            try:
-                os.remove(p)
-            except Exception:
-                pass
     return {"status": "ok", "id": safe_id}
 
 

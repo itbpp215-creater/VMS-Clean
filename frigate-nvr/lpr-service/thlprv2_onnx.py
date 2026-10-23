@@ -53,13 +53,15 @@ def _select_ort_providers() -> List[str]:
     if ort is None:
         return []
     available = ort.get_available_providers()
+    enable_dml = os.environ.get("BPP_ORT_ENABLE_DML", "0").strip() == "1"
     preferred = [
         "CUDAExecutionProvider",
-        "DmlExecutionProvider",
+        *(("DmlExecutionProvider",) if enable_dml else ()),
+        "OpenVINOExecutionProvider",
         "CPUExecutionProvider",
     ]
     selected = [p for p in preferred if p in available]
-    return selected or list(available)
+    return selected or ["CPUExecutionProvider"]
 
 
 def _nms_xyxy(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float = 0.45) -> List[int]:

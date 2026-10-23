@@ -33,13 +33,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import uvicorn
-import yaml
-from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
-
 _HERE = Path(__file__).resolve().parent
 _FRIGATE_ROOT = (
     _HERE.parents[1]
@@ -55,6 +48,66 @@ _ANALYTICS_DIR = _FRIGATE_ROOT / "analytics-engine"
 NATIVE_ROOT = Path(os.environ.get("BPP_NATIVE_ROOT", str(_WORKSPACE_ROOT / "native")))
 NATIVE_CONFIG_DIR = NATIVE_ROOT / "config"
 NATIVE_RUNTIME_DIR = Path(os.environ.get("BPP_NATIVE_RUNTIME_DIR", str(NATIVE_ROOT / "runtime")))
+
+# Disable unstable DirectML ONNX provider by default on Windows to prevent 0xc0000005 crashes
+os.environ.setdefault("BPP_ORT_ENABLE_DML", "0")
+
+
+def _run_watchdog_supervisor() -> None:
+    """Zero-overhead 24/7 parent watchdog that auto-restarts the gateway worker if it ever exits."""
+    NATIVE_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    port = int(os.environ.get("BPP_NATIVE_PORT", "8443"))
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.4)
+        if s.connect_ex(("127.0.0.1", port)) == 0:
+            return
+    log_fp = NATIVE_RUNTIME_DIR / "gateway.log"
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    env = dict(os.environ)
+    env["BPP_GATEWAY_WORKER"] = "1"
+    env["BPP_ORT_ENABLE_DML"] = "0"
+    script_path = str(Path(__file__).resolve())
+    while True:
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, script_path, "--worker"],
+                cwd=str(NATIVE_ROOT) if NATIVE_ROOT.is_dir() else None,
+                env=env,
+                creationflags=creationflags,
+            )
+            rc = proc.wait()
+            try:
+                with open(log_fp, "a", encoding="utf-8") as fh:
+                    fh.write(
+                        f"{time.strftime('%Y-%m-%d %H:%M:%S')} [WARNING] bpp.watchdog: "
+                        f"Gateway worker (PID {proc.pid}) exited with code {rc} — auto-restarting in 2s...\n"
+                    )
+            except Exception:
+                pass
+        except KeyboardInterrupt:
+            break
+        except Exception as exc:
+            try:
+                with open(log_fp, "a", encoding="utf-8") as fh:
+                    fh.write(
+                        f"{time.strftime('%Y-%m-%d %H:%M:%S')} [ERROR] bpp.watchdog: "
+                        f"Supervisor error: {exc}\n"
+                    )
+            except Exception:
+                pass
+        time.sleep(2.0)
+
+
+if __name__ == "__main__" and os.environ.get("BPP_GATEWAY_WORKER") != "1" and "--worker" not in sys.argv:
+    _run_watchdog_supervisor()
+    sys.exit(0)
+
+import uvicorn
+import yaml
+from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 
 def _ensure_machine_local_config(native_cfg: Path, frigate_root: Path, runtime_dir: Path) -> None:
@@ -142,10 +195,41 @@ _DEFAULT_NAS_STORAGE = Path(r"D:\data\nas-storage") if Path(r"D:\data\nas-storag
 _DEFAULT_NAS_DATA = Path(r"D:\data") if Path(r"D:\data").is_dir() else (CONFIG_DIR / "nas-data")
 os.environ.setdefault("NAS_STORAGE_PATH", str(_DEFAULT_NAS_STORAGE))
 os.environ.setdefault("NAS_DATA_DIR", str(_DEFAULT_NAS_DATA))
-os.environ.setdefault("LOCAL_RECORDINGS_PATH", str(_FRIGATE_ROOT / "storage" / "recordings"))
-os.environ.setdefault("LOCAL_EXPORTS_PATH", str(_FRIGATE_ROOT / "storage" / "exports"))
-os.environ.setdefault("LOCAL_CLIPS_PATH", str(_FRIGATE_ROOT / "storage" / "clips"))
-os.environ.setdefault("LOCAL_LPR_CROPS_PATH", str(_FRIGATE_ROOT / "lpr-data" / "crops"))
+_ALT_FRIGATE_ROOT = Path(r"D:\BPP-VMS\frigate-nvr")
+
+
+def _prefer_populated_dir(primary: Path, fallback: Path) -> Path:
+    try:
+        if primary.is_dir() and any(primary.iterdir()):
+            return primary
+    except Exception:
+        pass
+    if fallback.is_dir():
+        return fallback
+    return primary
+
+
+_RESOLVED_RECORDINGS_DIR = _prefer_populated_dir(
+    _FRIGATE_ROOT / "storage" / "recordings",
+    _ALT_FRIGATE_ROOT / "storage" / "recordings",
+)
+_RESOLVED_EXPORTS_DIR = _prefer_populated_dir(
+    _FRIGATE_ROOT / "storage" / "exports",
+    _ALT_FRIGATE_ROOT / "storage" / "exports",
+)
+_RESOLVED_CLIPS_DIR = _prefer_populated_dir(
+    _FRIGATE_ROOT / "storage" / "clips",
+    _ALT_FRIGATE_ROOT / "storage" / "clips",
+)
+_RESOLVED_CROPS_DIR = _prefer_populated_dir(
+    _FRIGATE_ROOT / "lpr-data" / "crops",
+    _ALT_FRIGATE_ROOT / "lpr-data" / "crops",
+)
+
+os.environ.setdefault("LOCAL_RECORDINGS_PATH", str(_RESOLVED_RECORDINGS_DIR))
+os.environ.setdefault("LOCAL_EXPORTS_PATH", str(_RESOLVED_EXPORTS_DIR))
+os.environ.setdefault("LOCAL_CLIPS_PATH", str(_RESOLVED_CLIPS_DIR))
+os.environ.setdefault("LOCAL_LPR_CROPS_PATH", str(_RESOLVED_CROPS_DIR))
 
 _NAS_BOT_DIR = _FRIGATE_ROOT / "nas-bot-service"
 for _p in (_HERE, _CONFIG_API_DIR, _LPR_DIR, _ANALYTICS_DIR, _FRIGATE_ROOT / "config"):
@@ -171,7 +255,9 @@ WEB_DIR = _FRIGATE_ROOT / "web"
 CONFIG_YML = CONFIG_DIR / "config.yml"
 CREDENTIALS_ENV = CONFIG_DIR / "camera_credentials.env"
 WATCHLIST_DB = LPR_SETTINGS_DIR / "watchlist.db"
-LPR_CROPS_DIR = _FRIGATE_ROOT / "lpr-data" / "crops"
+LPR_CROPS_DIR = _RESOLVED_CROPS_DIR
+STORAGE_CLIPS_DIR = _RESOLVED_CLIPS_DIR
+STORAGE_RECORDINGS_DIR = _RESOLVED_RECORDINGS_DIR
 FIELD_SYNC_SETTINGS_PATH = CONFIG_DIR / "field_uplink_settings.json"
 NETWORK_SETTINGS_PATH = CONFIG_DIR / "native_network_settings.json"
 
@@ -615,6 +701,24 @@ def _start_native_cloudflared_tunnel() -> None:
     global _cloudflared_proc
     if _cloudflared_proc is not None and _cloudflared_proc.poll() is None:
         return
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    pid_file = NATIVE_RUNTIME_DIR / "cloudflared.pid"
+    if pid_file.is_file():
+        try:
+            existing_pid = int(pid_file.read_text(encoding="utf-8").strip())
+            if existing_pid > 0:
+                chk = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {existing_pid}", "/FI", "IMAGENAME eq cloudflared.exe", "/NH"],
+                    capture_output=True,
+                    text=True,
+                    creationflags=creationflags,
+                    timeout=5,
+                )
+                if "cloudflared.exe" in (chk.stdout or "").lower():
+                    logger.info("Reusing existing native cloudflared.exe tunnel (PID %s) for vms.local", existing_pid)
+                    return
+        except Exception:
+            pass
     token = os.environ.get("CLOUDFLARE_TUNNEL_TOKEN", "").strip()
     if not token:
         for env_cand in (
@@ -650,7 +754,6 @@ def _start_native_cloudflared_tunnel() -> None:
     if not cf_bin:
         return
     try:
-        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         log_fp = NATIVE_RUNTIME_DIR / "cloudflared.native.log"
         fh = open(log_fp, "a", encoding="utf-8")
         _cloudflared_proc = subprocess.Popen(
@@ -659,6 +762,10 @@ def _start_native_cloudflared_tunnel() -> None:
             stderr=fh,
             creationflags=creationflags,
         )
+        try:
+            pid_file.write_text(str(_cloudflared_proc.pid), encoding="utf-8")
+        except Exception:
+            pass
         logger.info("Started native cloudflared.exe tunnel (PID %s) for vms.local", _cloudflared_proc.pid)
     except Exception as exc:
         logger.warning("Failed to start native cloudflared.exe tunnel: %s", exc)
@@ -1389,6 +1496,7 @@ def _query_lpr_candidates(
     limit: int = 200,
     source: Optional[str] = None,
     q: Optional[str] = None,
+    camera: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     db_path = WATCHLIST_DB
     if not db_path.is_file():
@@ -1401,10 +1509,19 @@ def _query_lpr_candidates(
         if source:
             sql += " AND source = ?"
             params.append(source)
+        if camera:
+            cam_list = [c.strip() for c in camera.split(",") if c.strip()]
+            if len(cam_list) == 1:
+                sql += " AND camera = ?"
+                params.append(cam_list[0])
+            elif len(cam_list) > 1:
+                placeholders = ",".join("?" for _ in cam_list)
+                sql += f" AND camera IN ({placeholders})"
+                params.extend(cam_list)
         if q:
-            sql += " AND (plate_text LIKE ? OR province LIKE ? OR vehicle_brand LIKE ? OR vehicle_color LIKE ?)"
+            sql += " AND (plate_text LIKE ? OR province LIKE ? OR vehicle_brand LIKE ? OR vehicle_color LIKE ? OR description LIKE ?)"
             like_q = f"%{q.strip()}%"
-            params.extend([like_q, like_q, like_q, like_q])
+            params.extend([like_q, like_q, like_q, like_q, like_q])
         sql += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         rows = conn.execute(sql, params).fetchall()
@@ -1497,14 +1614,9 @@ def native_watchlist_candidates(
     limit: int = Query(default=200, ge=1, le=5000),
     source: Optional[str] = None,
     q: Optional[str] = None,
-) -> Dict[str, Any]:
-    items = _query_lpr_candidates(limit=limit, source=source, q=q)
-    return {
-        "items": items,
-        "candidates": items,
-        "total": len(items),
-        "counts": {"all": len(items)},
-    }
+    camera: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    return _query_lpr_candidates(limit=limit, source=source, q=q, camera=camera)
 
 
 @app.post("/api/watchlist/lpr/candidates/{candidate_id}/review")
@@ -1779,31 +1891,219 @@ def frigate_compat_config() -> Dict[str, Any]:
     return {"cameras": {}, "record": {"events": {"pre_capture": 5}}}
 
 
+def _find_event_snapshot_file(
+    event_id: str,
+    camera: Optional[str] = None,
+    crop_path: Optional[str] = None,
+) -> Optional[tuple[Path, str]]:
+    safe_id = os.path.basename(str(event_id).strip())
+    if not safe_id:
+        return None
+    mclip_jpg = CONFIG_DIR / "manual_clips" / f"{safe_id}.jpg"
+    if mclip_jpg.is_file():
+        return mclip_jpg, "image/jpeg"
+
+    if crop_path:
+        bname = os.path.basename(str(crop_path))
+        for cdir in (LPR_CROPS_DIR, _FRIGATE_ROOT / "lpr-data" / "crops"):
+            cand = cdir / bname
+            if cand.is_file():
+                return cand, ("image/webp" if cand.suffix.lower() == ".webp" else "image/jpeg")
+
+    for cdir in (LPR_CROPS_DIR, _FRIGATE_ROOT / "lpr-data" / "crops"):
+        cand = cdir / f"{safe_id}.jpg"
+        if cand.is_file():
+            return cand, "image/jpeg"
+
+    if camera:
+        for name_pat, mtype in (
+            (f"{camera}-{safe_id}-clean.webp", "image/webp"),
+            (f"{camera}-{safe_id}.webp", "image/webp"),
+            (f"{camera}-{safe_id}.jpg", "image/jpeg"),
+            (f"{camera}-{safe_id}-clean.png", "image/png"),
+        ):
+            cand = STORAGE_CLIPS_DIR / name_pat
+            if cand.is_file():
+                return cand, mtype
+        thumb_cand = STORAGE_CLIPS_DIR / "thumbs" / camera / f"{safe_id}.webp"
+        if thumb_cand.is_file():
+            return thumb_cand, "image/webp"
+
+    try:
+        for cand in STORAGE_CLIPS_DIR.glob(f"*-{safe_id}*"):
+            if cand.is_file() and cand.suffix.lower() in (".webp", ".jpg", ".jpeg", ".png"):
+                mtype = "image/webp" if cand.suffix.lower() == ".webp" else "image/jpeg"
+                return cand, mtype
+    except Exception:
+        pass
+    return None
+
+
+def _find_event_clip_file(
+    event_id: str,
+    camera: Optional[str] = None,
+    start_ts: Optional[float] = None,
+) -> Optional[Path]:
+    import datetime as _dt
+
+    safe_id = os.path.basename(str(event_id).strip())
+    if not safe_id:
+        return None
+    mclip_mp4 = CONFIG_DIR / "manual_clips" / f"{safe_id}.mp4"
+    if mclip_mp4.is_file() and mclip_mp4.stat().st_size > 256:
+        return mclip_mp4
+
+    if start_ts is None and safe_id and safe_id[0].isdigit():
+        try:
+            start_ts = float(safe_id.split("-")[0])
+        except Exception:
+            start_ts = None
+
+    if not camera and WATCHLIST_DB.is_file():
+        conn = sqlite3.connect(str(WATCHLIST_DB))
+        try:
+            row = conn.execute(
+                "SELECT camera FROM lpr_candidates WHERE event_id = ? OR ('native-' || id) = ? LIMIT 1",
+                (safe_id, safe_id),
+            ).fetchone()
+            if row and row[0]:
+                camera = str(row[0])
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+    if camera and start_ts:
+        dt_utc = _dt.datetime.fromtimestamp(start_ts, tz=_dt.timezone.utc)
+        hour_dir = STORAGE_RECORDINGS_DIR / dt_utc.strftime("%Y-%m-%d") / dt_utc.strftime("%H") / camera
+        if hour_dir.is_dir():
+            target_sec = dt_utc.minute * 60 + dt_utc.second
+            best_file: Optional[Path] = None
+            best_diff = 999999.0
+            try:
+                for mp4 in hour_dir.glob("*.mp4"):
+                    stem = mp4.stem  # e.g. "37.21"
+                    parts = stem.split(".")
+                    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                        seg_sec = int(parts[0]) * 60 + int(parts[1])
+                        diff = abs(target_sec - seg_sec)
+                        if diff < best_diff and diff <= 60 and mp4.stat().st_size > 1024:
+                            best_diff = diff
+                            best_file = mp4
+                if best_file is not None:
+                    return best_file
+            except Exception:
+                pass
+
+        prev_dir = STORAGE_CLIPS_DIR / "previews" / camera
+        if prev_dir.is_dir():
+            try:
+                for mp4 in prev_dir.glob("*.mp4"):
+                    parts = mp4.stem.split("-")
+                    if len(parts) == 2:
+                        s_t, e_t = float(parts[0]), float(parts[1])
+                        if (s_t - 5.0) <= start_ts <= (e_t + 5.0) and mp4.stat().st_size > 4096:
+                            return mp4
+            except Exception:
+                pass
+    return None
+
+
 @app.get("/nvr/api/events")
 @app.get("/api/events")
-def frigate_compat_events(limit: int = Query(default=50, ge=1, le=500)) -> List[Dict[str, Any]]:
-    rows = _query_lpr_candidates(limit=limit)
+def frigate_compat_events(
+    limit: int = Query(default=50, ge=1, le=5000),
+    camera: Optional[str] = None,
+    cameras: Optional[str] = None,
+    after: Optional[float] = None,
+    before: Optional[float] = None,
+    labels: Optional[str] = None,
+    has_clip: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    eff_cam = camera or cameras
+    cam_set = {c.strip() for c in eff_cam.split(",") if c.strip()} if eff_cam else set()
     events: List[Dict[str, Any]] = []
+    seen_ids: set[str] = set()
     now = time.time()
+
+    # 1. Include Manual Recordings (CONFIG_DIR / manual_clips / index.json)
+    mclips_idx = CONFIG_DIR / "manual_clips" / "index.json"
+    if mclips_idx.is_file():
+        try:
+            mclips = json.loads(mclips_idx.read_text(encoding="utf-8"))
+            if isinstance(mclips, list):
+                for item in mclips:
+                    if not isinstance(item, dict) or not item.get("id"):
+                        continue
+                    cid = str(item["id"])
+                    cam_val = str(item.get("camera") or "")
+                    st = float(item.get("start_time") or now)
+                    et = float(item.get("end_time") or (st + 5.0))
+                    if cam_set and cam_val not in cam_set:
+                        continue
+                    if after is not None and st < after:
+                        continue
+                    if before is not None and st > before:
+                        continue
+                    seen_ids.add(cid)
+                    events.append(
+                        {
+                            "id": cid,
+                            "camera": cam_val,
+                            "label": "manual_rec",
+                            "sub_label": item.get("sub_label") or "บันทึกด้วยมือ",
+                            "top_score": 1.0,
+                            "start_time": st,
+                            "end_time": et,
+                            "has_clip": bool(item.get("has_clip", True)),
+                            "has_snapshot": bool(item.get("has_snapshot", True)),
+                            "source": "manual_rec",
+                            "clip_url": item.get("clip_url") or f"/api/config/manual_clips/{cid}/clip.mp4",
+                            "snapshot_url": item.get("snapshot_url") or f"/api/config/manual_clips/{cid}/snapshot.jpg",
+                            "data": {
+                                "top_score": 1.0,
+                                "description": item.get("description") or f"บันทึกวิดีโอด้วยมือ ({item.get('camera_name') or cam_val})",
+                            },
+                        }
+                    )
+        except Exception:
+            pass
+
+    # 2. Include LPR & AI Detections from watchlist.db
+    rows = _query_lpr_candidates(limit=max(limit * 3, 250), camera=eff_cam)
     for r in rows:
         ev_id = str(r.get("event_id") or f"native-{r.get('id')}")
+        if ev_id in seen_ids:
+            continue
         start_ts = now - 60
         if ev_id and ev_id[0].isdigit():
             try:
                 start_ts = float(ev_id.split("-")[0])
             except Exception:
                 pass
+        if after is not None and start_ts < after:
+            continue
+        if before is not None and start_ts > before:
+            continue
+        cam_val = str(r.get("camera") or "cam_native")
+        if cam_set and cam_val not in cam_set:
+            continue
+        snap_match = _find_event_snapshot_file(ev_id, camera=cam_val, crop_path=r.get("crop_path"))
+        if snap_match is None:
+            continue
+        clip_match = _find_event_clip_file(ev_id, camera=cam_val, start_ts=start_ts)
         plate_str = " ".join(filter(None, [r.get("plate_text"), r.get("province")]))
+        seen_ids.add(ev_id)
         events.append(
             {
                 "id": ev_id,
-                "camera": r.get("camera") or "cam_native",
+                "camera": cam_val,
                 "label": "car",
                 "sub_label": plate_str or None,
                 "top_score": float(r.get("detector_confidence") or 0.88),
                 "start_time": start_ts,
-                "end_time": start_ts + 8.0,
-                "has_clip": False,
+                "end_time": start_ts + 10.0,
+                "has_clip": clip_match is not None,
                 "has_snapshot": True,
                 "data": {
                     "top_score": float(r.get("detector_confidence") or 0.88),
@@ -1811,7 +2111,30 @@ def frigate_compat_events(limit: int = Query(default=50, ge=1, le=500)) -> List[
                 },
             }
         )
-    return events
+        if len(events) >= limit:
+            break
+
+    events.sort(key=lambda x: float(x.get("start_time") or 0.0), reverse=True)
+    return events[:limit]
+
+
+@app.get("/nvr/api/events/{event_id}")
+@app.get("/api/events/{event_id}")
+def frigate_compat_event_detail(event_id: str) -> Dict[str, Any]:
+    evs = frigate_compat_events(limit=500)
+    for ev in evs:
+        if str(ev.get("id")) == event_id:
+            return ev
+    return {
+        "id": event_id,
+        "camera": "cam_native",
+        "label": "manual_rec" if event_id.startswith("mrec_") else "car",
+        "start_time": time.time() - 10.0,
+        "end_time": time.time(),
+        "has_clip": _find_event_clip_file(event_id) is not None,
+        "has_snapshot": True,
+        "data": {"top_score": 1.0},
+    }
 
 
 @app.get("/nvr/api/events/{event_id}/snapshot.jpg")
@@ -1819,6 +2142,8 @@ def frigate_compat_events(limit: int = Query(default=50, ge=1, le=500)) -> List[
 @app.get("/api/events/{event_id}/snapshot.jpg")
 @app.get("/api/events/{event_id}/thumbnail.jpg")
 def frigate_compat_event_snapshot(event_id: str) -> Response:
+    cam_val: Optional[str] = None
+    crop_val: Optional[str] = None
     if WATCHLIST_DB.is_file():
         conn = sqlite3.connect(str(WATCHLIST_DB))
         conn.row_factory = sqlite3.Row
@@ -1827,15 +2152,48 @@ def frigate_compat_event_snapshot(event_id: str) -> Response:
                 "SELECT crop_path, camera FROM lpr_candidates WHERE event_id = ? OR ('native-' || id) = ? LIMIT 1",
                 (event_id, event_id),
             ).fetchone()
-            if row and row["crop_path"]:
-                crop_file = LPR_CROPS_DIR / os.path.basename(str(row["crop_path"]))
-                if crop_file.is_file():
-                    return FileResponse(str(crop_file), media_type="image/jpeg")
+            if row:
+                crop_val = row["crop_path"]
+                cam_val = row["camera"]
         except Exception:
             pass
         finally:
             conn.close()
+
+    found = _find_event_snapshot_file(event_id, camera=cam_val, crop_path=crop_val)
+    if found is not None:
+        fpath, mtype = found
+        return FileResponse(str(fpath), media_type=mtype)
     raise HTTPException(status_code=404, detail="Snapshot not found")
+
+
+@app.get("/nvr/api/events/{event_id}/clip.mp4")
+@app.get("/api/events/{event_id}/clip.mp4")
+def frigate_compat_event_clip(event_id: str) -> Response:
+    clip_file = _find_event_clip_file(event_id)
+    if clip_file is not None and clip_file.is_file():
+        with open(clip_file, "rb") as fh:
+            head = fh.read(4)
+        mtype = "video/webm" if head == b"\x1a\x45\xdf\xa3" else "video/mp4"
+        return FileResponse(str(clip_file), media_type=mtype, filename=f"{os.path.basename(event_id)}.mp4")
+    raise HTTPException(status_code=404, detail="Clip not found")
+
+
+@app.get("/lpr-crops/{crop_name:path}")
+def serve_lpr_crop_with_fallback(crop_name: str) -> Response:
+    bname = os.path.basename(crop_name.strip())
+    if not bname:
+        raise HTTPException(status_code=404, detail="Crop not found")
+    for cdir in (LPR_CROPS_DIR, _FRIGATE_ROOT / "lpr-data" / "crops"):
+        cand = cdir / bname
+        if cand.is_file():
+            return FileResponse(str(cand), media_type="image/jpeg")
+    ev_id = bname[:-4] if bname.lower().endswith(".jpg") else bname
+    found = _find_event_snapshot_file(ev_id, crop_path=bname)
+    if found is not None:
+        fpath, mtype = found
+        return FileResponse(str(fpath), media_type=mtype)
+    raise HTTPException(status_code=404, detail="Crop not found")
 
 
 @app.get("/nvr/api/faces")
