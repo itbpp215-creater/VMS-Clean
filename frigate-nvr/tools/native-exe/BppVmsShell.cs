@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -42,6 +43,9 @@ namespace BppVmsNative
         private NotifyIcon _trayIcon;
         private ContextMenuStrip _trayMenu;
         private Process _gatewayProcess;
+        private Process _rtspBridgeProcess;
+        private Process _i2BridgeProcess;
+        private Timer _helperWatchdogTimer;
         private readonly string _baseDir;
         private string _gatewayUrl = "http://127.0.0.1:8443";
         private bool _isClientMode = false;
@@ -207,14 +211,66 @@ namespace BppVmsNative
         {
             _trayMenu = new ContextMenuStrip
             {
-                BackColor = Color.FromArgb(16, 13, 32),
+                BackColor = Color.FromArgb(13, 14, 26),
                 ForeColor = Color.FromArgb(238, 240, 248),
-                ShowImageMargin = false
+                ShowImageMargin = false,
+                ShowCheckMargin = false,
+                AutoSize = true,
+                Padding = new Padding(7, 7, 7, 7),
+                Font = new Font("Leelawadee UI", 9.5f, FontStyle.Regular),
+                Renderer = new ModernTrayMenuRenderer()
             };
-            _trayMenu.Items.Add("เปิดหน้าต่างโปรแกรม (Show BPP-VMS)", null, (s, e) => ShowMainWindow());
-            _trayMenu.Items.Add("ตั้งค่าโหมด Server / Client (Setup)", null, (s, e) => OpenSetupWizard());
-            _trayMenu.Items.Add(new ToolStripSeparator());
-            _trayMenu.Items.Add("ออกจากโปรแกรม (Exit)", null, (s, e) => ExitApplication());
+
+            _trayMenu.Opened += (s, e) =>
+            {
+                try
+                {
+                    int cornerPref = 2; // DWMWCP_ROUND
+                    DwmSetWindowAttribute(_trayMenu.Handle, 33, ref cornerPref, sizeof(int));
+                    int darkMode = 1;
+                    DwmSetWindowAttribute(_trayMenu.Handle, 20, ref darkMode, sizeof(int));
+                }
+                catch { }
+            };
+
+            var itemOpen = new ToolStripMenuItem("เปิดหน้าต่างโปรแกรม")
+            {
+                Tag = "open",
+                AutoSize = false,
+                Size = new Size(204, 36),
+                Padding = new Padding(0)
+            };
+            itemOpen.Click += (s, e) => ShowMainWindow();
+
+            var itemSetup = new ToolStripMenuItem("ตั้งค่าโหมดเชื่อมต่อ")
+            {
+                Tag = "setup",
+                AutoSize = false,
+                Size = new Size(204, 36),
+                Padding = new Padding(0)
+            };
+            itemSetup.Click += (s, e) => OpenSetupWizard();
+
+            var sep = new ToolStripSeparator
+            {
+                AutoSize = false,
+                Size = new Size(204, 9),
+                Margin = new Padding(0, 2, 0, 2)
+            };
+
+            var itemExit = new ToolStripMenuItem("ออกจากโปรแกรม")
+            {
+                Tag = "exit",
+                AutoSize = false,
+                Size = new Size(204, 36),
+                Padding = new Padding(0)
+            };
+            itemExit.Click += (s, e) => ExitApplication();
+
+            _trayMenu.Items.Add(itemOpen);
+            _trayMenu.Items.Add(itemSetup);
+            _trayMenu.Items.Add(sep);
+            _trayMenu.Items.Add(itemExit);
 
             _trayIcon = new NotifyIcon
             {
@@ -870,8 +926,103 @@ namespace BppVmsNative
             }
         }
 
+        private bool IsTcpPortListening(int port)
+        {
+            try
+            {
+                using (var tcp = new TcpClient())
+                {
+                    var t = tcp.ConnectAsync("127.0.0.1", port);
+                    return t.Wait(200) && tcp.Connected;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void EnsureEmbeddedHelpersRunning()
+        {
+            if (_isClientMode) return;
+
+            string frigateRoot = Path.GetFullPath(Path.Combine(_baseDir, "..", "repo", "frigate-nvr"));
+            if (!Directory.Exists(frigateRoot))
+            {
+                frigateRoot = @"D:\BPP-VMS\frigate-nvr";
+            }
+
+            // 1. Embedded RTSP Proxy Bridge (node.exe rtsp_proxy.js on :8556) — Windowless (CreateNoWindow = true)
+            try
+            {
+                if ((_rtspBridgeProcess == null || _rtspBridgeProcess.HasExited) && !IsTcpPortListening(8556))
+                {
+                    string rtspScript = Path.Combine(frigateRoot, "scripts", "rtsp_proxy.js");
+                    if (!File.Exists(rtspScript))
+                    {
+                        rtspScript = @"D:\BPP-VMS\frigate-nvr\scripts\rtsp_proxy.js";
+                    }
+                    string nodeExe = @"C:\Program Files\nodejs\node.exe";
+                    if (!File.Exists(nodeExe)) nodeExe = "node.exe";
+
+                    if (File.Exists(rtspScript))
+                    {
+                        _rtspBridgeProcess = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = nodeExe,
+                            Arguments = "\"" + rtspScript + "\"",
+                            WorkingDirectory = Path.GetDirectoryName(rtspScript),
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            WindowStyle = ProcessWindowStyle.Hidden
+                        });
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Embedded IBM i2 Analyst's Notebook Bridge (32-bit PowerShell i2-bridge.ps1) — Windowless (CreateNoWindow = true)
+            try
+            {
+                if (_i2BridgeProcess == null || _i2BridgeProcess.HasExited)
+                {
+                    string i2Script = Path.Combine(frigateRoot, "scripts", "i2-bridge", "i2-bridge.ps1");
+                    string i2Root = Path.Combine(frigateRoot, "runtime", "i2-bridge");
+                    if (!File.Exists(i2Script))
+                    {
+                        i2Script = @"D:\BPP-VMS\frigate-nvr\scripts\i2-bridge\i2-bridge.ps1";
+                        i2Root = @"D:\BPP-VMS\frigate-nvr\runtime\i2-bridge";
+                    }
+                    string ps32 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), @"SysWOW64\WindowsPowerShell\v1.0\powershell.exe");
+                    if (!File.Exists(ps32)) ps32 = "powershell.exe";
+
+                    if (File.Exists(i2Script))
+                    {
+                        _i2BridgeProcess = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = ps32,
+                            Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + i2Script + "\" -BridgeRoot \"" + i2Root + "\"",
+                            WorkingDirectory = Path.GetDirectoryName(i2Script),
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            WindowStyle = ProcessWindowStyle.Hidden
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
+
         private async Task StartGatewayIfNeededAsync()
         {
+            await Task.Run(() => EnsureEmbeddedHelpersRunning());
+            if (_helperWatchdogTimer == null && !_isClientMode)
+            {
+                _helperWatchdogTimer = new Timer { Interval = 15000 };
+                _helperWatchdogTimer.Tick += (s, e) => Task.Run(() => EnsureEmbeddedHelpersRunning());
+                _helperWatchdogTimer.Start();
+            }
+
             bool alreadyUp = await Task.Run(() => IsGatewayListening());
             if (alreadyUp) return;
 
@@ -1093,13 +1244,25 @@ namespace BppVmsNative
         {
             try
             {
-                if (_gatewayProcess != null && !_gatewayProcess.HasExited)
+                if (_helperWatchdogTimer != null)
                 {
-                    _gatewayProcess.Kill();
+                    _helperWatchdogTimer.Stop();
+                    _helperWatchdogTimer.Dispose();
+                    _helperWatchdogTimer = null;
                 }
             }
-            catch
+            catch { }
+
+            foreach (var proc in new Process[] { _gatewayProcess, _rtspBridgeProcess, _i2BridgeProcess })
             {
+                try
+                {
+                    if (proc != null && !proc.HasExited)
+                    {
+                        proc.Kill();
+                    }
+                }
+                catch { }
             }
         }
 
@@ -1167,6 +1330,132 @@ namespace BppVmsNative
             }
 
             Application.Run(new MainForm());
+        }
+    }
+
+    internal sealed class ModernTrayMenuRenderer : ToolStripProfessionalRenderer
+    {
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle r = new Rectangle(0, 0, e.ToolStrip.Width, e.ToolStrip.Height);
+            using (var brush = new LinearGradientBrush(r, Color.FromArgb(20, 18, 38), Color.FromArgb(11, 12, 22), 90f))
+            {
+                g.FillRectangle(brush, r);
+            }
+        }
+
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle r = new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+            using (GraphicsPath path = CreateRoundRect(r, 8))
+            using (var pen = new Pen(Color.FromArgb(90, 168, 85, 247), 1f))
+            {
+                g.DrawPath(pen, path);
+            }
+        }
+
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            string tag = (e.Item.Tag as string) ?? "";
+            bool isExit = (tag == "exit");
+
+            if (e.Item.Selected)
+            {
+                Rectangle pill = new Rectangle(4, 2, e.Item.Width - 8, e.Item.Height - 4);
+                Color fill = isExit ? Color.FromArgb(46, 251, 91, 120) : Color.FromArgb(48, 168, 85, 247);
+                Color border = isExit ? Color.FromArgb(120, 251, 91, 120) : Color.FromArgb(120, 168, 85, 247);
+                using (GraphicsPath path = CreateRoundRect(pill, 7))
+                using (var b = new SolidBrush(fill))
+                using (var p = new Pen(border, 1f))
+                {
+                    g.FillPath(b, path);
+                    g.DrawPath(p, path);
+                }
+            }
+
+            // Draw crisp anti-aliased minimal vector icon on the left
+            int cx = 20;
+            int cy = e.Item.Height / 2;
+            if (tag == "open")
+            {
+                Color ic = e.Item.Selected ? Color.FromArgb(216, 180, 254) : Color.FromArgb(192, 132, 252);
+                using (var pen = new Pen(ic, 1.6f))
+                {
+                    g.DrawRectangle(pen, cx - 6, cy - 5, 12, 10);
+                    g.DrawLine(pen, cx - 6, cy - 2, cx + 6, cy - 2);
+                }
+            }
+            else if (tag == "setup")
+            {
+                Color ic = e.Item.Selected ? Color.FromArgb(110, 231, 183) : Color.FromArgb(52, 226, 168);
+                using (var pen = new Pen(ic, 1.6f))
+                {
+                    g.DrawLine(pen, cx - 6, cy - 3, cx + 6, cy - 3);
+                    g.DrawLine(pen, cx - 6, cy + 3, cx + 6, cy + 3);
+                    using (var fill = new SolidBrush(Color.FromArgb(15, 16, 28)))
+                    {
+                        g.FillEllipse(fill, cx - 3, cy - 5, 4, 4);
+                        g.DrawEllipse(pen, cx - 3, cy - 5, 4, 4);
+                        g.FillEllipse(fill, cx + 1, cy + 1, 4, 4);
+                        g.DrawEllipse(pen, cx + 1, cy + 1, 4, 4);
+                    }
+                }
+            }
+            else if (tag == "exit")
+            {
+                Color ic = e.Item.Selected ? Color.FromArgb(253, 164, 175) : Color.FromArgb(251, 91, 120);
+                using (var pen = new Pen(ic, 1.6f))
+                {
+                    g.DrawArc(pen, cx - 5, cy - 5, 10, 10, -55, 290);
+                    g.DrawLine(pen, cx, cy - 6, cx, cy);
+                }
+            }
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            string tag = (e.Item.Tag as string) ?? "";
+            bool isExit = (tag == "exit");
+            Color textColor = isExit
+                ? (e.Item.Selected ? Color.FromArgb(254, 205, 211) : Color.FromArgb(253, 164, 175))
+                : (e.Item.Selected ? Color.White : Color.FromArgb(226, 232, 240));
+            Rectangle textRect = new Rectangle(38, 0, e.Item.Width - 46, e.Item.Height);
+            TextRenderer.DrawText(
+                e.Graphics,
+                e.Text,
+                e.TextFont,
+                textRect,
+                textColor,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix
+            );
+        }
+
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            int y = e.Item.Height / 2;
+            using (var pen = new Pen(Color.FromArgb(42, 168, 85, 247), 1f))
+            {
+                g.DrawLine(pen, 12, y, e.Item.Width - 12, y);
+            }
+        }
+
+        private static GraphicsPath CreateRoundRect(Rectangle r, int radius)
+        {
+            var path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 }

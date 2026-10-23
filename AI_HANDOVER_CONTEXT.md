@@ -1,28 +1,30 @@
-﻿## Update 2026-10-23 (Afternoon) - Clean System Tray & Settings Menus, ARM 215 Bottom-Left Logo (`arm215-logo.png`) as Program Icon (`arm215.ico`), Clickable Logo -> Machine Profile Settings in `BPP-VMS.exe`, and Conditional Update Button Next to Minimize (`─`) (Incident 2.205, v228)
+﻿## Update 2026-10-23 (Afternoon) - Clean System Tray & Settings Menus, Full-Color Original ARM 215 Logo (`arm215-logo.png` / `arm215.ico` with Black Background & Clothing Intact), Embedded Windowless `i2-bridge.ps1` + `rtsp_proxy.js` Inside `BPP-VMS.exe`, Clickable Logo -> Machine Profile Settings, and Conditional Update Button (Incident 2.205, v228)
 - **Problem / User Request**:
-  - User requested: *"ทำไมมีเมนูอะไรเยอะจัง แล้วใช้ icon โปรแกรมเป็นอันเดียวกับ logo ที่มุมซ้ายล่าง และในโปรแกรมเวลากดที่ logo มันไม่ไปการตั้งค่าพวก logo ให้ และปุ่มอัพเดทเลือกซักที่ว่าจะเอาไว้ไหนหรือเอาไว้ข้างๆปุ่มย่อหน้าจอแต่เมื่อมีการอัพเดทใหม่ถึงให้มันแสดงขึ้นมาให้กดอัพเดท และอัพโปรแกรมให้เป็นล่าสุดด้วย"*
+  1. *"ทำไมมีเมนูอะไรเยอะจัง แล้วใช้ icon โปรแกรมเป็นอันเดียวกับ logo ที่มุมซ้ายล่าง และในโปรแกรมเวลากดที่ logo มันไม่ไปการตั้งค่าพวก logo ให้ และปุ่มอัพเดทเลือกซักที่ว่าจะเอาไว้ไหนหรือเอาไว้ข้างๆปุ่มย่อหน้าจอแต่เมื่อมีการอัพเดทใหม่ถึงให้มันแสดงขึ้นมาให้กดอัพเดท และอัพโปรแกรมให้เป็นล่าสุดด้วย"*
+  2. *"ทำไมเป็นแบบนี้เอาแบบปกติครับไม่เอาที่พื้นสีดำมันหาย สีเสือสีคนมันต้องไม่หายไปสิแล้ว cmd ที่รันอยู่ 2 หน้าต่างนี้ให้มันรวมเป็นของโปรแกรมในตัวเดียวกันเลย ไม่ต้องให้มารันแยกแบบนี้ ui เมนูให้มันดูดีหน่อยมินิมอลสมัยใหม่หน่อย เสร็จแล้วอัพเดทโปรแกรมด้วย"*
 - **Root Causes Diagnosed**:
-  1. **Cluttered Menus & Duplicate Settings Tabs (`BppVmsShell.cs`, `web/index.html`, `web/assets/app.js`)**:
-     - The system tray right-click menu (`_trayMenu` in `BppVmsShell.cs`) had 9 verbose items, and the Settings modal (`#settingsOverlay`) showed a duplicate `อัปเดตระบบ` (`#btnTabSystemUpdate`) tab alongside `ตั้งค่าเครื่อง / โลโก้ / บอท` (`#btnTabMachineProfile`).
-  2. **Program Icon Needed to Match the Bottom-Left Logo (`web/assets/arm215-logo.png`)**:
-     - User requested using the bottom-left logo (`frigate-nvr/web/assets/arm215-logo.png` / `#footerLogoImg`) as the program icon across `BPP-VMS.exe`, `BPP-VMS-Setup.exe`, Desktop/Start Menu shortcuts (`SLOTH BPP-VMS.lnk`), Taskbar, System Tray, and `favicon.ico`.
-  3. **Clicking Logo Inside `BPP-VMS.exe` Swallowed by Topbar Window-Drag Handler (`BppVmsShell.cs` & `app.js`)**:
-     - In `BppVmsShell.cs`, the injected `<header class="topbar">` `mousedown` handler only excluded `button, a, input, select, textarea, label`, so clicking `<img id="mainLogo">` or `.brand` immediately invoked `window.chrome.webview.postMessage('win:drag')` (`ReleaseCapture()` + `WM_NCLBUTTONDOWN`), swallowing the click event before `app.js` could open `#tabMachineProfile`.
-  4. **Update Button Always Visible in Multiple Places (`BppVmsShell.cs`)**:
-     - `#bppWinUpdateBtn` next to the minimize button (`─`) was always visible even when `behind_count === 0` (already up to date).
+  1. **Black Shirt/Hair/Glasses Missing in `arm215-logo.png` & `arm215.ico`**:
+     - `frigate-nvr/web/assets/arm215-logo.png` previously had a global black-pixel transparency strip that accidentally removed all black pixels inside the character's shirt/jacket, hair, and sunglasses (`สีเสื้อสีคน`), making them look white/hollow on a light Windows Taskbar.
+  2. **2 Visible Console Windows (`SysWOW64\...\powershell.exe` & `System32\...\powershell.exe`) on Taskbar**:
+     - Windows Task Scheduler tasks (`BPP i2 Analyst Bridge` running `i2-bridge.ps1` and `BPP-RTSP-Bridge-Watchdog` running `rtsp_bridge_watchdog.ps1`) spawned `powershell.exe` in interactive mode, causing Windows 11 `WindowsTerminal.exe -Embedding` to display 2 black console windows on the taskbar.
+  3. **Legacy Win32 Rectangular ContextMenuStrip on System Tray**:
+     - The default `ContextMenuStrip` renderer drew a harsh 1px white rectangular border and white separator line without rounded corners or icons.
+  4. **Clicking Logo Inside `BPP-VMS.exe` Swallowed by Topbar Window-Drag Handler (`BppVmsShell.cs` & `app.js`)**:
+     - In `BppVmsShell.cs`, the injected `<header class="topbar">` `mousedown` handler intercepted clicks on `<img id="mainLogo">` and `.brand`.
+  5. **Update Button Always Visible in Multiple Places (`BppVmsShell.cs`)**:
+     - `#bppWinUpdateBtn` next to the minimize button (`─`) was always visible even when `behind_count === 0`.
 - **Resolution**:
-  1. **Simplified Tray Menu & Settings Modal Tabs (`BppVmsShell.cs`, `web/index.html`, `web/assets/app.js` `v228`)**:
-     - Reduced `_trayMenu` in `BppVmsShell.cs` to 3 clean items (`เปิดหน้าต่างโปรแกรม (Show BPP-VMS)`, `ตั้งค่าโหมด Server / Client (Setup)`, `ออกจากโปรแกรม (Exit)`).
-     - Hid the duplicate `#btnTabSystemUpdate` tab in `web/index.html` and `openSettings()` (`web/assets/app.js?v=228`).
-  2. **ARM 215 Bottom-Left Logo (`arm215-logo.png`) Embedded as `.ico` Across Program, Shortcuts & Favicon (`arm215.ico`, `Build-BppNativeExe.ps1`, `Setup-PortableBppVms.ps1`, `BppVmsShell.cs`, `BppVmsSetupWizard.cs`)**:
-     - Generated multi-resolution (`16x16` to `256x256`) `.ico` files from `frigate-nvr/web/assets/arm215-logo.png` at `frigate-nvr/tools/native-exe/arm215.ico`, `frigate-nvr/tools/native-exe/bpp215.ico`, and `frigate-nvr/web/favicon.ico`.
-     - Recompiled `BPP-VMS.exe` and `BPP-VMS-Setup.exe` with `/win32icon:arm215.ico`, updated Desktop and Start Menu shortcuts (`SLOTH BPP-VMS.lnk`) to `D:\Sloth-BPP215\native\arm215.ico`, and refreshed the Windows icon cache (`ie4uinit.exe -show`).
-  3. **Fixed Clicking Top-Left or Bottom-Left Logo in `BPP-VMS.exe` to Open `#tabMachineProfile` (`BppVmsShell.cs`, `web/index.html`, `web/assets/app.js` `v228`)**:
-     - Excluded `img` and `.brand, #mainLogo, #brandName, #brandSub` from the topbar `mousedown` and `dblclick` window-drag handlers in `BppVmsShell.cs`.
-     - Added direct click bindings on both `<header class="topbar"> .brand` (`#mainLogo`, `#brandName`, `#brandSub`) and `<footer class="bottombar"> .brand` (`#footerLogoImg`, `#footerBrandMain`, `#footerBrandPartner`) to invoke `window.openMachineProfileTab()`.
-  4. **Single Update Button Next to Minimize (`─`) Shown Only When `behind_count > 0` (`BppVmsShell.cs`)**:
-     - Kept `#bppWinUpdateBtn` right next to the minimize button (`─`), hidden by default (`display: none !important`), and added `checkNativeUpdateAvailable()` polling `/api/config/system/update/status` so `#bppWinUpdateBtn` (`อัปเดต (N)`) only appears when a new update is actually available (`behind_count > 0`).
-- **Files Changed**: `frigate-nvr/tools/native-exe/arm215.ico`, `frigate-nvr/tools/native-exe/bpp215.ico`, `frigate-nvr/web/favicon.ico`, `frigate-nvr/tools/native-exe/Build-BppNativeExe.ps1`, `frigate-nvr/tools/native-exe/Setup-PortableBppVms.ps1`, `frigate-nvr/tools/native-exe/BppVmsShell.cs`, `frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `frigate-nvr/web/index.html`, `frigate-nvr/web/assets/app.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+  1. **Restored Full-Color Original ARM 215 Logo (`arm215-logo.png` & `arm215.ico`) with Solid Black Background & Clothing Intact**:
+     - Rebuilt `frigate-nvr/web/assets/arm215-logo.png`, `frigate-nvr/tools/native-exe/arm215.ico`, `bpp215.ico`, and `frigate-nvr/web/favicon.ico` directly from the original high-res `ARM 215` artwork using only an outer rounded-rectangle mask (`radius=96px` on `512x512`) so 100% of the solid black background, black tactical shirt/jacket, black hair, and black sunglasses remain intact.
+  2. **Merged `i2-bridge.ps1` & `rtsp_proxy.js` Directly Into `BPP-VMS.exe` (`EnsureEmbeddedHelpersRunning()`) with Zero Console Windows**:
+     - Disabled the legacy Scheduled Tasks (`BPP i2 Analyst Bridge`, `BPP-i2-Bridge`, `BPP-RTSP-Bridge-Watchdog`, `BPP_LPR_Harvester`) and terminated the 2 visible console windows.
+     - Added `EnsureEmbeddedHelpersRunning()` and `_helperWatchdogTimer` inside `BppVmsShell.cs` to launch and supervise `rtsp_proxy.js` (`:8556`) and 32-bit `i2-bridge.ps1` directly as child processes of `BPP-VMS.exe` with `UseShellExecute = false, CreateNoWindow = true` (`CREATE_NO_WINDOW`).
+  3. **Modern Minimal Dark-Glass System Tray Menu (`ModernTrayMenuRenderer` in `BppVmsShell.cs`)**:
+     - Enabled Windows 11 DWM rounded corners (`DWMWCP_ROUND = 2`) on `_trayMenu.Handle` and implemented `ModernTrayMenuRenderer` with deep obsidian gradient background, subtle violet border, rounded pill hover states, soft inset separator, and anti-aliased GDI+ vector icons for the 3 minimal items (`เปิดหน้าต่างโปรแกรม`, `ตั้งค่าโหมดเชื่อมต่อ`, `ออกจากโปรแกรม`).
+  4. **Fixed Clicking Top-Left or Bottom-Left Logo in `BPP-VMS.exe` to Open `#tabMachineProfile` & Conditional Update Button Next to Minimize (`─`)**:
+     - Excluded `img` and `.brand, #mainLogo, #brandName, #brandSub` from topbar window-drag in `BppVmsShell.cs` and bound clicking `.brand` (top-left or bottom-left) to `window.openMachineProfileTab()`.
+     - Hid `#bppWinUpdateBtn` by default (`display: none !important`) next to minimize (`─`) so it only appears when `/api/config/system/update/status` reports `behind_count > 0`.
+- **Files Changed**: `frigate-nvr/web/assets/arm215-logo.png`, `frigate-nvr/tools/native-exe/arm215.ico`, `frigate-nvr/tools/native-exe/bpp215.ico`, `frigate-nvr/web/favicon.ico`, `frigate-nvr/tools/native-exe/Build-BppNativeExe.ps1`, `frigate-nvr/tools/native-exe/Setup-PortableBppVms.ps1`, `frigate-nvr/tools/native-exe/BppVmsShell.cs`, `frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `frigate-nvr/web/index.html`, `frigate-nvr/web/assets/app.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
 
 ## Update 2026-10-23 (Midday) - Unified Sloth BPP 215 Royal Cyber Violet Theme, Real Crest `.ico` Icon Across `.exe` / Taskbar / Tray / Shortcuts, Crisp Vector SVG Icons & Dynamic System Theme Selector (Incident 2.204, v227)
 - **Problem / User Request**:
