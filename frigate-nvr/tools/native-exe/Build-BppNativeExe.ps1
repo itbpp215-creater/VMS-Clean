@@ -65,10 +65,14 @@ if (Test-Path $SlothSourceDir) {
     }
 }
 
-# 3. Copy gateway & worker scripts to OutputDir
+# 3. Copy gateway & worker scripts + icon to OutputDir
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 foreach ($py in @("gpu_accelerator.py", "native_ai_worker.py", "native_gateway.py")) {
     Copy-Item (Join-Path $scriptDir $py) (Join-Path $OutputDir $py) -Force
+}
+$icoFile = Join-Path $scriptDir "bpp215.ico"
+if (Test-Path $icoFile) {
+    Copy-Item $icoFile (Join-Path $OutputDir "bpp215.ico") -Force
 }
 
 # 4. Find csc.exe (.NET Framework 4.x compiler built into Windows)
@@ -94,7 +98,9 @@ if (Test-Path $outExe) {
 }
 
 Write-Host "[Build-BppNativeExe] Compiling $outExe ..." -ForegroundColor Yellow
+$win32IconArg = if (Test-Path $icoFile) { "/win32icon:$icoFile" } else { "" }
 & $csc /target:winexe /platform:x64 /optimize+ `
+    $win32IconArg `
     /out:$outExe `
     /r:System.dll `
     /r:System.Core.dll `
@@ -125,6 +131,7 @@ if (Test-Path $setupCsFile) {
     }
     Write-Host "[Build-BppNativeExe] Compiling $setupOutExe ..." -ForegroundColor Yellow
     & $csc /target:winexe /platform:x64 /optimize+ `
+        $win32IconArg `
         /out:$setupOutExe `
         /r:System.dll `
         /r:System.Core.dll `

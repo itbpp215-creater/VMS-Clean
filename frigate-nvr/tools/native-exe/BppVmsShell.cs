@@ -59,19 +59,11 @@ namespace BppVmsNative
             MinimumSize = new Size(1080, 700);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None;
-            BackColor = Color.FromArgb(7, 9, 15);
+            BackColor = Color.FromArgb(6, 7, 15);
             ForeColor = Color.White;
             DoubleBuffered = true;
 
-            string icoPath = Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "web", "favicon.ico");
-            if (File.Exists(icoPath))
-            {
-                try { Icon = new Icon(icoPath); } catch { Icon = SystemIcons.Shield; }
-            }
-            else
-            {
-                Icon = SystemIcons.Shield;
-            }
+            Icon = ResolveApplicationIcon();
 
             ApplyModernWindowEffects();
             InitializeTrayIcon();
@@ -434,15 +426,70 @@ namespace BppVmsNative
             }
         }
 
+        private Icon ResolveApplicationIcon()
+        {
+            string[] candidates = new string[]
+            {
+                Path.Combine(_baseDir, "bpp215.ico"),
+                Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "tools", "native-exe", "bpp215.ico"),
+                Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "web", "favicon.ico")
+            };
+            foreach (string p in candidates)
+            {
+                try
+                {
+                    if (File.Exists(p)) return new Icon(p);
+                }
+                catch { }
+            }
+            try
+            {
+                Icon assoc = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (assoc != null) return assoc;
+            }
+            catch { }
+            return SystemIcons.Shield;
+        }
+
+        private string GetBrandLogoDataUri()
+        {
+            string[] pngCandidates = new string[]
+            {
+                Path.Combine(_baseDir, "data", "settings", "logo.png"),
+                Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "web", "assets", "BPP215.png"),
+                Path.Combine(_baseDir, "repo", "frigate-nvr", "web", "assets", "BPP215.png")
+            };
+            foreach (string p in pngCandidates)
+            {
+                try
+                {
+                    if (File.Exists(p))
+                    {
+                        byte[] bytes = File.ReadAllBytes(p);
+                        if (bytes.Length > 64)
+                        {
+                            return "data:image/png;base64," + Convert.ToBase64String(bytes);
+                        }
+                    }
+                }
+                catch { }
+            }
+            return "";
+        }
+
         private string GetCyberSplashHtml()
         {
             string editionLabel = _isClientMode
                 ? "INTELLIGENT SURVEILLANCE PLATFORM · DESKTOP CLIENT EDITION"
                 : "INTELLIGENT SURVEILLANCE PLATFORM · NATIVE SERVER EDITION";
             string statusLeft = _isClientMode
-                ? "💻 โหมดเครื่องลูกข่าย กำลังเชื่อมต่อเครื่องแม่ข่าย..."
-                : "⚡ กำลังเชื่อมต่อ Zero-Drop Stream & All-GPU AI...";
+                ? "โหมดเครื่องลูกข่าย กำลังเชื่อมต่อเครื่องแม่ข่าย..."
+                : "กำลังเชื่อมต่อ Zero-Drop Stream & All-GPU AI...";
             string statusRight = _isClientMode ? _gatewayUrl : "PORT :8443";
+            string logoDataUri = GetBrandLogoDataUri();
+            string crestHtml = !string.IsNullOrEmpty(logoDataUri)
+                ? "<img src='" + logoDataUri + "' style='width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 0 10px rgba(168,85,247,0.65));' alt='BPP 215'>"
+                : "<svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='#c084fc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>";
 
             return @"<!DOCTYPE html>
 <html lang='th'>
@@ -452,74 +499,82 @@ namespace BppVmsNative
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
   body {
     height: 100vh; width: 100vw; overflow: hidden;
-    background: radial-gradient(circle at 50% 35%, #131b2e 0%, #07090f 70%);
-    color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif;
+    background:
+      radial-gradient(1100px 700px at 22% -8%, rgba(124,58,237,.32), transparent 60%),
+      radial-gradient(900px 650px at 88% 8%, rgba(168,85,247,.20), transparent 55%),
+      radial-gradient(1000px 800px at 50% 120%, rgba(76,29,149,.24), transparent 60%),
+      linear-gradient(160deg, #0a0c1a 0%, #06070f 100%);
+    color: #eef0f8; font-family: 'Leelawadee UI', 'Segoe UI', system-ui, sans-serif;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    border: 1px solid rgba(56, 189, 248, 0.22);
+    border: 1px solid rgba(168, 85, 247, 0.42);
   }
   .win-bar {
     position: fixed; top: 0; left: 0; right: 0; height: 42px;
     display: flex; align-items: center; justify-content: flex-end; padding: 0 12px;
   }
   .win-btn {
-    width: 34px; height: 28px; border: none; background: transparent; color: #94a3b8;
-    border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 28px; border: none; background: transparent; color: #9aa0bd;
+    border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
     transition: all 0.15s ease;
   }
-  .win-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .win-btn:hover { background: rgba(168,85,247,0.22); color: #eef0f8; }
   .win-btn.close:hover { background: #ef4444; color: #fff; }
   .radar-wrap {
-    position: relative; width: 118px; height: 118px; margin-bottom: 24px;
+    position: relative; width: 122px; height: 122px; margin-bottom: 24px;
     display: flex; align-items: center; justify-content: center;
   }
   .ring1, .ring2 {
     position: absolute; inset: 0; border-radius: 50%;
     border: 2px solid transparent;
-    border-top-color: #38bdf8; border-right-color: rgba(168, 85, 247, 0.7);
+    border-top-color: #a855f7; border-right-color: rgba(192, 132, 252, 0.72);
     animation: spin 1.8s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
-    filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.45));
+    filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.5));
   }
   .ring2 {
-    inset: 12px; border-top-color: #a855f7; border-left-color: rgba(52, 211, 153, 0.7);
+    inset: 12px; border-top-color: #34e2a8; border-left-color: rgba(124, 58, 237, 0.75);
     animation-direction: reverse; animation-duration: 2.4s;
   }
   .core-shield {
-    width: 56px; height: 56px; border-radius: 16px;
-    background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(168,85,247,0.25));
-    border: 1px solid rgba(56,189,248,0.45);
+    width: 68px; height: 68px; border-radius: 16px;
+    background: radial-gradient(circle at 50% 40%, rgba(168,85,247,0.28), rgba(124,58,237,0.14));
+    border: 1px solid rgba(168,85,247,0.48);
     display: flex; align-items: center; justify-content: center;
-    font-size: 26px; box-shadow: 0 0 28px rgba(56,189,248,0.25);
+    box-shadow: 0 10px 30px rgba(124,58,237,0.32), inset 0 1px 0 rgba(255,255,255,0.1);
   }
   .brand-title {
     font-size: 28px; font-weight: 800; letter-spacing: 2.5px;
-    background: linear-gradient(90deg, #f8fafc 0%, #38bdf8 50%, #c084fc 100%);
+    background: linear-gradient(90deg, #eef0f8 0%, #c084fc 55%, #34e2a8 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   }
   .brand-sub {
-    margin-top: 6px; font-size: 11.5px; letter-spacing: 3.5px; color: #38bdf8; font-weight: 600;
+    margin-top: 6px; font-size: 11.5px; letter-spacing: 3.5px; color: #c084fc; font-weight: 600;
   }
   .progress-box {
-    margin-top: 32px; width: 420px; background: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 12px; padding: 14px 18px;
-    backdrop-filter: blur(12px);
+    margin-top: 32px; width: 430px;
+    background: linear-gradient(180deg, rgba(28,22,54,0.72), rgba(16,13,32,0.62));
+    border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 14px; padding: 14px 18px;
+    box-shadow: 0 10px 36px rgba(124,58,237,0.2);
+    backdrop-filter: blur(16px);
   }
   .progress-bar-bg {
-    width: 100%; height: 5px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden;
+    width: 100%; height: 5px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden;
     margin-bottom: 10px;
   }
   .progress-bar-fill {
     width: 45%; height: 100%; border-radius: 99px;
-    background: linear-gradient(90deg, #38bdf8, #a855f7, #34d399);
+    background: linear-gradient(90deg, #7c3aed, #a855f7, #34e2a8);
     animation: slide 1.4s ease-in-out infinite;
   }
-  .status-line { font-size: 12.5px; color: #e2e8f0; display: flex; justify-content: space-between; gap: 8px; }
+  .status-line { font-size: 12.5px; color: #eef0f8; display: flex; justify-content: space-between; gap: 8px; }
   .pills {
     margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
   }
   .pill {
-    font-size: 11px; padding: 4px 10px; border-radius: 99px;
-    background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.28); color: #7dd3fc;
+    font-size: 11px; padding: 4px 11px; border-radius: 99px;
+    background: rgba(168, 85, 247, 0.14); border: 1px solid rgba(168, 85, 247, 0.35); color: #e9d5ff;
+    display: inline-flex; align-items: center; gap: 5px;
   }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #34e2a8; box-shadow: 0 0 6px #34e2a8; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(220%); } }
 </style>
@@ -533,7 +588,7 @@ namespace BppVmsNative
   <div class='radar-wrap'>
     <div class='ring1'></div>
     <div class='ring2'></div>
-    <div class='core-shield'>🛡️</div>
+    <div class='core-shield'>" + crestHtml + @"</div>
   </div>
   <div class='brand-title'>SLOTH × BPP-VMS 215</div>
   <div class='brand-sub'>" + editionLabel + @"</div>
@@ -541,13 +596,13 @@ namespace BppVmsNative
     <div class='progress-bar-bg'><div class='progress-bar-fill'></div></div>
     <div class='status-line'>
       <span>" + statusLeft + @"</span>
-      <span style='color:#34d399'>" + statusRight + @"</span>
+      <span style='color:#34e2a8;font-weight:700;'>" + statusRight + @"</span>
     </div>
   </div>
   <div class='pills'>
-    <span class='pill'>🟢 Zero-Docker Native .EXE</span>
-    <span class='pill'>🔄 1-Click Program Update</span>
-    <span class='pill'>📡 531 Cameras Ready</span>
+    <span class='pill'><span class='pill-dot'></span>Zero-Docker Native .EXE</span>
+    <span class='pill'>1-Click Program Update</span>
+    <span class='pill'>531 Cameras Ready</span>
   </div>
 </body>
 </html>";
@@ -558,21 +613,36 @@ namespace BppVmsNative
             return @"<!DOCTYPE html>
 <html lang='th'><head><meta charset='utf-8'>
 <style>
-  body { height:100vh; margin:0; background:#07090f; color:#f8fafc; font-family:'Segoe UI',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .card { background:#111827; border:1px solid #ef4444; border-radius:14px; padding:28px; max-width:540px; text-align:center; }
+  body {
+    height:100vh; margin:0;
+    background:
+      radial-gradient(1000px 650px at 22% -8%, rgba(124,58,237,.28), transparent 60%),
+      linear-gradient(160deg, #0a0c1a 0%, #06070f 100%);
+    color:#eef0f8; font-family:'Leelawadee UI','Segoe UI',sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .card {
+    background: linear-gradient(180deg, rgba(28,22,54,0.85), rgba(16,13,32,0.85));
+    border:1px solid rgba(168,85,247,0.45); border-radius:16px; padding:28px; max-width:560px; text-align:center;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.65);
+  }
   .btn-row { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; }
-  button { padding:9px 16px; border-radius:8px; border:1px solid #38bdf8; background:#1e293b; color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
-  button:hover { background:#334155; }
+  button {
+    padding:9px 16px; border-radius:9px; border:1px solid rgba(168,85,247,0.42);
+    background:rgba(168,85,247,0.14); color:#eef0f8; cursor:pointer; font-size:13px; font-weight:600;
+    transition: all 0.15s;
+  }
+  button:hover { background:rgba(168,85,247,0.28); border-color:#c084fc; }
 </style></head><body>
   <div class='card'>
-    <h2 style='color:#f87171'>⚠️ ไม่สามารถเชื่อมต่อปลายทาง (" + _gatewayUrl + @")</h2>
-    <p style='color:#94a3b8;font-size:13px;margin-top:8px'>คุณสามารถกดสลับโหมดการเชื่อมต่อ หรือเปิดหน้าตั้งค่า BPP-VMS-Setup.exe ได้ทันทีจากปุ่มด้านล่าง:</p>
+    <h2 style='color:#fb7185'>ไม่สามารถเชื่อมต่อปลายทาง (" + _gatewayUrl + @")</h2>
+    <p style='color:#9aa0bd;font-size:13px;margin-top:8px'>คุณสามารถกดสลับโหมดการเชื่อมต่อ หรือเปิดหน้าตั้งค่า BPP-VMS-Setup.exe ได้ทันทีจากปุ่มด้านล่าง:</p>
     <div class='btn-row'>
-      <button onclick=""window.chrome.webview.postMessage('reload')"">🔄 ลองเชื่อมต่อใหม่อีกครั้ง</button>
-      <button onclick=""window.chrome.webview.postMessage('switch-cloud')"">🌐 เชื่อมผ่านเน็ต (sloth.bpp215.com)</button>
-      <button onclick=""window.chrome.webview.postMessage('switch-lan')"">🖧 เชื่อมผ่านวงแลน (192.168.1.200:8443)</button>
-      <button onclick=""window.chrome.webview.postMessage('open-setup')"">⚙️ เปิดหน้าตั้งค่า Server / Client</button>
-      <button style='border-color:#ef4444' onclick=""window.chrome.webview.postMessage('exit-app')"">✕ ปิดโปรแกรม</button>
+      <button onclick=""window.chrome.webview.postMessage('reload')"">ลองเชื่อมต่อใหม่อีกครั้ง</button>
+      <button onclick=""window.chrome.webview.postMessage('switch-cloud')"">เชื่อมผ่านเน็ต (sloth.bpp215.com)</button>
+      <button onclick=""window.chrome.webview.postMessage('switch-lan')"">เชื่อมผ่านวงแลน (192.168.1.200:8443)</button>
+      <button onclick=""window.chrome.webview.postMessage('open-setup')"">เปิดหน้าตั้งค่า Server / Client</button>
+      <button style='border-color:rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);color:#fca5a5;' onclick=""window.chrome.webview.postMessage('exit-app')"">ปิดโปรแกรม</button>
     </div>
   </div>
 </body></html>";

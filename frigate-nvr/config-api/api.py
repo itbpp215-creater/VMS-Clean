@@ -4648,12 +4648,13 @@ def _load_machine_branding() -> Dict[str, Any]:
             try:
                 data = json.loads(bfp.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    for k in ("brandName", "brandSub", "footerMain", "footerPartner", "title"):
+                    for k in ("brandName", "brandSub", "footerMain", "footerPartner", "title", "themeColor"):
                         if data.get(k):
                             default_branding[k] = str(data[k]).strip()
                     break
             except Exception:
                 pass
+    default_branding.setdefault("themeColor", "purple")
     default_branding["hasCustomLogo"] = has_custom_logo
     return default_branding
 
@@ -4676,6 +4677,7 @@ def api_get_machine_profile() -> Dict[str, Any]:
             "brandSub": branding.get("brandSub") or "BPP 215",
             "footerMain": branding.get("footerMain") or "Sucahkree Arm 215",
             "footerPartner": branding.get("footerPartner") or "+ Things Analytic Co., Ltd.",
+            "themeColor": branding.get("themeColor") or "purple",
             "hasCustomLogo": bool(branding.get("hasCustomLogo", False)),
             "publicDomain": pub_domain,
             "publicUrl": pub_url,
@@ -4715,12 +4717,14 @@ async def api_save_machine_profile(request: Request) -> Dict[str, Any]:
         brand_sub = str(body.get("brandSub") if "brandSub" in body else cur.get("brandSub") or "BPP 215").strip()
         footer_main = str(body.get("footerMain") if "footerMain" in body else cur.get("footerMain") or "Sucahkree Arm 215").strip()
         footer_partner = str(body.get("footerPartner") if "footerPartner" in body else cur.get("footerPartner") or "+ Things Analytic Co., Ltd.").strip()
+        theme_color = str(body.get("themeColor") if "themeColor" in body else cur.get("themeColor") or "purple").strip() or "purple"
 
         branding_payload = {
             "brandName": brand_name,
             "brandSub": brand_sub,
             "footerMain": footer_main,
             "footerPartner": footer_partner,
+            "themeColor": theme_color,
             "title": f"{brand_name} {brand_sub}".strip(),
             "updatedAt": int(time.time()),
         }

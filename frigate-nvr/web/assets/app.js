@@ -15067,6 +15067,91 @@ document.addEventListener('DOMContentLoaded', () => {
   let _mpResetLogoRequested = false;
   let _mpListenersBound = false;
 
+  const BPP_THEME_PALETTES = {
+    purple: null, // Default Royal Cyber Violet in app.css
+    emerald: {
+      c1: '#10b981', c2: '#34d399', c3: '#059669', rgb1: '16,185,129', rgb2: '52,211,153', rgb3: '5,150,105',
+      bgTop1: 'rgba(16,185,129,.26)', bgTop2: 'rgba(5,150,105,.18)', bgBot: 'rgba(4,120,87,.22)',
+      topbarBg: 'linear-gradient(180deg, rgba(14,42,35,.68), rgba(9,26,22,.56))'
+    },
+    cyan: {
+      c1: '#06b6d4', c2: '#38bdf8', c3: '#0284c7', rgb1: '6,182,212', rgb2: '56,189,248', rgb3: '2,132,199',
+      bgTop1: 'rgba(6,182,212,.26)', bgTop2: 'rgba(56,189,248,.18)', bgBot: 'rgba(3,105,161,.22)',
+      topbarBg: 'linear-gradient(180deg, rgba(14,34,54,.68), rgba(9,20,35,.56))'
+    },
+    amber: {
+      c1: '#f59e0b', c2: '#fbbf24', c3: '#d97706', rgb1: '245,158,11', rgb2: '251,191,36', rgb3: '217,119,6',
+      bgTop1: 'rgba(245,158,11,.24)', bgTop2: 'rgba(217,119,6,.16)', bgBot: 'rgba(146,64,14,.20)',
+      topbarBg: 'linear-gradient(180deg, rgba(46,30,14,.68), rgba(28,18,9,.56))'
+    },
+    rose: {
+      c1: '#f43f5e', c2: '#fb7185', c3: '#e11d48', rgb1: '244,63,94', rgb2: '251,113,133', rgb3: '225,29,72',
+      bgTop1: 'rgba(244,63,94,.26)', bgTop2: 'rgba(225,29,72,.18)', bgBot: 'rgba(159,18,57,.22)',
+      topbarBg: 'linear-gradient(180deg, rgba(48,16,28,.68), rgba(28,10,18,.56))'
+    }
+  };
+
+  function applySystemTheme(themeKey) {
+    const key = (themeKey && BPP_THEME_PALETTES[themeKey] !== undefined) ? themeKey : 'purple';
+    window.BRANDING = window.BRANDING || {};
+    window.BRANDING.themeColor = key;
+    document.documentElement.setAttribute('data-bpp-theme', key);
+    let styleEl = document.getElementById('bppDynamicThemeStyle');
+    const pal = BPP_THEME_PALETTES[key];
+    if (!pal) {
+      if (styleEl) styleEl.textContent = '';
+      return;
+    }
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'bppDynamicThemeStyle';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      .app {
+        background:
+          radial-gradient(1100px 700px at 22% -8%, ${pal.bgTop1}, transparent 60%),
+          radial-gradient(900px 650px at 88% 8%, ${pal.bgTop2}, transparent 55%),
+          radial-gradient(1000px 800px at 50% 120%, ${pal.bgBot}, transparent 60%),
+          linear-gradient(160deg, #0a0c1a 0%, #06070f 100%) !important;
+      }
+      .topbar {
+        background: ${pal.topbarBg} !important;
+        border-color: rgba(${pal.rgb1}, .48) !important;
+        box-shadow: 0 10px 40px rgba(${pal.rgb3}, .22), inset 0 1px 0 rgba(255,255,255,.07) !important;
+      }
+      .brand-logo-bg {
+        background: radial-gradient(circle at 50% 40%, rgba(${pal.rgb1}, .30), rgba(${pal.rgb3}, .14)) !important;
+        border-color: rgba(${pal.rgb1}, .45) !important;
+      }
+      .brand-logo-img {
+        filter: drop-shadow(0 0 6px rgba(${pal.rgb1}, .55)) !important;
+      }
+      .vdivider {
+        background: linear-gradient(180deg, transparent, rgba(${pal.rgb1}, .42), transparent) !important;
+      }
+      .layout-switch {
+        border-color: rgba(${pal.rgb1}, .26) !important;
+      }
+      .layout-btn[aria-pressed="true"] {
+        background: linear-gradient(150deg, rgba(${pal.rgb1}, .35), rgba(${pal.rgb3}, .25)) !important;
+        box-shadow: inset 0 0 0 1px rgba(${pal.rgb1}, .55) !important;
+      }
+      .layout-btn[aria-pressed="true"] .layout-dots span {
+        background: ${pal.c2} !important;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, ${pal.c1}, ${pal.c3}) !important;
+        border-color: ${pal.c1} !important;
+        box-shadow: 0 4px 16px rgba(${pal.rgb1}, .35) !important;
+      }
+      .tile:hover {
+        border-color: rgba(${pal.rgb1}, .55) !important;
+      }
+    `;
+  }
+  window.applySystemTheme = applySystemTheme;
+
   function applyBrandingToDom() {
     const bName = $('brandName');
     if (bName) bName.textContent = window.BRANDING.name || 'Sloth';
@@ -15090,6 +15175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.tile-overlay img').forEach(img => {
       img.src = logoSrc;
     });
+    applySystemTheme(window.BRANDING.themeColor || 'purple');
   }
 
   async function loadMachineProfile() {
@@ -15101,6 +15187,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (p.brandSub) window.BRANDING.sub = p.brandSub;
       if (p.footerMain) window.BRANDING.footerMain = p.footerMain;
       if (p.footerPartner) window.BRANDING.footerPartner = p.footerPartner;
+      if (p.themeColor) window.BRANDING.themeColor = p.themeColor;
       window.BRANDING.logo = p.hasCustomLogo ? ('/settings/logo.png?t=' + Date.now()) : 'assets/BPP215.png';
       applyBrandingToDom();
 
@@ -15108,6 +15195,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if ($('inpMpBrandSub')) $('inpMpBrandSub').value = p.brandSub || 'BPP 215';
       if ($('inpMpFooterMain')) $('inpMpFooterMain').value = p.footerMain || 'Sucahkree Arm 215';
       if ($('inpMpFooterPartner')) $('inpMpFooterPartner').value = p.footerPartner || '+ Things Analytic Co., Ltd.';
+      if ($('selMpThemeColor')) $('selMpThemeColor').value = p.themeColor || 'purple';
       if ($('inpMpPublicDomain')) $('inpMpPublicDomain').value = p.publicDomain || '';
       if ($('inpMpCfToken')) $('inpMpCfToken').value = p.cloudflareTunnelToken || '';
       if ($('inpMpDuckSub')) $('inpMpDuckSub').value = p.duckdnsSubdomain || '';
@@ -15134,6 +15222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         brandSub: ($('inpMpBrandSub')?.value || window.BRANDING.sub || 'BPP 215').trim(),
         footerMain: ($('inpMpFooterMain')?.value || window.BRANDING.footerMain || 'Sucahkree Arm 215').trim(),
         footerPartner: ($('inpMpFooterPartner')?.value || window.BRANDING.footerPartner || '+ Things Analytic Co., Ltd.').trim(),
+        themeColor: ($('selMpThemeColor')?.value || window.BRANDING.themeColor || 'purple').trim(),
         publicDomain: ($('inpMpPublicDomain')?.value || '').trim(),
         cloudflareTunnelToken: ($('inpMpCfToken')?.value || '').trim(),
         duckdnsSubdomain: ($('inpMpDuckSub')?.value || '').trim(),
@@ -15166,9 +15255,10 @@ document.addEventListener('DOMContentLoaded', () => {
       window.BRANDING.sub = data.brandSub || payload.brandSub;
       window.BRANDING.footerMain = data.footerMain || payload.footerMain;
       window.BRANDING.footerPartner = data.footerPartner || payload.footerPartner;
+      window.BRANDING.themeColor = data.themeColor || payload.themeColor || 'purple';
       window.BRANDING.logo = data.hasCustomLogo ? ('/settings/logo.png?t=' + Date.now()) : 'assets/BPP215.png';
       applyBrandingToDom();
-      toast('✅ บันทึกการตั้งค่าประจำเครื่อง (โลโก้ / ชื่อ / URL / บอท Telegram) สำเร็จทันที!');
+      toast('บันทึกการตั้งค่าประจำเครื่อง (โลโก้ / ธีมสี / ชื่อ / URL / บอท Telegram) สำเร็จทันที!');
     } catch (e) {
       toast('บันทึกการตั้งค่าเครื่องไม่สำเร็จ: ' + (e.message || e), true);
     }
@@ -15221,6 +15311,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sub: 'BPP 215',
       footerMain: 'Sucahkree Arm 215',
       footerPartner: '+ Things Analytic Co., Ltd.',
+      themeColor: 'purple',
       logo: 'assets/BPP215.png',
     };
     try {
@@ -15231,6 +15322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.brandSub || data.sub) window.BRANDING.sub = data.brandSub || data.sub;
         if (data.footerMain) window.BRANDING.footerMain = data.footerMain;
         if (data.footerPartner) window.BRANDING.footerPartner = data.footerPartner;
+        if (data.themeColor) window.BRANDING.themeColor = data.themeColor;
       }
     } catch (e) {}
     try {
@@ -15257,7 +15349,7 @@ document.addEventListener('DOMContentLoaded', () => {
       [bName, bSub, bLogo].forEach(el => {
         if (!el) return;
         el.style.cursor = 'pointer';
-        el.title = 'คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน URL และบอท Telegram ประจำเครื่อง';
+        el.title = 'คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน สีธีมระบบ URL และบอท Telegram ประจำเครื่อง';
         el.addEventListener('click', () => {
           if (typeof window.openMachineProfileTab === 'function') {
             window.openMachineProfileTab();
@@ -15265,6 +15357,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
+      if ($('selMpThemeColor')) {
+        $('selMpThemeColor').addEventListener('change', e => {
+          applySystemTheme(e.target.value || 'purple');
+        });
+      }
       if ($('btnMpUploadLogo') && fileInp) {
         $('btnMpUploadLogo').addEventListener('click', () => fileInp.click());
       }

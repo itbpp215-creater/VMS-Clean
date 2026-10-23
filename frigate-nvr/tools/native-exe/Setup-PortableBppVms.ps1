@@ -343,6 +343,8 @@ $buildScript = Join-Path $PSScriptRoot "Build-BppNativeExe.ps1"
 
 # 5. Shortcuts & Windows Startup
 $exePath = Join-Path $NativeDir "BPP-VMS.exe"
+$icoPath = Join-Path $NativeDir "bpp215.ico"
+$iconLoc = if (Test-Path $icoPath) { "$icoPath,0" } else { "$exePath,0" }
 if ($CreateDesktopShortcut -and (Test-Path $exePath)) {
     Write-Step 93 "กำลังสร้างไอคอนทางลัด 'SLOTH BPP-VMS' บนหน้าจอ Desktop..."
     try {
@@ -352,6 +354,7 @@ if ($CreateDesktopShortcut -and (Test-Path $exePath)) {
         $sc = $wsh.CreateShortcut($shortcutPath)
         $sc.TargetPath = $exePath
         $sc.WorkingDirectory = $NativeDir
+        $sc.IconLocation = $iconLoc
         $sc.Description = "SLOTH x BPP-VMS Native Windows Edition (All-GPU)"
         $sc.Save()
     } catch {}
@@ -365,6 +368,7 @@ if ($CreateStartMenuShortcut -and (Test-Path $exePath)) {
         $sc = $wsh.CreateShortcut($shortcutPath)
         $sc.TargetPath = $exePath
         $sc.WorkingDirectory = $NativeDir
+        $sc.IconLocation = $iconLoc
         $sc.Description = "SLOTH x BPP-VMS Native Windows Edition (All-GPU)"
         $sc.Save()
     } catch {}

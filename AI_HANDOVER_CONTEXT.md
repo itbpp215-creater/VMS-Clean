@@ -1,4 +1,23 @@
-﻿## Update 2026-10-23 (Late Morning) - Fix Header Logo (`#mainLogo`), Zero-Code Machine Profile & Branding/URL/Token Setup, Full User/Camera/Map-Pin Migration, and 100% Native Telegram Bot Operation (Incident 2.203, v226)
+﻿## Update 2026-10-23 (Midday) - Unified Sloth BPP 215 Royal Cyber Violet Theme, Real Crest `.ico` Icon Across `.exe` / Taskbar / Tray / Shortcuts, Crisp Vector SVG Icons & Dynamic System Theme Selector (Incident 2.204, v227)
+- **Problem / User Request**:
+  - User requested: *"ปรับ icon และสีทีมให้มันเข้ากับระบบด้วย"* ("Adjust the icon and theme colors to match the system as well").
+- **Root Causes Diagnosed**:
+  1. **Missing `favicon.ico` & Un-Embedded `.ico` Resource on `BPP-VMS.exe` and `BPP-VMS-Setup.exe`**:
+     - `frigate-nvr/web/favicon.ico` did not exist on disk (`GET /favicon.ico` returned 404), and `Build-BppNativeExe.ps1` did not pass `/win32icon:` to `csc.exe`.
+     - As a result, `BPP-VMS.exe` and `BPP-VMS-Setup.exe` displayed the generic Windows grey box icon in Explorer, and fell back to `SystemIcons.Shield` (yellow/blue Windows UAC shield) in the titlebar, taskbar, and system tray.
+  2. **Mismatched Colors & Raw Emojis in `#tabMachineProfile`, `BppVmsShell.cs`, and `BppVmsSetupWizard.cs`**:
+     - The Machine Profile tab (`#tabMachineProfile`), Native Cyber Splash (`BppVmsShell.cs`), and Setup Wizard (`BppVmsSetupWizard.cs`) used sky-blue (`#38bdf8`) and slate (`#0f172a`) accents and raw OS emojis instead of the dashboard's **Sloth BPP 215 Royal Cyber Violet (`#a855f7` / `#c084fc` / `#7c3aed`) + Neon Emerald (`#34e2a8`) + Deep Space Obsidian (`#0a0c1a` / `#06070f`)** design system (`app.css`) and crisp vector `<svg>` icons.
+- **Resolution**:
+  1. **Multi-Resolution BPP 215 / Sloth Crest `.ico` Embedded into `.exe`, Taskbar, Tray & Shortcuts (`favicon.ico`, `bpp215.ico`, `Build-BppNativeExe.ps1`, `Setup-PortableBppVms.ps1`)**:
+     - Generated multi-resolution (`16x16` to `256x256`) Windows `.ico` files from `frigate-nvr/web/assets/BPP215.png` at `frigate-nvr/web/favicon.ico` and `frigate-nvr/tools/native-exe/bpp215.ico`.
+     - Updated `Build-BppNativeExe.ps1` to pass `/win32icon:$icoFile` when compiling both `BPP-VMS.exe` and `BPP-VMS-Setup.exe`, and updated `Setup-PortableBppVms.ps1` to set `IconLocation` on Desktop and Start Menu `.lnk` shortcuts.
+     - Updated `BppVmsShell.cs` and `BppVmsSetupWizard.cs` with `ResolveApplicationIcon()` and `GetBrandLogoDataUri()` so the window icon, taskbar icon, tray icon, and splash/wizard header emblem always display the real BPP 215 crest.
+  2. **Unified Royal Cyber Violet Theme, Vector SVG Icons & Dynamic System Theme Selector (`web/index.html`, `web/assets/app.js` `v227`, `config-api/api.py`, `BppVmsShell.cs`, `BppVmsSetupWizard.cs`)**:
+     - Replaced all raw emojis and sky-blue styles in `#btnTabMachineProfile`, `#tabMachineProfile`, `BppVmsShell.cs`, and `BppVmsSetupWizard.cs` with crisp vector `<svg>` icon badges and the Royal Cyber Violet (`#a855f7` / `#c084fc` / `#7c3aed`) + Neon Emerald (`#34e2a8`) palette matching `app.css`.
+     - Added **`สีธีมของระบบ (System Theme Accent)`** (`#selMpThemeColor`: `purple` default, `emerald`, `cyan`, `amber`, `rose`) to `#tabMachineProfile`, persisted `themeColor` in `branding.json` via `/api/config/machine-profile`, and added `applySystemTheme()` in `app.js?v=227` with instant live preview.
+- **Files Changed**: `frigate-nvr/web/favicon.ico`, `frigate-nvr/tools/native-exe/bpp215.ico`, `frigate-nvr/tools/native-exe/Build-BppNativeExe.ps1`, `frigate-nvr/tools/native-exe/Setup-PortableBppVms.ps1`, `frigate-nvr/tools/native-exe/BppVmsShell.cs`, `frigate-nvr/tools/native-exe/BppVmsSetupWizard.cs`, `frigate-nvr/config-api/api.py`, `frigate-nvr/web/index.html`, `frigate-nvr/web/assets/app.js`, `AI_HANDOVER_CONTEXT.md`, `Troubleshooting & Incident Runbook.md`.
+
+## Update 2026-10-23 (Late Morning) - Fix Header Logo (`#mainLogo`), Zero-Code Machine Profile & Branding/URL/Token Setup, Full User/Camera/Map-Pin Migration, and 100% Native Telegram Bot Operation (Incident 2.203, v226)
 - **Problem / User Request**:
   - User uploaded screenshot (`media_1792722681544_a1cebc86.png`) showing a broken image icon at the top-right header logo (`#mainLogo`) and requested: *"ทำไม logo มุมบนขวามันเป็นแบบนั้น แก้ไขและอัพเดทตัวติดตั้งด้วย ไปที่ใหม่ต้องสามารถเปลี่ยน logo ที่มุมบนขวาได้ เปลี่ยนชื่อได้ เปลี่ยน url ได้ token และทุกอย่างที่เป็นของเครื่องนี้ได้แบบง่ายๆ ไม่ต้องยุ่งยากหรือแก้ไขcode ให้สามารถตั้งค่าเครื่องใหม่ได้แบบหมดจรดจริงๆ แต่ก็ให้สามารถเอาข้อมูลพวกกล้อง user จากเครื่องเก่าไปได้ด้วย หลักๆคือตอนนี้อยากไปติดตั้งเครื่องใหม่ แต่อยากให้ user และรายการกล้องหมุดกล้องไปด้วย และอย่าลืมเรื่อง telegram bot การแจ้งเตือนการรับข้อมูลและการสกัดข้อมูลพร้อมการเชื่อมโยงข้อมูล ต้องทำให้มันดีที่สุดเท่าที่เป็นไปได้"*
 - **Root Causes Diagnosed**:
