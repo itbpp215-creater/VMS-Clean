@@ -70,8 +70,12 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 foreach ($py in @("gpu_accelerator.py", "native_ai_worker.py", "native_gateway.py")) {
     Copy-Item (Join-Path $scriptDir $py) (Join-Path $OutputDir $py) -Force
 }
-$icoFile = Join-Path $scriptDir "bpp215.ico"
+$icoFile = Join-Path $scriptDir "arm215.ico"
+if (-not (Test-Path $icoFile)) {
+    $icoFile = Join-Path $scriptDir "bpp215.ico"
+}
 if (Test-Path $icoFile) {
+    Copy-Item $icoFile (Join-Path $OutputDir "arm215.ico") -Force
     Copy-Item $icoFile (Join-Path $OutputDir "bpp215.ico") -Force
 }
 

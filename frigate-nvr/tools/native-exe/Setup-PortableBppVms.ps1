@@ -343,7 +343,8 @@ $buildScript = Join-Path $PSScriptRoot "Build-BppNativeExe.ps1"
 
 # 5. Shortcuts & Windows Startup
 $exePath = Join-Path $NativeDir "BPP-VMS.exe"
-$icoPath = Join-Path $NativeDir "bpp215.ico"
+$icoPath = Join-Path $NativeDir "arm215.ico"
+if (-not (Test-Path $icoPath)) { $icoPath = Join-Path $NativeDir "bpp215.ico" }
 $iconLoc = if (Test-Path $icoPath) { "$icoPath,0" } else { "$exePath,0" }
 if ($CreateDesktopShortcut -and (Test-Path $exePath)) {
     Write-Step 93 "กำลังสร้างไอคอนทางลัด 'SLOTH BPP-VMS' บนหน้าจอ Desktop..."

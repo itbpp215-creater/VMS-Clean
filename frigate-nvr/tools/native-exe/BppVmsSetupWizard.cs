@@ -70,8 +70,11 @@ namespace BppVmsSetup
         {
             string[] candidates = new string[]
             {
+                Path.Combine(_baseDir, "arm215.ico"),
                 Path.Combine(_baseDir, "bpp215.ico"),
+                Path.Combine(_workspaceRoot, "native", "arm215.ico"),
                 Path.Combine(_workspaceRoot, "native", "bpp215.ico"),
+                Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "tools", "native-exe", "arm215.ico"),
                 Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "tools", "native-exe", "bpp215.ico"),
                 Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "web", "favicon.ico")
             };
@@ -97,6 +100,8 @@ namespace BppVmsSetup
             string[] pngCandidates = new string[]
             {
                 Path.Combine(_workspaceRoot, "native", "data", "settings", "logo.png"),
+                Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "web", "assets", "arm215-logo.png"),
+                Path.Combine(_baseDir, "repo", "frigate-nvr", "web", "assets", "arm215-logo.png"),
                 Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "web", "assets", "BPP215.png"),
                 Path.Combine(_baseDir, "repo", "frigate-nvr", "web", "assets", "BPP215.png")
             };

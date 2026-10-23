@@ -205,43 +205,16 @@ namespace BppVmsNative
 
         private void InitializeTrayIcon()
         {
-            _trayMenu = new ContextMenuStrip();
+            _trayMenu = new ContextMenuStrip
+            {
+                BackColor = Color.FromArgb(16, 13, 32),
+                ForeColor = Color.FromArgb(238, 240, 248),
+                ShowImageMargin = false
+            };
             _trayMenu.Items.Add("เปิดหน้าต่างโปรแกรม (Show BPP-VMS)", null, (s, e) => ShowMainWindow());
-            _trayMenu.Items.Add("🔄 อัปเดตโปรแกรมเป็นเวอร์ชันล่าสุด (1-Click Program Update)", null, async (s, e) => await TriggerFullProgramUpdateAsync());
-            _trayMenu.Items.Add("⚡ ซิงค์หน้าเว็บทันที (Zero-Downtime Web Sync)", null, async (s, e) => await TriggerWebSyncAsync());
+            _trayMenu.Items.Add("ตั้งค่าโหมด Server / Client (Setup)", null, (s, e) => OpenSetupWizard());
             _trayMenu.Items.Add(new ToolStripSeparator());
-            _trayMenu.Items.Add("🌐 สลับเป็นโหมดลูกข่ายผ่านเน็ต (Client: https://sloth.bpp215.com)", null, (s, e) =>
-            {
-                _isClientMode = true;
-                _gatewayUrl = "https://sloth.bpp215.com";
-                SaveRoleConfiguration("client", _gatewayUrl);
-                Text = "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")";
-                if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
-            });
-            _trayMenu.Items.Add("🖧 สลับเป็นโหมดลูกข่ายผ่านวงแลน (Client LAN: http://192.168.1.200:8443)", null, (s, e) =>
-            {
-                _isClientMode = true;
-                _gatewayUrl = "http://192.168.1.200:8443";
-                SaveRoleConfiguration("client", _gatewayUrl);
-                Text = "SLOTH × BPP-VMS 215 — Desktop Client (" + _gatewayUrl + ")";
-                if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
-            });
-            _trayMenu.Items.Add("🏠 สลับเป็นโหมดแม่ข่ายในเครื่องนี้ (Local Server: http://127.0.0.1:8443)", null, async (s, e) =>
-            {
-                _isClientMode = false;
-                _gatewayUrl = "http://127.0.0.1:8443";
-                SaveRoleConfiguration("server", _gatewayUrl);
-                Text = "SLOTH × BPP-VMS 215 — Intelligent Surveillance Platform (Server)";
-                await StartGatewayIfNeededAsync();
-                if (_coreWebView != null) _coreWebView.Navigate(_gatewayUrl + "/");
-            });
-            _trayMenu.Items.Add("⚙️ ตั้งค่าโหมด Server / Client (เปิด BPP-VMS-Setup.exe)", null, (s, e) => OpenSetupWizard());
-            _trayMenu.Items.Add("เปิดในเบราว์เซอร์ (" + _gatewayUrl + ")", null, (s, e) =>
-            {
-                Process.Start(new ProcessStartInfo(_gatewayUrl) { UseShellExecute = true });
-            });
-            _trayMenu.Items.Add(new ToolStripSeparator());
-            _trayMenu.Items.Add("ออกจากโปรแกรม (Exit BPP-VMS)", null, (s, e) => ExitApplication());
+            _trayMenu.Items.Add("ออกจากโปรแกรม (Exit)", null, (s, e) => ExitApplication());
 
             _trayIcon = new NotifyIcon
             {
@@ -430,7 +403,9 @@ namespace BppVmsNative
         {
             string[] candidates = new string[]
             {
+                Path.Combine(_baseDir, "arm215.ico"),
                 Path.Combine(_baseDir, "bpp215.ico"),
+                Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "tools", "native-exe", "arm215.ico"),
                 Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "tools", "native-exe", "bpp215.ico"),
                 Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "web", "favicon.ico")
             };
@@ -456,6 +431,8 @@ namespace BppVmsNative
             string[] pngCandidates = new string[]
             {
                 Path.Combine(_baseDir, "data", "settings", "logo.png"),
+                Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "web", "assets", "arm215-logo.png"),
+                Path.Combine(_baseDir, "repo", "frigate-nvr", "web", "assets", "arm215-logo.png"),
                 Path.Combine(_baseDir, "..", "repo", "frigate-nvr", "web", "assets", "BPP215.png"),
                 Path.Combine(_baseDir, "repo", "frigate-nvr", "web", "assets", "BPP215.png")
             };
@@ -687,8 +664,12 @@ namespace BppVmsNative
       /* Futuristic SLOTH-BPP215 Custom Window Frame & Flush Inside-Topbar Window Controls */
       header.topbar, header {
         position: relative !important;
-        padding-right: 205px !important;
+        padding-right: 126px !important;
         user-select: none;
+        transition: padding-right 0.18s ease;
+      }
+      header.topbar.has-native-update, header.has-native-update {
+        padding-right: 220px !important;
       }
       .bpp-native-win-cluster {
         position: absolute !important;
@@ -707,24 +688,28 @@ namespace BppVmsNative
       }
       .bpp-win-update-btn {
         height: 28px;
-        padding: 0 9px;
-        border: 1px solid rgba(52, 226, 168, 0.42);
+        padding: 0 10px;
+        border: 1px solid rgba(52, 226, 168, 0.52);
         border-radius: 7px;
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(168, 85, 247, 0.22));
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(168, 85, 247, 0.26));
         color: #ecfdf5;
         font-size: 11.5px;
         font-weight: 700;
-        display: inline-flex;
+        display: none !important;
         align-items: center;
         gap: 5px;
         cursor: pointer;
         transition: all 0.16s ease;
         white-space: nowrap;
+        box-shadow: 0 0 10px rgba(52, 226, 168, 0.2);
+      }
+      .bpp-win-update-btn.has-update {
+        display: inline-flex !important;
       }
       .bpp-win-update-btn:hover {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.38), rgba(168, 85, 247, 0.38));
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.42), rgba(168, 85, 247, 0.42));
         border-color: #34e2a8;
-        box-shadow: 0 0 10px rgba(52, 226, 168, 0.32);
+        box-shadow: 0 0 12px rgba(52, 226, 168, 0.38);
       }
       .bpp-win-update-btn.is-updating svg {
         animation: bppSpin 0.9s linear infinite;
@@ -761,7 +746,8 @@ namespace BppVmsNative
     hdr.addEventListener('mousedown', function(e) {
       if (e.button !== 0) return;
       var tag = (e.target.tagName || '').toLowerCase();
-      if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'a' || e.target.closest('button, a, input, select, .header-pill, .tab, .bpp-native-win-cluster')) {
+      if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'a' || tag === 'img' ||
+          e.target.closest('button, a, input, select, .brand, #mainLogo, #brandName, #brandSub, .header-pill, .tab, .bpp-native-win-cluster')) {
         return;
       }
       postNative('drag-window');
@@ -769,19 +755,31 @@ namespace BppVmsNative
 
     hdr.addEventListener('dblclick', function(e) {
       var tag = (e.target.tagName || '').toLowerCase();
-      if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'a' || e.target.closest('button, a, input, select, .header-pill, .tab, .bpp-native-win-cluster')) {
+      if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'a' || tag === 'img' ||
+          e.target.closest('button, a, input, select, .brand, #mainLogo, #brandName, #brandSub, .header-pill, .tab, .bpp-native-win-cluster')) {
         return;
       }
       postNative('maximize-toggle');
+    });
+
+    document.querySelectorAll('.brand').forEach(function(b) {
+      b.style.cursor = 'pointer';
+      b.title = 'คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน สีธีมระบบ URL และบอท Telegram ประจำเครื่อง';
+      b.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (typeof window.openMachineProfileTab === 'function') {
+          window.openMachineProfileTab();
+        }
+      });
     });
 
     var winCluster = document.createElement('div');
     winCluster.id = 'bppSlothNativeWindowControls';
     winCluster.className = 'bpp-native-win-cluster';
     winCluster.innerHTML = `
-      <button type='button' class='bpp-win-update-btn' id='bppWinUpdateBtn' title='อัปเดตโปรแกรมและหน้าเว็บเป็นเวอร์ชันล่าสุดทันที (1-Click Program Update & Cache Clear)'>
+      <button type='button' class='bpp-win-update-btn' id='bppWinUpdateBtn' title='พบอัปเดตใหม่ — คลิกเพื่ออัปเดตโปรแกรมและหน้าเว็บทันที'>
         <svg viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='#34e2a8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'><path d='M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16'/><path d='M16 16h5v5'/></svg>
-        <span id='bppWinUpdateLabel'>อัปเดต</span>
+        <span id='bppWinUpdateLabel'>อัปเดตใหม่</span>
       </button>
       <button type='button' class='bpp-win-ctrl-btn' id='bppWinMinBtn' title='ย่อหน้าต่าง (Minimize)'>
         <svg viewBox='0 0 12 12' width='11' height='11'><rect x='2' y='5.5' width='8' height='1.4' fill='currentColor'/></svg>
@@ -789,11 +787,38 @@ namespace BppVmsNative
       <button type='button' class='bpp-win-ctrl-btn' id='bppWinMaxBtn' title='ขยาย / คืนขนาดหน้าต่าง (Maximize)'>
         <svg viewBox='0 0 12 12' width='11' height='11' fill='none' stroke='currentColor' stroke-width='1.4'><rect x='2' y='2' width='8' height='8' rx='1'/></svg>
       </button>
-      <button type='button' class='bpp-win-ctrl-btn bpp-win-close' id='bppWinCloseBtn' title='ซ่อนโปรแกรมไว้ที่ถาดมุมขวาล่าง (คลิกขวาที่โล่เพื่อปิดระบบ)'>
+      <button type='button' class='bpp-win-ctrl-btn bpp-win-close' id='bppWinCloseBtn' title='ซ่อนโปรแกรมไว้ที่ถาดมุมขวาล่าง'>
         <svg viewBox='0 0 12 12' width='11' height='11' fill='none' stroke='currentColor' stroke-width='1.6'><path d='M2.2 2.2l7.6 7.6M9.8 2.2l-7.6 7.6'/></svg>
       </button>
     `;
     hdr.appendChild(winCluster);
+
+    async function checkNativeUpdateAvailable(refresh) {
+      var btn = document.getElementById('bppWinUpdateBtn');
+      var lbl = document.getElementById('bppWinUpdateLabel');
+      if (!btn || btn.classList.contains('is-updating')) return;
+      try {
+        var res = await fetch('/api/config/system/update/status' + (refresh ? '?refresh=true' : ''), {
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        if (!res.ok) return;
+        var st = await res.json();
+        var behind = Number((st && st.behind_count) || 0);
+        if (behind > 0) {
+          btn.classList.add('has-update');
+          hdr.classList.add('has-native-update');
+          if (lbl) lbl.textContent = 'อัปเดต (' + behind + ')';
+          btn.title = 'มีอัปเดตใหม่ ' + behind + ' รายการ — คลิกเพื่ออัปเดตโปรแกรมทันที';
+        } else {
+          btn.classList.remove('has-update');
+          hdr.classList.remove('has-native-update');
+        }
+      } catch (e) {}
+    }
+    window.checkNativeUpdateAvailable = checkNativeUpdateAvailable;
+    setTimeout(function() { checkNativeUpdateAvailable(true); }, 2500);
+    setInterval(function() { checkNativeUpdateAvailable(true); }, 60000);
 
     document.getElementById('bppWinUpdateBtn').addEventListener('click', async function() {
       var btn = document.getElementById('bppWinUpdateBtn');

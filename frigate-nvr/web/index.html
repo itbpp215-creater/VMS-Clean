@@ -6,7 +6,7 @@
 <title>Sloth BPP 215 — NVR</title>
 <!-- Runtime errors stay in developer tools; no unused third-party parser is
      loaded into this privileged administrative page. -->
-<link rel="icon" type="image/png" href="assets/BPP215.png">
+<link rel="icon" type="image/png" href="assets/arm215-logo.png">
 <link rel="shortcut icon" href="favicon.ico">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0c1a">
@@ -83,7 +83,7 @@
 
     <!-- ========== TOP BAR ========== -->
     <header class="topbar">
-      <div class="brand">
+      <div class="brand" style="cursor:pointer;" onclick="if(window.openMachineProfileTab)window.openMachineProfileTab()" title="คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน สีธีมระบบ URL และบอท Telegram ประจำเครื่อง">
         <div class="brand-logo-tile">
           <div class="brand-logo-bg"></div>
           <img src="assets/BPP215.png" alt="BPP 215" class="brand-logo-img" id="mainLogo" onerror="this.onerror=null;this.src='assets/BPP215.png';">
@@ -264,7 +264,7 @@
 
     <!-- ========== BOTTOM BAR ========== -->
     <footer class="bottombar">
-      <div class="brand">
+      <div class="brand" style="cursor:pointer;" onclick="if(window.openMachineProfileTab)window.openMachineProfileTab()" title="คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน สีธีมระบบ URL และบอท Telegram ประจำเครื่อง">
         <div class="footer-logo-tile">
           <div class="footer-logo-bg"></div>
           <img src="assets/arm215-logo.png?v=2" alt="ARM 215" class="footer-logo-img" id="footerLogoImg" onerror="this.onerror=null;this.src='assets/arm215-logo.png?v=2';">
@@ -344,7 +344,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
               การแจ้งเตือนส่วนตัว
             </button>
-            <button id="btnTabSystemUpdate" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
+            <button id="btnTabSystemUpdate" type="button" style="display:none; flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
               อัปเดตระบบ
             </button>
@@ -2869,8 +2869,8 @@ SOFTWARE.</pre>
 <!-- Federation client disabled: standalone site deployment -->
 <!-- Hls.js client-side video buffering for KhonKaen HLS camera streams -->
 <script src="assets/hls.min.js"></script>
-<!-- v227: Unified Sloth BPP 215 Royal Cyber Violet Theme, Vector SVG Icons & Dynamic Theme Selector -->
-<script src="assets/app.js?v=227"></script>
+<!-- v228: Clean Menus, ARM215 App Icon, Clickable Logo -> Machine Profile & Conditional Update Button -->
+<script src="assets/app.js?v=228"></script>
 <script defer src="assets/account-label.js?v=1"></script>
 <!-- v18: User Groups Management (Drag-and-Drop + 1-Click Add/Remove) & Unified Program/Audit Log Engine (Incident 2.196) -->
 <script defer src="assets/admin.js?v=18"></script>

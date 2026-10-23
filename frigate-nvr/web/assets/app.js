@@ -8386,7 +8386,7 @@ function openSettings() {
   // Tab 4 (การแจ้งเตือน): ALL roles — every user configures their own Telegram alerts.
   if ($('btnTabNvr')) { $('btnTabNvr').style.display = isAdminOrSuper ? '' : 'none'; }
   if ($('btnTabLprLearning')) { $('btnTabLprLearning').style.display = isSuperAdmin ? '' : 'none'; }
-  if ($('btnTabSystemUpdate')) { $('btnTabSystemUpdate').style.display = isAdminOrSuper ? 'inline-flex' : 'none'; }
+  if ($('btnTabSystemUpdate')) { $('btnTabSystemUpdate').style.display = 'none'; }
   if ($('btnTabMachineProfile')) { $('btnTabMachineProfile').style.display = isAdminOrSuper ? 'inline-flex' : 'none'; }
 
   // Admin Profile Impersonation (Incident 2.52)
@@ -11962,6 +11962,7 @@ function bind() {
   }
   window.openMachineProfileTab = () => {
     if (typeof openSettings === 'function') openSettings();
+    if ($('btnTabMachineProfile')) $('btnTabMachineProfile').style.display = 'inline-flex';
     setActiveSettingsTab('tabMachineProfile', 'btnTabMachineProfile');
     if (typeof window.loadMachineProfile === 'function') window.loadMachineProfile();
   };
@@ -15339,18 +15340,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     applyBrandingToDom();
 
-    if (['admin', 'superadmin'].includes(userRole) && !_mpListenersBound) {
+    if (!_mpListenersBound) {
       _mpListenersBound = true;
       const bName = $('brandName');
       const bSub = $('brandSub');
       const bLogo = $('mainLogo');
+      const fLogo = $('footerLogoImg');
+      const fMain = $('footerBrandMain');
+      const fPartner = $('footerBrandPartner');
       const fileInp = $('logoUpload');
 
-      [bName, bSub, bLogo].forEach(el => {
+      [bName, bSub, bLogo, fLogo, fMain, fPartner].forEach(el => {
         if (!el) return;
         el.style.cursor = 'pointer';
         el.title = 'คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน สีธีมระบบ URL และบอท Telegram ประจำเครื่อง';
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation();
           if (typeof window.openMachineProfileTab === 'function') {
             window.openMachineProfileTab();
           }
