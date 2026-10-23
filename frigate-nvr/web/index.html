@@ -85,7 +85,7 @@
       <div class="brand">
         <div class="brand-logo-tile">
           <div class="brand-logo-bg"></div>
-          <img src="assets/BPP215.png" alt="BPP 215" class="brand-logo-img" id="mainLogo">
+          <img src="assets/BPP215.png" alt="BPP 215" class="brand-logo-img" id="mainLogo" onerror="this.onerror=null;this.src='assets/BPP215.png';">
         </div>
         <div class="brand-text">
           <span class="brand-name" id="brandName">Sloth</span>
@@ -266,12 +266,12 @@
       <div class="brand">
         <div class="footer-logo-tile">
           <div class="footer-logo-bg"></div>
-          <img src="assets/arm215-logo.png?v=2" alt="ARM 215" class="footer-logo-img">
+          <img src="assets/arm215-logo.png?v=2" alt="ARM 215" class="footer-logo-img" id="footerLogoImg" onerror="this.onerror=null;this.src='assets/arm215-logo.png?v=2';">
         </div>
         <div class="footer-brand-text">
           <div class="footer-brand-name">
-            <span class="footer-brand-main">Sucahkree Arm 215</span>
-            <span class="footer-brand-partner">+ Things Analytic Co., Ltd.</span>
+            <span class="footer-brand-main" id="footerBrandMain">Sucahkree Arm 215</span>
+            <span class="footer-brand-partner" id="footerBrandPartner">+ Things Analytic Co., Ltd.</span>
           </div>
           <div class="footer-brand-sub">Ai CCTV Surveillance Platform</div>
         </div>
@@ -346,6 +346,10 @@
             <button id="btnTabSystemUpdate" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
               อัปเดตระบบ
+            </button>
+            <button id="btnTabMachineProfile" type="button" style="flex:1; padding:15px; background:transparent; color:#9aa0bd; border:none; border-bottom:2px solid transparent; cursor:pointer; font-family:var(--font-ui); font-size:15px; font-weight:500; display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              ตั้งค่าเครื่อง / โลโก้ / บอท
             </button>
           </div>
 
@@ -965,6 +969,146 @@
               </div>
             </div>
           </div><!-- close tabSystemUpdate -->
+
+          <!-- ========== TAB 6: MACHINE PROFILE (LOGO, BRANDING, URL, TUNNEL, TELEGRAM BOT & AI OCR) ========== -->
+          <div id="tabMachineProfile" class="settings-tab-pane" style="display:none; flex:1; min-height:0; overflow:auto; padding:18px 20px; flex-direction:column; gap:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(56,189,248,0.15), rgba(168,85,247,0.12)); padding:12px 16px; border-radius:10px; border:1px solid rgba(56,189,248,0.4); flex-wrap:wrap; gap:10px;">
+              <div>
+                <b style="color:#e2e8f0; font-size:14px; display:inline-flex; align-items:center; gap:8px;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                  ตั้งค่าประจำเครื่อง (โลโก้ · ชื่อหน่วยงาน · URL/โดเมน · Telegram Bot · AI สกัดข้อมูลเชื่อมโยง i2)
+                </b>
+                <div class="field-hint" style="margin-top:3px;">เมื่อนำไปติดตั้งเครื่องใหม่ สามารถเปลี่ยนโลโก้ ชื่อระบบ URL โทเคน Cloudflare และบอท Telegram ได้จบในหน้านี้โดยไม่ต้องแก้ไขโค้ด</div>
+              </div>
+              <button id="btnMpSaveAllTop" type="button" class="btn-primary" style="padding:7px 16px; font-size:12.5px; font-weight:700;">💾 บันทึกการตั้งค่าเครื่องทั้งหมด</button>
+            </div>
+
+            <!-- 1. Logo & Branding -->
+            <div class="conn-box" style="margin:0; border-color:rgba(168,85,247,0.35);">
+              <div class="conn-body" style="width:100%;">
+                <b style="color:#c084fc;">🖼️ 1. โลโก้มุมบนและชื่อระบบประจำหน่วยงาน (Logo &amp; System Identity)</b>
+                <div style="display:flex; gap:18px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:8px; background:rgba(15,23,42,0.75); padding:12px 16px; border-radius:10px; border:1px solid rgba(168,85,247,0.35);">
+                    <img id="mpLogoPreview" src="assets/BPP215.png" alt="Logo Preview" onerror="this.onerror=null;this.src='assets/BPP215.png';" style="width:68px; height:68px; object-fit:contain; border-radius:8px;">
+                    <div style="display:flex; gap:6px;">
+                      <button id="btnMpUploadLogo" type="button" class="btn-ghost" style="padding:4px 10px; font-size:11.5px; color:#38bdf8; border-color:rgba(56,189,248,0.4);">📁 เปลี่ยนโลโก้</button>
+                      <button id="btnMpResetLogo" type="button" class="btn-ghost" style="padding:4px 10px; font-size:11.5px; color:#f87171; border-color:rgba(248,113,113,0.35);">คืนค่าเริ่มต้น</button>
+                    </div>
+                  </div>
+                  <div style="flex:1; min-width:260px; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
+                    <label class="field" style="margin:0;">
+                      <span class="field-label">ชื่อหลักของระบบ (มุมบนซ้าย)</span>
+                      <input id="inpMpBrandName" class="inp" type="text" placeholder="เช่น Sloth หรือ ชื่อศูนย์ปฏิบัติการ">
+                    </label>
+                    <label class="field" style="margin:0;">
+                      <span class="field-label">ชื่อหน่วยงาน / รหัสหน่วย (มุมบนซ้าย)</span>
+                      <input id="inpMpBrandSub" class="inp" type="text" placeholder="เช่น BPP 215 หรือ ร้อย ตชด.215">
+                    </label>
+                    <label class="field" style="margin:0;">
+                      <span class="field-label">ชื่อเครดิตแถบล่าง (Footer Main)</span>
+                      <input id="inpMpFooterMain" class="inp" type="text" placeholder="เช่น Sucahkree Arm 215">
+                    </label>
+                    <label class="field" style="margin:0;">
+                      <span class="field-label">ชื่อหน่วยงานร่วมแถบล่าง (Footer Partner)</span>
+                      <input id="inpMpFooterPartner" class="inp" type="text" placeholder="เช่น + Things Analytic Co., Ltd.">
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Public URL, Cloudflare Tunnel & DuckDNS -->
+            <div class="conn-box" style="margin:0; border-color:rgba(56,189,248,0.35);">
+              <div class="conn-body" style="width:100%;">
+                <b style="color:#38bdf8;">🌐 2. โดเมน / URL สำหรับเข้าใช้งานภายนอกและมือถือ (Cloudflare Tunnel &amp; DuckDNS)</b>
+                <div class="field-hint" style="margin-top:4px;">ตั้งค่าโดเมนสำหรับเปิดดูผ่านมือถือจากภายนอก และใส่ Cloudflare Tunnel Token ของเครื่องใหม่ได้ทันที</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; margin-top:10px;">
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">โดเมนหลักของเครื่องนี้ (Public Domain / URL)</span>
+                    <input id="inpMpPublicDomain" class="inp mono" type="text" placeholder="เช่น vms.local">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">Cloudflare Tunnel Token (CLOUDFLARE_TUNNEL_TOKEN)</span>
+                    <input id="inpMpCfToken" class="inp mono" type="password" autocomplete="new-password" placeholder="eyJhIjoi... (วางโทเคน Cloudflare Tunnel ที่นี่)">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">DuckDNS Subdomain (สำหรับรับสตรีมโดรน RTMP)</span>
+                    <input id="inpMpDuckSub" class="inp mono" type="text" placeholder="เช่น bpp215">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">DuckDNS Token</span>
+                    <input id="inpMpDuckToken" class="inp mono" type="password" autocomplete="new-password" placeholder="DuckDNS Token">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Telegram Bot, Alerting & Gemini AI Extraction -->
+            <div class="conn-box" style="margin:0; border-color:rgba(16,185,129,0.4);">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <b style="color:#34d399;">🤖 3. Telegram Bot · การแจ้งเตือน LPR/ใบหน้า · รับรายงานสนาม &amp; AI สกัดข้อมูลเชื่อมโยง i2</b>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="stMpTelegramTest" style="font-size:12px; color:#94a3b8;">พร้อมทดสอบ</span>
+                    <button id="btnMpTestTelegram" type="button" class="btn-ghost" style="padding:5px 12px; font-size:12px; color:#34d399; border-color:rgba(16,185,129,0.45);">📨 ทดสอบส่งข้อความเข้า Telegram</button>
+                  </div>
+                </div>
+                <div class="field-hint" style="margin-top:4px;">บอทตัวนี้ทำหน้าที่ครบวงจร: (1) แจ้งเตือนป้ายทะเบียนเฝ้าระวังและใบหน้าหมายจับพร้อมภาพถ่าย (2) รับรายงาน/จุดวางงานจากเจ้าหน้าที่ขึ้นแผนที่ (3) ใช้ Gemini AI สกัดข้อมูลจากภาพบัตรประชาชน/รถ/ผู้ต้องหา เพื่อสร้างโหนดเชื่อมโยงในผัง i2 อัตโนมัติ</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; margin-top:10px;">
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">Telegram Bot Token (จาก @BotFather)</span>
+                    <input id="inpMpTgToken" class="inp mono" type="text" autocomplete="off" placeholder="เช่น 1234567890:AAH...">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">Telegram Chat ID หลัก / กลุ่มแจ้งเตือน (LPR_TELEGRAM_CHAT_ID)</span>
+                    <input id="inpMpTgChatId" class="inp mono" type="text" autocomplete="off" placeholder="เช่น 6926293936 หรือ -100...">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">ชื่อสถานที่ตั้งเครื่อง (แสดงในข้อความแจ้งเตือน)</span>
+                    <input id="inpMpAlertLocation" class="inp" type="text" placeholder="เช่น ร้อย ตชด.215 (นางรอง)">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">Google Gemini API Key (สำหรับ AI สกัดข้อมูลภาพถ่าย &amp; เชื่อมโยง i2)</span>
+                    <input id="inpMpGeminiKey" class="inp mono" type="password" autocomplete="new-password" placeholder="AIzaSy...">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. NAS Storage -->
+            <div class="conn-box" style="margin:0;">
+              <div class="conn-body" style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <b>💾 4. การเชื่อมต่อคลังจัดเก็บ NAS (สำรองภาพจับกุม / วิดีโอเหตุการณ์)</b>
+                  <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px; color:#cbd5e1;">
+                    <input id="chkMpNasEnabled" type="checkbox" checked> เปิดใช้งานการซิงค์ NAS
+                  </label>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px; margin-top:10px;">
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">NAS IP / Host</span>
+                    <input id="inpMpNasHost" class="inp mono" type="text" placeholder="เช่น 192.168.1.249">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">ชื่อโฟลเดอร์แชร์ (Share Name)</span>
+                    <input id="inpMpNasShare" class="inp mono" type="text" placeholder="เช่น usbshare1">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">NAS Username</span>
+                    <input id="inpMpNasUser" class="inp mono" type="text" autocomplete="off" placeholder="Username">
+                  </label>
+                  <label class="field" style="margin:0;">
+                    <span class="field-label">NAS Password</span>
+                    <input id="inpMpNasPass" class="inp mono" type="password" autocomplete="new-password" placeholder="Password">
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; padding-top:4px;">
+              <button id="btnMpSaveAll" type="button" class="btn-primary" style="padding:10px 22px; font-size:13.5px; font-weight:700;">💾 บันทึกการตั้งค่าประจำเครื่องทั้งหมด (มีผลทันที)</button>
+            </div>
+          </div><!-- close tabMachineProfile -->
         </div><!-- close modal-body -->
         <div class="modal-foot">
           <span id="syncSpin" class="sync-spin" hidden></span>
@@ -2674,8 +2818,8 @@ SOFTWARE.</pre>
 <!-- Federation client disabled: standalone site deployment -->
 <!-- Hls.js client-side video buffering for KhonKaen HLS camera streams -->
 <script src="assets/hls.min.js"></script>
-<!-- v225: Native Gateway Event Manager full media/clip resolution & direct go2rtc manual recording -->
-<script src="assets/app.js?v=225"></script>
+<!-- v226: Zero-Code Machine Profile (Logo, Name, URL, Cloudflare Token, Telegram Bot & AI OCR) -->
+<script src="assets/app.js?v=226"></script>
 <script defer src="assets/account-label.js?v=1"></script>
 <!-- v18: User Groups Management (Drag-and-Drop + 1-Click Add/Remove) & Unified Program/Audit Log Engine (Incident 2.196) -->
 <script defer src="assets/admin.js?v=18"></script>

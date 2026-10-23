@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import re
 import threading
@@ -4520,7 +4520,418 @@ async def api_modify_user_group_member(group_id: str, request: Request) -> Dict[
     return {"ok": True, "group": target, "groups": groups}
 
 
+# ===========================================================================
+# MACHINE PROFILE: LOGO, BRANDING, PUBLIC URL, TUNNEL, TELEGRAM BOT & AI OCR
+# ===========================================================================
+_MACHINE_PROFILE_LOCK = threading.RLock()
+
+
+def _candidate_config_dirs() -> List[Path]:
+    dirs: List[Path] = []
+    base = Path(CONFIG_PATH).parent if CONFIG_PATH else Path("/config")
+    for cand in (
+        base,
+        Path(os.environ.get("BPP_CONFIG_DIR", str(base))),
+        Path(r"D:\Sloth-BPP215\native\config"),
+        Path(r"D:\BPP-VMS\frigate-nvr\config"),
+    ):
+        try:
+            if cand.is_dir() and cand not in dirs:
+                dirs.append(cand)
+        except Exception:
+            pass
+    if not dirs:
+        dirs.append(base)
+    return dirs
+
+
+def _candidate_env_files() -> List[Path]:
+    files: List[Path] = []
+    base = Path(CONFIG_PATH).parent if CONFIG_PATH else Path("/config")
+    for cand in (
+        base / ".env",
+        base.parent / ".env",
+        Path(r"D:\Sloth-BPP215\native\config\.env"),
+        Path(r"D:\Sloth-BPP215\repo\frigate-nvr\.env"),
+        Path(r"D:\BPP-VMS\frigate-nvr\.env"),
+    ):
+        try:
+            if cand.parent.is_dir() and cand not in files:
+                files.append(cand)
+        except Exception:
+            pass
+    return files
+
+
+def _read_merged_env_dict() -> Dict[str, str]:
+    merged: Dict[str, str] = {}
+    for fp in reversed(_candidate_env_files()):
+        if not fp.is_file():
+            continue
+        try:
+            for raw in fp.read_text(encoding="utf-8", errors="ignore").splitlines():
+                s = raw.strip()
+                if not s or s.startswith("#") or "=" not in s:
+                    continue
+                k, v = s.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k:
+                    merged[k] = v
+        except Exception:
+            pass
+    for k in (
+        "PUBLIC_DOMAIN",
+        "PUBLIC_URL",
+        "CLOUDFLARE_TUNNEL_TOKEN",
+        "DUCKDNS_SUBDOMAIN",
+        "DUCKDNS_TOKEN",
+        "TELEGRAM_BOT_TOKEN",
+        "LPR_TELEGRAM_BOT_TOKEN",
+        "LPR_TELEGRAM_CHAT_ID",
+        "LPR_ALERT_LOCATION",
+        "GEMINI_API_KEY",
+        "NAS_SYNC_ENABLED",
+        "NAS_HOST",
+        "NAS_SHARE",
+        "NAS_USERNAME",
+        "NAS_PASSWORD",
+    ):
+        val = os.environ.get(k, "").strip()
+        if val and k not in merged:
+            merged[k] = val
+    return merged
+
+
+def _update_env_file(fp: Path, updates: Dict[str, str]) -> None:
+    lines: List[str] = []
+    if fp.is_file():
+        try:
+            lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            lines = []
+    remaining = dict(updates)
+    out_lines: List[str] = []
+    for raw in lines:
+        s = raw.strip()
+        if s and not s.startswith("#") and "=" in s:
+            k = s.split("=", 1)[0].strip()
+            if k in remaining:
+                out_lines.append(f"{k}={remaining.pop(k)}")
+                continue
+        out_lines.append(raw)
+    for k, v in remaining.items():
+        out_lines.append(f"{k}={v}")
+    try:
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        fp.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _load_machine_branding() -> Dict[str, Any]:
+    default_branding: Dict[str, Any] = {
+        "brandName": "Sloth",
+        "brandSub": "BPP 215",
+        "footerMain": "Sucahkree Arm 215",
+        "footerPartner": "+ Things Analytic Co., Ltd.",
+        "title": "SLOTH BPP-VMS",
+    }
+    has_custom_logo = False
+    for cdir in _candidate_config_dirs():
+        ds_dir = cdir / "dashboard-settings"
+        logo_fp = ds_dir / "logo.png"
+        if logo_fp.is_file() and logo_fp.stat().st_size > 64:
+            has_custom_logo = True
+        bfp = ds_dir / "branding.json"
+        if bfp.is_file():
+            try:
+                data = json.loads(bfp.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    for k in ("brandName", "brandSub", "footerMain", "footerPartner", "title"):
+                        if data.get(k):
+                            default_branding[k] = str(data[k]).strip()
+                    break
+            except Exception:
+                pass
+    default_branding["hasCustomLogo"] = has_custom_logo
+    return default_branding
+
+
+@program_log_router.get("/api/public-config/machine-profile")
+@program_log_router.get("/api/config/machine-profile")
+def api_get_machine_profile() -> Dict[str, Any]:
+    with _MACHINE_PROFILE_LOCK:
+        branding = _load_machine_branding()
+        env_map = _read_merged_env_dict()
+        pub_domain = env_map.get("PUBLIC_DOMAIN") or "vms.local"
+        pub_url = env_map.get("PUBLIC_URL") or (
+            f"https://{pub_domain}" if pub_domain and not pub_domain.startswith("http") else pub_domain
+        )
+        tg_token = env_map.get("TELEGRAM_BOT_TOKEN") or env_map.get("LPR_TELEGRAM_BOT_TOKEN") or ""
+        return {
+            "ok": True,
+            "computerName": os.environ.get("COMPUTERNAME", "BPP-SERVER"),
+            "brandName": branding.get("brandName") or "Sloth",
+            "brandSub": branding.get("brandSub") or "BPP 215",
+            "footerMain": branding.get("footerMain") or "Sucahkree Arm 215",
+            "footerPartner": branding.get("footerPartner") or "+ Things Analytic Co., Ltd.",
+            "hasCustomLogo": bool(branding.get("hasCustomLogo", False)),
+            "publicDomain": pub_domain,
+            "publicUrl": pub_url,
+            "cloudflareTunnelToken": env_map.get("CLOUDFLARE_TUNNEL_TOKEN") or "",
+            "duckdnsSubdomain": env_map.get("DUCKDNS_SUBDOMAIN") or "",
+            "duckdnsToken": env_map.get("DUCKDNS_TOKEN") or "",
+            "telegramBotToken": tg_token,
+            "telegramChatId": env_map.get("LPR_TELEGRAM_CHAT_ID") or "",
+            "alertLocationName": env_map.get("LPR_ALERT_LOCATION") or "ร้อย ตชด.215 (นางรอง)",
+            "geminiApiKey": env_map.get("GEMINI_API_KEY") or "",
+            "nasSyncEnabled": str(env_map.get("NAS_SYNC_ENABLED") or "true").lower() in ("1", "true", "yes"),
+            "nasHost": env_map.get("NAS_HOST") or "",
+            "nasShare": env_map.get("NAS_SHARE") or "",
+            "nasUsername": env_map.get("NAS_USERNAME") or "",
+            "nasPassword": env_map.get("NAS_PASSWORD") or "",
+        }
+
+
+@program_log_router.post("/api/public-config/machine-profile")
+@program_log_router.post("/api/config/machine-profile")
+async def api_save_machine_profile(request: Request) -> Dict[str, Any]:
+    import base64
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="รูปแบบข้อมูลการตั้งค่าเครื่องไม่ถูกต้อง")
+
+    actor = str(body.get("actor") or request.headers.get("x-auth-user") or "admin").strip()
+    ip_addr = _client_ip_from_req(request)
+
+    with _MACHINE_PROFILE_LOCK:
+        cur = _load_machine_branding()
+        brand_name = str(body.get("brandName") if "brandName" in body else cur.get("brandName") or "Sloth").strip() or "Sloth"
+        brand_sub = str(body.get("brandSub") if "brandSub" in body else cur.get("brandSub") or "BPP 215").strip()
+        footer_main = str(body.get("footerMain") if "footerMain" in body else cur.get("footerMain") or "Sucahkree Arm 215").strip()
+        footer_partner = str(body.get("footerPartner") if "footerPartner" in body else cur.get("footerPartner") or "+ Things Analytic Co., Ltd.").strip()
+
+        branding_payload = {
+            "brandName": brand_name,
+            "brandSub": brand_sub,
+            "footerMain": footer_main,
+            "footerPartner": footer_partner,
+            "title": f"{brand_name} {brand_sub}".strip(),
+            "updatedAt": int(time.time()),
+        }
+
+        logo_bytes: Optional[bytes] = None
+        logo_b64 = str(body.get("logoBase64") or "").strip()
+        if logo_b64:
+            if "," in logo_b64:
+                logo_b64 = logo_b64.split(",", 1)[1]
+            try:
+                decoded = base64.b64decode(logo_b64)
+                if len(decoded) > 64:
+                    logo_bytes = decoded
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail="ไฟล์โลโก้ที่อัปโหลดไม่ถูกต้อง") from exc
+
+        reset_logo = bool(body.get("resetLogo", False))
+
+        for cdir in _candidate_config_dirs():
+            ds_dir = cdir / "dashboard-settings"
+            try:
+                ds_dir.mkdir(parents=True, exist_ok=True)
+                (ds_dir / "branding.json").write_text(
+                    json.dumps(branding_payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                logo_fp = ds_dir / "logo.png"
+                if reset_logo and logo_fp.is_file():
+                    logo_fp.unlink()
+                elif logo_bytes is not None:
+                    logo_fp.write_bytes(logo_bytes)
+            except Exception:
+                pass
+
+        env_updates: Dict[str, str] = {}
+        pub_domain = str(body.get("publicDomain") or "").strip()
+        if "publicDomain" in body:
+            clean_dom = pub_domain.replace("https://", "").replace("http://", "").strip("/")
+            env_updates["PUBLIC_DOMAIN"] = clean_dom
+            env_updates["PUBLIC_URL"] = str(body.get("publicUrl") or (f"https://{clean_dom}" if clean_dom else "")).strip()
+        elif "publicUrl" in body:
+            env_updates["PUBLIC_URL"] = str(body.get("publicUrl") or "").strip()
+
+        if "cloudflareTunnelToken" in body:
+            env_updates["CLOUDFLARE_TUNNEL_TOKEN"] = str(body.get("cloudflareTunnelToken") or "").strip()
+        if "duckdnsSubdomain" in body:
+            env_updates["DUCKDNS_SUBDOMAIN"] = str(body.get("duckdnsSubdomain") or "").strip()
+        if "duckdnsToken" in body:
+            env_updates["DUCKDNS_TOKEN"] = str(body.get("duckdnsToken") or "").strip()
+        if "telegramBotToken" in body:
+            tg_tok = str(body.get("telegramBotToken") or "").strip()
+            env_updates["TELEGRAM_BOT_TOKEN"] = tg_tok
+            env_updates["LPR_TELEGRAM_BOT_TOKEN"] = tg_tok
+        if "telegramChatId" in body:
+            env_updates["LPR_TELEGRAM_CHAT_ID"] = str(body.get("telegramChatId") or "").strip()
+        if "alertLocationName" in body:
+            env_updates["LPR_ALERT_LOCATION"] = str(body.get("alertLocationName") or "").strip()
+        if "geminiApiKey" in body:
+            env_updates["GEMINI_API_KEY"] = str(body.get("geminiApiKey") or "").strip()
+        if "nasSyncEnabled" in body:
+            env_updates["NAS_SYNC_ENABLED"] = "true" if body.get("nasSyncEnabled") else "false"
+        if "nasHost" in body:
+            env_updates["NAS_HOST"] = str(body.get("nasHost") or "").strip()
+        if "nasShare" in body:
+            env_updates["NAS_SHARE"] = str(body.get("nasShare") or "").strip()
+        if "nasUsername" in body:
+            env_updates["NAS_USERNAME"] = str(body.get("nasUsername") or "").strip()
+        if "nasPassword" in body:
+            env_updates["NAS_PASSWORD"] = str(body.get("nasPassword") or "").strip()
+
+        if env_updates:
+            for k, v in env_updates.items():
+                os.environ[k] = v
+            for env_fp in _candidate_env_files():
+                if env_fp.is_file() or env_fp == _candidate_env_files()[0]:
+                    _update_env_file(env_fp, env_updates)
+
+        # Also sync native_network_settings.json if present
+        for cdir in _candidate_config_dirs():
+            net_fp = cdir / "native_network_settings.json"
+            if net_fp.is_file() or cdir == _candidate_config_dirs()[0]:
+                try:
+                    net_data = json.loads(net_fp.read_text(encoding="utf-8")) if net_fp.is_file() else {}
+                    if "PUBLIC_DOMAIN" in env_updates and env_updates["PUBLIC_DOMAIN"]:
+                        net_data["hq_domain"] = env_updates["PUBLIC_DOMAIN"]
+                    if "DUCKDNS_SUBDOMAIN" in env_updates:
+                        net_data["duckdns_domain"] = env_updates["DUCKDNS_SUBDOMAIN"]
+                        net_data["duckdns_enabled"] = bool(env_updates["DUCKDNS_SUBDOMAIN"] and net_data.get("duckdns_token"))
+                    if "DUCKDNS_TOKEN" in env_updates:
+                        net_data["duckdns_token"] = env_updates["DUCKDNS_TOKEN"]
+                        net_data["duckdns_enabled"] = bool(net_data.get("duckdns_domain") and env_updates["DUCKDNS_TOKEN"])
+                    net_fp.write_text(json.dumps(net_data, ensure_ascii=False, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+    _append_program_log(
+        category="ตั้งค่าเครื่อง",
+        action="UPDATE_MACHINE_PROFILE",
+        details=f"บันทึกการตั้งค่าประจำเครื่อง '{brand_name} ({brand_sub})' / Domain: {env_updates.get('PUBLIC_DOMAIN', '-')}",
+        username=actor,
+        ip_address=ip_addr,
+    )
+    return api_get_machine_profile()
+
+
+@program_log_router.delete("/api/public-config/machine-profile/logo")
+@program_log_router.delete("/api/config/machine-profile/logo")
+def api_reset_machine_logo(request: Request) -> Dict[str, Any]:
+    actor = str(request.headers.get("x-auth-user") or "admin").strip()
+    ip_addr = _client_ip_from_req(request)
+    with _MACHINE_PROFILE_LOCK:
+        for cdir in _candidate_config_dirs():
+            logo_fp = cdir / "dashboard-settings" / "logo.png"
+            try:
+                if logo_fp.is_file():
+                    logo_fp.unlink()
+            except Exception:
+                pass
+    _append_program_log(
+        category="ตั้งค่าเครื่อง",
+        action="RESET_LOGO",
+        details="รีเซ็ตโลโก้ระบบกลับเป็นค่าเริ่มต้น (BPP215.png)",
+        username=actor,
+        ip_address=ip_addr,
+    )
+    return api_get_machine_profile()
+
+
+@program_log_router.post("/api/public-config/machine-profile/test-telegram")
+@program_log_router.post("/api/config/machine-profile/test-telegram")
+async def api_test_machine_telegram(request: Request) -> Dict[str, Any]:
+    import urllib.parse
+    import urllib.request
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+
+    profile = api_get_machine_profile()
+    token = str(body.get("telegramBotToken") or profile.get("telegramBotToken") or "").strip()
+    chat_id = str(body.get("telegramChatId") or profile.get("telegramChatId") or "").strip()
+
+    if not token:
+        raise HTTPException(status_code=400, detail="กรุณาระบุ Telegram Bot Token ก่อนทดสอบ")
+
+    bot_info: Dict[str, Any] = {}
+    try:
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/getMe", method="GET")
+        with urllib.request.urlopen(req, timeout=8.0) as resp:
+            res_json = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            if not res_json.get("ok"):
+                raise HTTPException(status_code=400, detail="Telegram Bot Token ไม่ถูกต้อง")
+            bot_info = res_json.get("result") or {}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"ไม่สามารถเชื่อมต่อ Telegram API ได้: {exc}") from exc
+
+    msg_sent = False
+    msg_error = ""
+    if chat_id:
+        brand_title = f"{profile.get('brandName', 'Sloth')} ({profile.get('brandSub', 'BPP 215')})"
+        loc_name = profile.get("alertLocationName") or "ศูนย์ปฏิบัติการ"
+        pub_dom = profile.get("publicDomain") or "localhost"
+        text = (
+            f"✅ <b>ทดสอบการเชื่อมต่อบอทระบบ {brand_title} สำเร็จ!</b>\n"
+            f"📍 <b>สถานที่ตั้งเครื่อง:</b> {loc_name}\n"
+            f"🌐 <b>โดเมน/URL:</b> {pub_dom}\n"
+            f"🤖 <b>บอท:</b> @{bot_info.get('username', '-')}\n\n"
+            f"🔔 <b>ฟีเจอร์ที่พร้อมทำงาน 100%:</b>\n"
+            f"1. แจ้งเตือนป้ายทะเบียนเฝ้าระวัง (LPR) และใบหน้าตามหมายจับอัตโนมัติ\n"
+            f"2. รับรายงานผลการปฏิบัติงาน/จุดวางงานจากเจ้าหน้าที่ลงแผนที่ทันที\n"
+            f"3. AI (Gemini OCR) สกัดข้อมูลจากภาพถ่ายบัตร/ผู้ต้องหา/รถ เชื่อมโยงผัง i2 และคลังประวัติอัตโนมัติ"
+        )
+        payload = urllib.parse.urlencode(
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+            }
+        ).encode("utf-8")
+        try:
+            sreq = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=payload,
+                method="POST",
+            )
+            with urllib.request.urlopen(sreq, timeout=8.0) as sresp:
+                sjson = json.loads(sresp.read().decode("utf-8", errors="ignore"))
+                msg_sent = bool(sjson.get("ok"))
+        except Exception as sexc:
+            msg_error = str(sexc)
+
+    return {
+        "ok": True,
+        "bot": {
+            "id": bot_info.get("id"),
+            "username": bot_info.get("username") or "",
+            "first_name": bot_info.get("first_name") or "",
+        },
+        "chat_id": chat_id,
+        "message_sent": msg_sent,
+        "message_error": msg_error,
+    }
+
+
 app.include_router(program_log_router)
+
 
 
 

@@ -7,7 +7,14 @@
     [switch]$MigrateGps = $false,
     [switch]$MigrateWatchlist = $false,
     [switch]$MigrateBranding = $false,
-    [string]$CustomSystemTitle = "SLOTH BPP-VMS",
+    [string]$CustomSystemTitle = "Sloth",
+    [string]$CustomSystemSub = "BPP 215",
+    [string]$CustomLogoPath = "",
+    [string]$PublicDomain = "",
+    [string]$CloudflareToken = "",
+    [string]$TelegramBotToken = "",
+    [string]$TelegramChatId = "",
+    [string]$GeminiApiKey = "",
     [string]$ServerUrl = "https://vms.local",
     [switch]$CreateDesktopShortcut = $true,
     [switch]$CreateStartMenuShortcut = $true,
@@ -68,8 +75,15 @@ function Initialize-CleanConfig([string]$TargetCfg, [string]$SystemTitle) {
     Write-Utf8File (Join-Path $TargetCfg "camera_sources.json") '{}'
     Write-Utf8File (Join-Path $TargetCfg "gpsone_devices.local.json") '{"devices": {}, "permissions": {}}'
 
-    $safeTitle = if ($SystemTitle -and $SystemTitle.Trim()) { $SystemTitle.Trim() } else { "SLOTH BPP-VMS" }
-    $brandingObj = @{ title = $safeTitle; subtitle = "AI CCTV Surveillance Platform" } | ConvertTo-Json -Compress
+    $safeName = if ($SystemTitle -and $SystemTitle.Trim()) { $SystemTitle.Trim() } else { "Sloth" }
+    $safeSub  = if ($CustomSystemSub -and $CustomSystemSub.Trim()) { $CustomSystemSub.Trim() } else { "BPP 215" }
+    $brandingObj = @{
+        brandName = $safeName
+        brandSub = $safeSub
+        footerMain = "Sucahkree Arm 215"
+        footerPartner = "+ Things Analytic Co., Ltd."
+        title = "$safeName $safeSub".Trim()
+    } | ConvertTo-Json -Compress
     Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\branding.json") $brandingObj
     Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\channels.json") '{}'
     Write-Utf8File (Join-Path $TargetCfg "dashboard-settings\camera_names.json") '{}'
@@ -129,9 +143,18 @@ else {
         }
 
         if ($MigrateUsers) {
-            Write-Step 24 "-> กำลังนำเข้า บัญชีผู้ใช้งานและสิทธิ์การเข้าถึง (User Accounts)..."
+            Write-Step 24 "-> กำลังนำเข้า บัญชีผู้ใช้งาน กลุ่มผู้ใช้ และสิทธิ์การเข้าถึง (User Accounts & Groups)..."
             if (Test-Path "$srcPool\auth") {
                 Copy-Item "$srcPool\auth\*" "$ConfigDir\auth\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            foreach ($uf in @("user_groups.json", "user_profiles.json", "bot_user_pairings.json", "user_subscriptions.json")) {
+                if (Test-Path "$srcPool\$uf") {
+                    Copy-Item "$srcPool\$uf" "$ConfigDir\$uf" -Force -ErrorAction SilentlyContinue
+                }
+            }
+            if (Test-Path "$srcPool\nas-data") {
+                New-Item -ItemType Directory -Path "$ConfigDir\nas-data" -Force | Out-Null
+                Copy-Item "$srcPool\nas-data\*" "$ConfigDir\nas-data\" -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
 
@@ -143,12 +166,16 @@ else {
         }
 
         if ($MigrateWatchlist) {
-            Write-Step 32 "-> กำลังนำเข้า บัญชีดำป้ายทะเบียนเฝ้าระวัง, ฐานข้อมูลใบหน้าหมายจับ (187 แฟ้ม) และโซน AI..."
+            Write-Step 32 "-> กำลังนำเข้า บัญชีดำป้ายทะเบียนเฝ้าระวัง, ฐานข้อมูลใบหน้าหมายจับ, และโครงข่ายเชื่อมโยง i2..."
             if (Test-Path "$srcPool\lpr") {
                 Copy-Item "$srcPool\lpr\*" "$ConfigDir\lpr\" -Recurse -Force -ErrorAction SilentlyContinue
             }
             if (Test-Path "$srcPool\faces") {
                 Copy-Item "$srcPool\faces\*" "$ConfigDir\faces\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path "$srcPool\nas-storage") {
+                New-Item -ItemType Directory -Path "$ConfigDir\nas-storage" -Force | Out-Null
+                Copy-Item "$srcPool\nas-storage\*" "$ConfigDir\nas-storage\" -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
 
@@ -168,6 +195,79 @@ else {
             Initialize-CleanConfig -TargetCfg $ConfigDir -SystemTitle $CustomSystemTitle
         }
         Write-Utf8File (Join-Path $ConfigDir "client_mode.json") $serverCfgObj
+    }
+
+    # Apply custom branding, logo, URL, Tunnel Token & Telegram Bot settings if provided
+    $safeName = if ($CustomSystemTitle -and $CustomSystemTitle.Trim()) { $CustomSystemTitle.Trim() } else { "Sloth" }
+    $safeSub  = if ($CustomSystemSub -and $CustomSystemSub.Trim()) { $CustomSystemSub.Trim() } else { "BPP 215" }
+    if (-not $MigrateBranding -or $CustomSystemTitle -or $CustomSystemSub) {
+        $brandingObj = @{
+            brandName = $safeName
+            brandSub = $safeSub
+            footerMain = "Sucahkree Arm 215"
+            footerPartner = "+ Things Analytic Co., Ltd."
+            title = "$safeName $safeSub".Trim()
+        } | ConvertTo-Json -Compress
+        Write-Utf8File (Join-Path $ConfigDir "dashboard-settings\branding.json") $brandingObj
+    }
+    if ($CustomLogoPath -and (Test-Path $CustomLogoPath)) {
+        Write-Step 37 "-> กำลังติดตั้งโลโก้ประจำเครื่องใหม่ ($CustomLogoPath)..."
+        Copy-Item $CustomLogoPath (Join-Path $ConfigDir "dashboard-settings\logo.png") -Force
+    }
+
+    # Copy base .env from snapshot/repo if not present, then apply machine overrides
+    $targetEnvPath = Join-Path $ConfigDir ".env"
+    if (-not (Test-Path $targetEnvPath)) {
+        foreach ($candEnv in @((Join-Path $srcPool ".env"), (Join-Path $WorkspaceRoot "repo\frigate-nvr\.env"))) {
+            if (Test-Path $candEnv) {
+                Copy-Item $candEnv $targetEnvPath -Force
+                break
+            }
+        }
+    }
+    $envLines = @()
+    if (Test-Path $targetEnvPath) {
+        $envLines = @(Get-Content $targetEnvPath -Encoding UTF8)
+    }
+    $envUpdates = @{}
+    if ($PublicDomain -and $PublicDomain.Trim()) {
+        $cleanDom = $PublicDomain.Trim() -replace '^https?://', '' -replace '/+$', ''
+        $envUpdates["PUBLIC_DOMAIN"] = $cleanDom
+        $envUpdates["PUBLIC_URL"] = "https://$cleanDom"
+    }
+    if ($CloudflareToken -and $CloudflareToken.Trim()) {
+        $envUpdates["CLOUDFLARE_TUNNEL_TOKEN"] = $CloudflareToken.Trim()
+    }
+    if ($TelegramBotToken -and $TelegramBotToken.Trim()) {
+        $envUpdates["TELEGRAM_BOT_TOKEN"] = $TelegramBotToken.Trim()
+        $envUpdates["LPR_TELEGRAM_BOT_TOKEN"] = $TelegramBotToken.Trim()
+    }
+    if ($TelegramChatId -and $TelegramChatId.Trim()) {
+        $envUpdates["LPR_TELEGRAM_CHAT_ID"] = $TelegramChatId.Trim()
+    }
+    if ($GeminiApiKey -and $GeminiApiKey.Trim()) {
+        $envUpdates["GEMINI_API_KEY"] = $GeminiApiKey.Trim()
+    }
+    if ($envUpdates.Count -gt 0) {
+        $newEnvLines = @()
+        $usedKeys = @{}
+        foreach ($ln in $envLines) {
+            if ($ln -match '^\s*([A-Za-z0-9_]+)\s*=') {
+                $k = $Matches[1]
+                if ($envUpdates.ContainsKey($k)) {
+                    $newEnvLines += "$k=$($envUpdates[$k])"
+                    $usedKeys[$k] = $true
+                    continue
+                }
+            }
+            $newEnvLines += $ln
+        }
+        foreach ($k in $envUpdates.Keys) {
+            if (-not $usedKeys.ContainsKey($k)) {
+                $newEnvLines += "$k=$($envUpdates[$k])"
+            }
+        }
+        Write-Utf8File $targetEnvPath ($newEnvLines -join "`n")
     }
 
     # Stamp current PC's COMPUTERNAME into .machine_id so native_gateway.py recognizes this PC

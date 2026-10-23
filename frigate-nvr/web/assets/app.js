@@ -8387,6 +8387,7 @@ function openSettings() {
   if ($('btnTabNvr')) { $('btnTabNvr').style.display = isAdminOrSuper ? '' : 'none'; }
   if ($('btnTabLprLearning')) { $('btnTabLprLearning').style.display = isSuperAdmin ? '' : 'none'; }
   if ($('btnTabSystemUpdate')) { $('btnTabSystemUpdate').style.display = isAdminOrSuper ? 'inline-flex' : 'none'; }
+  if ($('btnTabMachineProfile')) { $('btnTabMachineProfile').style.display = isAdminOrSuper ? 'inline-flex' : 'none'; }
 
   // Admin Profile Impersonation (Incident 2.52)
   if (isAdminOrSuper && $('impersonateDropdownWrap')) {
@@ -8461,6 +8462,7 @@ function openSettings() {
     if ($('tabLprLearning')) $('tabLprLearning').style.display = 'none';
     if ($('tabMyAlerts')) $('tabMyAlerts').style.display = 'none';
     if ($('tabSystemUpdate')) $('tabSystemUpdate').style.display = 'none';
+    if ($('tabMachineProfile')) $('tabMachineProfile').style.display = 'none';
     if ($('btnTabDash')) {
       $('btnTabDash').style.borderBottomColor = '#a855f7';
       $('btnTabDash').style.color = '#fff';
@@ -11937,7 +11939,7 @@ function bind() {
   $('btnSave').addEventListener('click', saveSettings);
   $('settingsOverlay').addEventListener('click', e => { if (e.target === $('settingsOverlay')) closeSettings(); });
   function setActiveSettingsTab(activeTabId, activeBtnId) {
-    ['tabNvr', 'tabDash', 'tabLprLearning', 'tabMyAlerts', 'tabSystemUpdate'].forEach(id => {
+    ['tabNvr', 'tabDash', 'tabLprLearning', 'tabMyAlerts', 'tabSystemUpdate', 'tabMachineProfile'].forEach(id => {
       const el = $(id);
       if (!el) return;
       if (id === activeTabId) {
@@ -11946,7 +11948,7 @@ function bind() {
         el.style.display = 'none';
       }
     });
-    ['btnTabNvr', 'btnTabDash', 'btnTabLprLearning', 'btnTabMyAlerts', 'btnTabSystemUpdate'].forEach(id => {
+    ['btnTabNvr', 'btnTabDash', 'btnTabLprLearning', 'btnTabMyAlerts', 'btnTabSystemUpdate', 'btnTabMachineProfile'].forEach(id => {
       const btn = $(id);
       if (!btn) return;
       if (id === activeBtnId) {
@@ -11958,6 +11960,11 @@ function bind() {
       }
     });
   }
+  window.openMachineProfileTab = () => {
+    if (typeof openSettings === 'function') openSettings();
+    setActiveSettingsTab('tabMachineProfile', 'btnTabMachineProfile');
+    if (typeof window.loadMachineProfile === 'function') window.loadMachineProfile();
+  };
 
   async function loadSystemUpdateStatus(forceRefresh = false) {
     const summaryEl = $('sysUpdateSummary');
@@ -12070,6 +12077,12 @@ function bind() {
     $('btnTabSystemUpdate').addEventListener('click', () => {
       setActiveSettingsTab('tabSystemUpdate', 'btnTabSystemUpdate');
       loadSystemUpdateStatus(true);
+    });
+  }
+  if ($('btnTabMachineProfile')) {
+    $('btnTabMachineProfile').addEventListener('click', () => {
+      setActiveSettingsTab('tabMachineProfile', 'btnTabMachineProfile');
+      if (typeof window.loadMachineProfile === 'function') window.loadMachineProfile();
     });
   }
   if ($('btnCheckSystemUpdate')) {
@@ -15050,63 +15063,247 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+  let _mpPendingLogoB64 = null;
+  let _mpResetLogoRequested = false;
+  let _mpListenersBound = false;
+
+  function applyBrandingToDom() {
+    const bName = $('brandName');
+    if (bName) bName.textContent = window.BRANDING.name || 'Sloth';
+    const bSub = $('brandSub');
+    if (bSub) bSub.textContent = window.BRANDING.sub || 'BPP 215';
+    const fMain = $('footerBrandMain');
+    if (fMain && window.BRANDING.footerMain) fMain.textContent = window.BRANDING.footerMain;
+    const fPartner = $('footerBrandPartner');
+    if (fPartner && window.BRANDING.footerPartner) fPartner.textContent = window.BRANDING.footerPartner;
+    document.title = (window.BRANDING.name || 'Sloth') + ' ' + (window.BRANDING.sub || 'BPP 215') + ' — NVR';
+    const nvrTxt = $('nvrStatusText');
+    if (nvrTxt) nvrTxt.textContent = `${window.BRANDING.name || 'Sloth'} ${window.BRANDING.sub || 'BPP 215'} เชื่อมต่อแล้ว`;
+
+    const logoSrc = window.BRANDING.logo || 'assets/BPP215.png';
+    const bLogo = $('mainLogo');
+    if (bLogo) bLogo.src = logoSrc;
+    const mpPrev = $('mpLogoPreview');
+    if (mpPrev && !_mpPendingLogoB64) mpPrev.src = logoSrc;
+    const fav = document.querySelector('link[rel="icon"]');
+    if (fav) fav.href = logoSrc;
+    document.querySelectorAll('.tile-overlay img').forEach(img => {
+      img.src = logoSrc;
+    });
+  }
+
+  async function loadMachineProfile() {
+    try {
+      const res = await fetch('/api/config/machine-profile?t=' + Date.now());
+      if (!res.ok) return;
+      const p = await res.json();
+      if (p.brandName) window.BRANDING.name = p.brandName;
+      if (p.brandSub) window.BRANDING.sub = p.brandSub;
+      if (p.footerMain) window.BRANDING.footerMain = p.footerMain;
+      if (p.footerPartner) window.BRANDING.footerPartner = p.footerPartner;
+      window.BRANDING.logo = p.hasCustomLogo ? ('/settings/logo.png?t=' + Date.now()) : 'assets/BPP215.png';
+      applyBrandingToDom();
+
+      if ($('inpMpBrandName')) $('inpMpBrandName').value = p.brandName || 'Sloth';
+      if ($('inpMpBrandSub')) $('inpMpBrandSub').value = p.brandSub || 'BPP 215';
+      if ($('inpMpFooterMain')) $('inpMpFooterMain').value = p.footerMain || 'Sucahkree Arm 215';
+      if ($('inpMpFooterPartner')) $('inpMpFooterPartner').value = p.footerPartner || '+ Things Analytic Co., Ltd.';
+      if ($('inpMpPublicDomain')) $('inpMpPublicDomain').value = p.publicDomain || '';
+      if ($('inpMpCfToken')) $('inpMpCfToken').value = p.cloudflareTunnelToken || '';
+      if ($('inpMpDuckSub')) $('inpMpDuckSub').value = p.duckdnsSubdomain || '';
+      if ($('inpMpDuckToken')) $('inpMpDuckToken').value = p.duckdnsToken || '';
+      if ($('inpMpTgToken')) $('inpMpTgToken').value = p.telegramBotToken || '';
+      if ($('inpMpTgChatId')) $('inpMpTgChatId').value = p.telegramChatId || '';
+      if ($('inpMpAlertLocation')) $('inpMpAlertLocation').value = p.alertLocationName || '';
+      if ($('inpMpGeminiKey')) $('inpMpGeminiKey').value = p.geminiApiKey || '';
+      if ($('chkMpNasEnabled')) $('chkMpNasEnabled').checked = p.nasSyncEnabled !== false;
+      if ($('inpMpNasHost')) $('inpMpNasHost').value = p.nasHost || '';
+      if ($('inpMpNasShare')) $('inpMpNasShare').value = p.nasShare || '';
+      if ($('inpMpNasUser')) $('inpMpNasUser').value = p.nasUsername || '';
+      if ($('inpMpNasPass')) $('inpMpNasPass').value = p.nasPassword || '';
+    } catch (e) {
+      console.warn('loadMachineProfile error:', e);
+    }
+  }
+  window.loadMachineProfile = loadMachineProfile;
+
+  async function saveMachineProfile() {
+    try {
+      const payload = {
+        brandName: ($('inpMpBrandName')?.value || window.BRANDING.name || 'Sloth').trim(),
+        brandSub: ($('inpMpBrandSub')?.value || window.BRANDING.sub || 'BPP 215').trim(),
+        footerMain: ($('inpMpFooterMain')?.value || window.BRANDING.footerMain || 'Sucahkree Arm 215').trim(),
+        footerPartner: ($('inpMpFooterPartner')?.value || window.BRANDING.footerPartner || '+ Things Analytic Co., Ltd.').trim(),
+        publicDomain: ($('inpMpPublicDomain')?.value || '').trim(),
+        cloudflareTunnelToken: ($('inpMpCfToken')?.value || '').trim(),
+        duckdnsSubdomain: ($('inpMpDuckSub')?.value || '').trim(),
+        duckdnsToken: ($('inpMpDuckToken')?.value || '').trim(),
+        telegramBotToken: ($('inpMpTgToken')?.value || '').trim(),
+        telegramChatId: ($('inpMpTgChatId')?.value || '').trim(),
+        alertLocationName: ($('inpMpAlertLocation')?.value || '').trim(),
+        geminiApiKey: ($('inpMpGeminiKey')?.value || '').trim(),
+        nasSyncEnabled: $('chkMpNasEnabled') ? $('chkMpNasEnabled').checked : true,
+        nasHost: ($('inpMpNasHost')?.value || '').trim(),
+        nasShare: ($('inpMpNasShare')?.value || '').trim(),
+        nasUsername: ($('inpMpNasUser')?.value || '').trim(),
+        nasPassword: ($('inpMpNasPass')?.value || '').trim(),
+        resetLogo: _mpResetLogoRequested,
+      };
+      if (_mpPendingLogoB64) {
+        payload.logoBase64 = _mpPendingLogoB64;
+      }
+      toast('กำลังบันทึกการตั้งค่าประจำเครื่อง…');
+      const res = await fetch('/api/config/machine-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || ('HTTP ' + res.status));
+      _mpPendingLogoB64 = null;
+      _mpResetLogoRequested = false;
+      window.BRANDING.name = data.brandName || payload.brandName;
+      window.BRANDING.sub = data.brandSub || payload.brandSub;
+      window.BRANDING.footerMain = data.footerMain || payload.footerMain;
+      window.BRANDING.footerPartner = data.footerPartner || payload.footerPartner;
+      window.BRANDING.logo = data.hasCustomLogo ? ('/settings/logo.png?t=' + Date.now()) : 'assets/BPP215.png';
+      applyBrandingToDom();
+      toast('✅ บันทึกการตั้งค่าประจำเครื่อง (โลโก้ / ชื่อ / URL / บอท Telegram) สำเร็จทันที!');
+    } catch (e) {
+      toast('บันทึกการตั้งค่าเครื่องไม่สำเร็จ: ' + (e.message || e), true);
+    }
+  }
+
+  async function testMachineTelegram() {
+    const stEl = $('stMpTelegramTest');
+    const btnEl = $('btnMpTestTelegram');
+    const token = ($('inpMpTgToken')?.value || '').trim();
+    const chatId = ($('inpMpTgChatId')?.value || '').trim();
+    if (!token) {
+      toast('กรุณากรอก Telegram Bot Token ก่อนกดทดสอบ', true);
+      return;
+    }
+    try {
+      if (btnEl) btnEl.disabled = true;
+      if (stEl) {
+        stEl.textContent = 'กำลังทดสอบเชื่อมต่อ Telegram API…';
+        stEl.style.color = '#fbbf24';
+      }
+      const res = await fetch('/api/config/machine-profile/test-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramBotToken: token, telegramChatId: chatId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || ('HTTP ' + res.status));
+      const botUser = (data.bot && data.bot.username) ? `@${data.bot.username}` : 'Bot';
+      if (stEl) {
+        stEl.textContent = data.message_sent
+          ? `✅ เชื่อมต่อ ${botUser} และส่งข้อความเข้า Chat ID สำเร็จ!`
+          : `✅ เชื่อมต่อ ${botUser} สำเร็จ! (ระบุ Chat ID เพื่อทดสอบส่งข้อความ)`;
+        stEl.style.color = '#34d399';
+      }
+      toast(`✅ ทดสอบบอท ${botUser} สำเร็จ!`);
+    } catch (e) {
+      if (stEl) {
+        stEl.textContent = '❌ ทดสอบไม่สำเร็จ: ' + (e.message || e);
+        stEl.style.color = '#f87171';
+      }
+      toast('ทดสอบ Telegram ไม่สำเร็จ: ' + (e.message || e), true);
+    } finally {
+      if (btnEl) btnEl.disabled = false;
+    }
+  }
+
   async function loadBranding() {
+    window.BRANDING = window.BRANDING || {
+      name: 'Sloth',
+      sub: 'BPP 215',
+      footerMain: 'Sucahkree Arm 215',
+      footerPartner: '+ Things Analytic Co., Ltd.',
+      logo: 'assets/BPP215.png',
+    };
     try {
       const res = await fetch('/settings/branding.json?t=' + Date.now());
       if (res.ok) {
         const data = await res.json();
-        if (data.name) window.BRANDING.name = data.name;
-        if (data.sub) window.BRANDING.sub = data.sub;
+        if (data.brandName || data.name) window.BRANDING.name = data.brandName || data.name;
+        if (data.brandSub || data.sub) window.BRANDING.sub = data.brandSub || data.sub;
+        if (data.footerMain) window.BRANDING.footerMain = data.footerMain;
+        if (data.footerPartner) window.BRANDING.footerPartner = data.footerPartner;
       }
-    } catch(e) {}
+    } catch (e) {}
     try {
       const logoRes = await fetch('/settings/logo.png', { method: 'HEAD' });
-      if (logoRes.ok) window.BRANDING.logo = '/settings/logo.png?t=' + Date.now();
-    } catch(e) {}
-    
-    // Apply branding
-    const bName = $('brandName'); if (bName) bName.textContent = window.BRANDING.name;
-    const bSub = $('brandSub'); if (bSub) bSub.textContent = window.BRANDING.sub;
-    document.title = window.BRANDING.name + ' ' + window.BRANDING.sub + ' - NVR';
-    const bLogo = $('mainLogo'); if (bLogo && window.BRANDING.logo !== 'assets/BPP215.png') bLogo.src = window.BRANDING.logo;
-    
-    if (['admin', 'superadmin'].includes(userRole)) {
-      const saveBranding = async () => {
-        try {
-          const res = await fetch('/settings/branding.json', { method: 'PUT', body: JSON.stringify({ name: window.BRANDING.name, sub: window.BRANDING.sub }) });
-          if (res.ok) toast('บันทึกชื่อสำเร็จ');
-          else toast('บันทึกไม่สำเร็จ ' + res.status);
-        } catch(e) { toast('Error saving branding'); }
-      };
-      if (bName) {
-        bName.style.cursor = 'pointer';
-        bName.addEventListener('click', async () => {
-          const v = await window.bppPrompt('ชื่อหลัก', window.BRANDING.name);
-          if (v !== null && v.trim()) { window.BRANDING.name = v.trim().substring(0, 100); bName.textContent = window.BRANDING.name; saveBranding(); }
-        });
+      const ct = (logoRes.headers.get('content-type') || '').toLowerCase();
+      if (logoRes.ok && ct.startsWith('image/')) {
+        window.BRANDING.logo = '/settings/logo.png?t=' + Date.now();
+      } else {
+        window.BRANDING.logo = 'assets/BPP215.png';
       }
-      if (bSub) {
-        bSub.style.cursor = 'pointer';
-        bSub.addEventListener('click', async () => {
-          const v = await window.bppPrompt('ชื่อรอง', window.BRANDING.sub);
-          if (v !== null && v.trim()) { window.BRANDING.sub = v.trim().substring(0, 100); bSub.textContent = window.BRANDING.sub; saveBranding(); }
+    } catch (e) {
+      window.BRANDING.logo = 'assets/BPP215.png';
+    }
+
+    applyBrandingToDom();
+
+    if (['admin', 'superadmin'].includes(userRole) && !_mpListenersBound) {
+      _mpListenersBound = true;
+      const bName = $('brandName');
+      const bSub = $('brandSub');
+      const bLogo = $('mainLogo');
+      const fileInp = $('logoUpload');
+
+      [bName, bSub, bLogo].forEach(el => {
+        if (!el) return;
+        el.style.cursor = 'pointer';
+        el.title = 'คลิกเพื่อตั้งค่าโลโก้ ชื่อหน่วยงาน URL และบอท Telegram ประจำเครื่อง';
+        el.addEventListener('click', () => {
+          if (typeof window.openMachineProfileTab === 'function') {
+            window.openMachineProfileTab();
+          }
         });
+      });
+
+      if ($('btnMpUploadLogo') && fileInp) {
+        $('btnMpUploadLogo').addEventListener('click', () => fileInp.click());
       }
-      if (bLogo) {
-        bLogo.style.cursor = 'pointer';
-        const fileInp = $('logoUpload');
-        bLogo.addEventListener('click', () => fileInp.click());
-        fileInp.addEventListener('change', async e => {
-          const file = e.target.files[0];
+      if (fileInp) {
+        fileInp.addEventListener('change', e => {
+          const file = e.target.files && e.target.files[0];
           if (!file) return;
-          if (file.size > 2 * 1024 * 1024) return toast('ไฟล์ใหญ่เกินไป (สูงสุด 2MB)');
-          toast('กำลังอัปโหลดโลโก้...');
-          try {
-            const res = await fetch('/settings/admin/logo.png', { method: 'PUT', body: file });
-            if (res.ok) { toast('เปลี่ยนโลโก้สำเร็จ'); bLogo.src = '/settings/logo.png?t=' + Date.now(); window.BRANDING.logo = bLogo.src; }
-            else toast('อัปโหลดไม่สำเร็จ ' + res.status);
-          } catch(err) { toast('Error uploading logo'); }
+          if (file.size > 4 * 1024 * 1024) {
+            toast('ไฟล์โลโก้ใหญ่เกินไป (สูงสุด 4MB)', true);
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = ev => {
+            _mpPendingLogoB64 = String(ev.target.result || '');
+            _mpResetLogoRequested = false;
+            const mpPrev = $('mpLogoPreview');
+            if (mpPrev) mpPrev.src = _mpPendingLogoB64;
+            toast('เลือกไฟล์โลโก้ใหม่แล้ว — กด "บันทึกการตั้งค่าประจำเครื่องทั้งหมด" เพื่อใช้งาน');
+          };
+          reader.readAsDataURL(file);
         });
+      }
+      if ($('btnMpResetLogo')) {
+        $('btnMpResetLogo').addEventListener('click', () => {
+          _mpPendingLogoB64 = null;
+          _mpResetLogoRequested = true;
+          const mpPrev = $('mpLogoPreview');
+          if (mpPrev) mpPrev.src = 'assets/BPP215.png';
+          toast('ตั้งค่าคืนโลโก้เริ่มต้นแล้ว — กด "บันทึกการตั้งค่าประจำเครื่องทั้งหมด" เพื่อยืนยัน');
+        });
+      }
+      if ($('btnMpSaveAll')) {
+        $('btnMpSaveAll').addEventListener('click', saveMachineProfile);
+      }
+      if ($('btnMpSaveAllTop')) {
+        $('btnMpSaveAllTop').addEventListener('click', saveMachineProfile);
+      }
+      if ($('btnMpTestTelegram')) {
+        $('btnMpTestTelegram').addEventListener('click', testMachineTelegram);
       }
     }
   }

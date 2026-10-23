@@ -175,10 +175,35 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-# Configure environment variables BEFORE importing config-api / analytics-engine
+# Load .env files (Native config/.env, repo/frigate-nvr/.env, D:\BPP-VMS\frigate-nvr\.env) BEFORE importing services
+for _env_fp in (
+    Path(r"D:\BPP-VMS\frigate-nvr\.env"),
+    _FRIGATE_ROOT / ".env",
+    CONFIG_DIR / ".env",
+):
+    if _env_fp.is_file():
+        try:
+            for _raw_line in _env_fp.read_text(encoding="utf-8", errors="ignore").splitlines():
+                _s = _raw_line.strip()
+                if not _s or _s.startswith("#") or "=" not in _s:
+                    continue
+                _ek, _ev = _s.split("=", 1)
+                _ek = _ek.strip()
+                _ev = _ev.strip().strip('"').strip("'")
+                if _ek and _ev:
+                    os.environ[_ek] = _ev
+        except Exception:
+            pass
+if not os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("LPR_TELEGRAM_BOT_TOKEN"):
+    os.environ["TELEGRAM_BOT_TOKEN"] = os.environ["LPR_TELEGRAM_BOT_TOKEN"]
+
+# Configure environment variables BEFORE importing config-api / analytics-engine / nas-bot-service
 os.environ.setdefault("BPP_REPO_ROOT", str(_REPO_ROOT))
 os.environ.setdefault("BPP_CONFIG_DIR", str(CONFIG_DIR))
 os.environ.setdefault("BPP_FACES_DIR", str(CONFIG_DIR / "faces"))
+os.environ.setdefault("AUTH_DB_PATH", str(CONFIG_DIR / "auth" / "auth.db"))
+os.environ.setdefault("AUTH_SERVICE_URL", f"http://127.0.0.1:{os.environ.get('BPP_NATIVE_PORT', '8443')}")
+os.environ.setdefault("CHAT_SERVICE_URL", f"http://127.0.0.1:{os.environ.get('BPP_NATIVE_PORT', '8443')}")
 os.environ.setdefault("CONFIG_API_CONFIG_PATH", str(CONFIG_DIR / "config.yml"))
 os.environ.setdefault("CONFIG_API_GROUPS_PATH", str(CONFIG_DIR / "nvr_groups.json"))
 os.environ.setdefault("CONFIG_API_CREDENTIALS_ENV", str(CONFIG_DIR / "camera_credentials.env"))
@@ -697,11 +722,24 @@ _cloudflared_proc: Optional[subprocess.Popen] = None
 
 
 def _start_native_cloudflared_tunnel() -> None:
-    """Start native Windows cloudflared.exe tunnel when Docker is stopped so https://vms.local stays online."""
+    """Ensure Cloudflare tunnel is running (preferring Docker cloudflared-tunnel so both vms.local and db.example.com/kong:8000 resolve)."""
     global _cloudflared_proc
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        dk = subprocess.run(
+            ["docker", "start", "cloudflared-tunnel"],
+            capture_output=True,
+            text=True,
+            creationflags=creationflags,
+            timeout=8,
+        )
+        if dk.returncode == 0:
+            logger.info("Ensured Docker cloudflared-tunnel is running for vms.local & db.example.com")
+            return
+    except Exception:
+        pass
     if _cloudflared_proc is not None and _cloudflared_proc.poll() is None:
         return
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     pid_file = NATIVE_RUNTIME_DIR / "cloudflared.pid"
     if pid_file.is_file():
         try:
@@ -840,7 +878,10 @@ def _background_ai_camera_scanner() -> None:
     """
     Scans active LPR cameras from go2rtc (:1984) only when Docker is off (:443 active)
     or when BPP_NATIVE_BG_AI_SCAN=1 is explicitly enabled, preventing GPU contention.
+    Also dispatches real-time Telegram alerts via nas-bot-service when a Watchlist Plate
+    or Warrant Face is detected.
     """
+    last_alert_ts: Dict[str, float] = {}
     while True:
         time.sleep(20.0)
         if not (_https_443_active or os.environ.get("BPP_NATIVE_BG_AI_SCAN") == "1"):
@@ -864,7 +905,15 @@ def _background_ai_camera_scanner() -> None:
                         jpg_bytes = resp.read()
                     if len(jpg_bytes) < 1000:
                         continue
-                    res = ai.analyze_image_bytes(jpg_bytes, run_lpr=True, run_attributes=True, run_faces=True, camera=cam)
+                    ev_id = f"{time.time():.6f}-native"
+                    res = ai.analyze_image_bytes(
+                        jpg_bytes,
+                        run_lpr=True,
+                        run_attributes=True,
+                        run_faces=True,
+                        camera=cam,
+                        event_id=ev_id,
+                    )
                     lpr_info = res.get("lpr") or {}
                     plate_text = (lpr_info.get("plate_text") or "").strip()
                     if len(plate_text) >= 2 and WATCHLIST_DB.is_file():
@@ -875,10 +924,10 @@ def _background_ai_camera_scanner() -> None:
                         vtype = ((attrs.get("vehicle_type") or {}).get("label") or "").strip()
                         conf = float(lpr_info.get("confidence") or 0.85)
                         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-                        ev_id = f"{time.time():.6f}-native"
                         LPR_CROPS_DIR.mkdir(parents=True, exist_ok=True)
                         crop_name = f"native_{cam}_{int(time.time())}.jpg"
                         (LPR_CROPS_DIR / crop_name).write_bytes(jpg_bytes)
+                        watchlist_reason = ""
                         conn = sqlite3.connect(str(WATCHLIST_DB))
                         try:
                             conn.execute(
@@ -890,8 +939,63 @@ def _background_ai_camera_scanner() -> None:
                                 (ev_id, cam, plate_text, province, conf, color, brand, vtype, crop_name, now_str, now_str),
                             )
                             conn.commit()
+                            norm_p = plate_text.replace(" ", "").replace("-", "")
+                            wrow = conn.execute(
+                                "SELECT reason, category FROM watchlist_plates WHERE replace(replace(plate_text, ' ', ''), '-', '') = ? LIMIT 1",
+                                (norm_p,),
+                            ).fetchone()
+                            if wrow:
+                                watchlist_reason = f"{wrow[1] or 'เฝ้าระวัง'}: {wrow[0] or ''}".strip(": ")
                         finally:
                             conn.close()
+
+                        if watchlist_reason and "_nas_bot_mod" in globals() and hasattr(_nas_bot_mod, "dispatch_multi_user_alert"):
+                            dedup_key = f"plate:{plate_text}:{cam}"
+                            if time.time() - last_alert_ts.get(dedup_key, 0.0) > 120.0:
+                                last_alert_ts[dedup_key] = time.time()
+                                try:
+                                    asyncio.run(
+                                        _nas_bot_mod.dispatch_multi_user_alert(
+                                            alert_type="watchlist_lpr",
+                                            camera=cam,
+                                            camera_display_name=cam,
+                                            event_id=ev_id,
+                                            label="car",
+                                            sub_label=f"{plate_text} {province}".strip(),
+                                            plate_text=f"{plate_text} {province}".strip(),
+                                            description=f"พบรถทะเบียนเฝ้าระวัง ({watchlist_reason}) สี{color or '-'} ยี่ห้อ {brand or '-'}",
+                                        )
+                                    )
+                                except Exception:
+                                    pass
+
+                    faces_list = res.get("faces") or []
+                    if isinstance(faces_list, list) and "_nas_bot_mod" in globals() and hasattr(_nas_bot_mod, "dispatch_multi_user_alert"):
+                        for fitem in faces_list:
+                            if not isinstance(fitem, dict):
+                                continue
+                            pname = str(fitem.get("person") or "").strip()
+                            if pname and pname.lower() != "unknown":
+                                dedup_key = f"face:{pname}:{cam}"
+                                if time.time() - last_alert_ts.get(dedup_key, 0.0) > 120.0:
+                                    last_alert_ts[dedup_key] = time.time()
+                                    LPR_CROPS_DIR.mkdir(parents=True, exist_ok=True)
+                                    (LPR_CROPS_DIR / f"{ev_id}.jpg").write_bytes(jpg_bytes)
+                                    try:
+                                        asyncio.run(
+                                            _nas_bot_mod.dispatch_multi_user_alert(
+                                                alert_type="warrant_face",
+                                                camera=cam,
+                                                camera_display_name=cam,
+                                                event_id=ev_id,
+                                                label="person",
+                                                sub_label=pname,
+                                                person_name=pname,
+                                                description=f"ตรวจพบบุคคลเฝ้าระวัง/หมายจับ: {pname} (ความแม่นยำ {float(fitem.get('cosine') or 0.0)*100:.1f}%)",
+                                            )
+                                        )
+                                    except Exception:
+                                        pass
                 except Exception:
                     pass
                 time.sleep(2.0)
@@ -917,8 +1021,15 @@ def _background_boot_services() -> None:
     _ai_ready = True
 
 
+_startup_done = False
+
+
 @app.on_event("startup")
-def _on_startup() -> None:
+async def _on_startup() -> None:
+    global _startup_done
+    if _startup_done:
+        return
+    _startup_done = True
     NATIVE_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     DASHBOARD_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
     LPR_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -927,6 +1038,12 @@ def _on_startup() -> None:
     threading.Thread(target=_auto_https_443_takeover_worker, name="bpp-https-443", daemon=True).start()
     threading.Thread(target=_auto_http_80_takeover_worker, name="bpp-http-80", daemon=True).start()
     threading.Thread(target=_background_ai_camera_scanner, name="bpp-ai-scanner", daemon=True).start()
+    if "_nas_bot_mod" in globals() and hasattr(_nas_bot_mod, "startup_event"):
+        try:
+            await _nas_bot_mod.startup_event()
+            logger.info("Started native nas-bot-service background loops (Telegram Polling + AI OCR + i2 Link Graph + NAS Sync)")
+        except Exception as _nb_start_exc:
+            logger.warning("nas-bot-service startup_event warning: %s", _nb_start_exc)
 
 
 @app.on_event("shutdown")
@@ -1330,7 +1447,7 @@ _SETTINGS_FILE_MAP: Dict[str, Path] = {
 }
 
 _SETTINGS_DEFAULTS: Dict[str, str] = {
-    "branding.json": '{"title": "BPP-VMS Native Edition"}',
+    "branding.json": '{"brandName": "Sloth", "brandSub": "BPP 215", "footerMain": "Sucahkree Arm 215", "footerPartner": "+ Things Analytic Co., Ltd.", "title": "SLOTH BPP-VMS"}',
     "storage_threshold": "85",
     "lpr_cameras": "",
     "lpr_zones": "{}",
@@ -1343,7 +1460,7 @@ _SETTINGS_DEFAULTS: Dict[str, str] = {
 }
 
 
-@app.api_route("/settings/{setting_key:path}", methods=["GET", "PUT", "POST"])
+@app.api_route("/settings/{setting_key:path}", methods=["GET", "HEAD", "PUT", "POST", "DELETE"])
 async def handle_dashboard_settings(setting_key: str, request: Request) -> Response:
     key = setting_key.strip("/")
     target = _SETTINGS_FILE_MAP.get(key)
@@ -1353,24 +1470,60 @@ async def handle_dashboard_settings(setting_key: str, request: Request) -> Respo
     if target is None:
         raise HTTPException(status_code=404, detail=f"Unknown setting: {key}")
 
+    is_logo = key in ("logo.png", "admin/logo.png") or target.suffix.lower() == ".png"
+
+    if request.method == "DELETE":
+        if target.is_file():
+            try:
+                target.unlink()
+            except Exception:
+                pass
+        return Response(content=b"", status_code=204)
+
     if request.method in ("PUT", "POST"):
         body = await request.body()
+        if is_logo and len(body) <= 64:
+            if target.is_file():
+                try:
+                    target.unlink()
+                except Exception:
+                    pass
+            return Response(content=b"", status_code=204)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
         return Response(content=b"", status_code=204)
+
+    if is_logo:
+        if target.is_file() and target.stat().st_size > 64:
+            raw = target.read_bytes()
+            media_type = "image/png"
+            if raw.startswith(b"\xff\xd8\xff"):
+                media_type = "image/jpeg"
+            elif raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+                media_type = "image/webp"
+            return Response(
+                content=b"" if request.method == "HEAD" else raw,
+                media_type=media_type,
+                headers={"Cache-Control": "no-cache"},
+            )
+        return Response(content=b"", status_code=404)
 
     if target.is_file():
         media_type = "application/json"
         if target.suffix == ".txt" or target.name == "storage_threshold":
             media_type = "text/plain; charset=utf-8"
-        elif target.suffix == ".png":
-            media_type = "image/png"
-        return Response(content=target.read_bytes(), media_type=media_type)
+        return Response(
+            content=b"" if request.method == "HEAD" else target.read_bytes(),
+            media_type=media_type,
+        )
 
     base_key = key.replace("admin/", "")
     default_body = _SETTINGS_DEFAULTS.get(base_key, "{}")
     media_type = "text/plain; charset=utf-8" if base_key in ("lpr_cameras", "storage_threshold") else "application/json"
-    return Response(content=default_body.encode("utf-8"), media_type=media_type)
+    return Response(
+        content=b"" if request.method == "HEAD" else default_body.encode("utf-8"),
+        media_type=media_type,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1682,18 +1835,6 @@ async def native_watchlist_sse_stream(request: Request) -> StreamingResponse:
     return StreamingResponse(_gen(), media_type="text/event-stream")
 
 
-@app.get("/api/nas-bot/user/profile")
-def native_nas_bot_profile() -> Dict[str, Any]:
-    return {"username": "arm215", "role": "superadmin", "paired": False}
-
-
-@app.get("/api/nas-bot/subscriptions/me")
-@app.get("/api/nas-bot/admin/subscriptions")
-@app.get("/api/nas-bot/admin/user-profiles")
-def native_nas_bot_subs() -> Dict[str, Any]:
-    return {"subscriptions": [], "profiles": []}
-
-
 @app.post("/api/nas-bot/user/heartbeat")
 @app.post("/api/nas-bot/user/ai-demand")
 def native_nas_bot_heartbeat() -> Dict[str, Any]:
@@ -1848,12 +1989,13 @@ try:
             logger.info("Mounted %d real chat-service routes (/api/chat/*)", _chat_cnt)
 except Exception as _chat_exc:
     logger.warning("Failed to mount chat-service routes: %s", _chat_exc)
+    _chat_cnt = 0
 
-
-@app.get("/api/chat/events")
-@app.get("/api/chat/drop-points")
-def native_chat_events() -> Dict[str, Any]:
-    return {"events": [], "drop_points": []}
+if not globals().get("_chat_cnt"):
+    @app.get("/api/chat/events")
+    @app.get("/api/chat/drop-points")
+    def native_chat_events() -> Dict[str, Any]:
+        return {"events": [], "drop_points": []}
 
 
 # ---------------------------------------------------------------------------

@@ -149,6 +149,22 @@ namespace BppVmsSetup
                     }));
                 });
             }
+            else if (msg == "PICK_LOGO")
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    using (var ofd = new OpenFileDialog())
+                    {
+                        ofd.Title = "เลือกไฟล์โลโก้หน่วยงาน (.PNG / .JPG / .WEBP)";
+                        ofd.Filter = "Image Files (*.png;*.jpg;*.jpeg;*.webp)|*.png;*.jpg;*.jpeg;*.webp";
+                        if (ofd.ShowDialog(this) == DialogResult.OK)
+                        {
+                            string safePath = ofd.FileName.Replace("\\", "\\\\").Replace("'", "\\'");
+                            try { _coreWebView.ExecuteScriptAsync("window.onLogoPicked('" + safePath + "');"); } catch { }
+                        }
+                    }
+                }));
+            }
             else if (msg.StartsWith("INSTALL:"))
             {
                 if (_isInstalling) return;
@@ -192,7 +208,14 @@ namespace BppVmsSetup
             bool dsk = GetFlagValue(payload, "dsk", "1") == "1";
             bool stm = GetFlagValue(payload, "stm", "1") == "1";
             bool aut = GetFlagValue(payload, "aut", "0") == "1";
-            string title = GetFlagValue(payload, "title", "SLOTH BPP-VMS").Replace("\"", "");
+            string title = GetFlagValue(payload, "title", "Sloth").Replace("\"", "");
+            string sub = GetFlagValue(payload, "sub", "BPP 215").Replace("\"", "");
+            string logoPath = GetFlagValue(payload, "logo", "").Replace("\"", "");
+            string pubDom = GetFlagValue(payload, "dom", "").Replace("\"", "");
+            string cfTok = GetFlagValue(payload, "cf", "").Replace("\"", "");
+            string tgTok = GetFlagValue(payload, "tg", "").Replace("\"", "");
+            string tgChat = GetFlagValue(payload, "chat", "").Replace("\"", "");
+            string gemKey = GetFlagValue(payload, "gem", "").Replace("\"", "");
             string srvUrl = GetFlagValue(payload, "srv", "https://sloth.bpp215.com").Replace("\"", "");
 
             string scriptPath = Path.Combine(_workspaceRoot, "repo", "frigate-nvr", "tools", "native-exe", "Setup-PortableBppVms.ps1");
@@ -202,7 +225,14 @@ namespace BppVmsSetup
             args.Append("-WorkspaceRoot \"").Append(_workspaceRoot).Append("\" ");
             args.Append("-MigrationMode ").Append(mode).Append(" ");
             args.Append("-CustomSystemTitle \"").Append(title).Append("\" ");
+            args.Append("-CustomSystemSub \"").Append(sub).Append("\" ");
             args.Append("-ServerUrl \"").Append(srvUrl).Append("\" ");
+            if (!string.IsNullOrWhiteSpace(logoPath)) args.Append("-CustomLogoPath \"").Append(logoPath).Append("\" ");
+            if (!string.IsNullOrWhiteSpace(pubDom)) args.Append("-PublicDomain \"").Append(pubDom).Append("\" ");
+            if (!string.IsNullOrWhiteSpace(cfTok)) args.Append("-CloudflareToken \"").Append(cfTok).Append("\" ");
+            if (!string.IsNullOrWhiteSpace(tgTok)) args.Append("-TelegramBotToken \"").Append(tgTok).Append("\" ");
+            if (!string.IsNullOrWhiteSpace(tgChat)) args.Append("-TelegramChatId \"").Append(tgChat).Append("\" ");
+            if (!string.IsNullOrWhiteSpace(gemKey)) args.Append("-GeminiApiKey \"").Append(gemKey).Append("\" ");
             if (cam) args.Append("-MigrateCameras ");
             if (usr) args.Append("-MigrateUsers ");
             if (gps) args.Append("-MigrateGps ");
@@ -558,25 +588,21 @@ namespace BppVmsSetup
               <span class='mode-tag'>เซิร์ฟเวอร์จุดติดตั้งใหม่</span>
             </div>
             <div class='mode-sub'>เริ่มต้นระบบเซิร์ฟเวอร์ใหม่จากศูนย์ (รันระบบกล้อง + AI + บันทึกภาพในเครื่องนี้ โดยไม่มีข้อมูลของเครื่องเดิมติดมา)</div>
-            <div class='sub-panel' onclick='event.stopPropagation()'>
-              <label style='font-size:12px;color:#cbd5e1;font-weight:600;'>ตั้งชื่อระบบ / ชื่อหน่วยงานสำหรับเซิร์ฟเวอร์เครื่องนี้:</label>
-              <input type='text' id='inpSystemTitle' class='inp-box' value='SLOTH BPP-VMS' placeholder='เช่น SLOTH BPP 215 หรือชื่อหน่วยงานของคุณ' />
-            </div>
           </div>
 
           <!-- Option 2: Custom Selective Server Migration -->
           <div class='mode-card' id='cardCustom' onclick=""selectMode('custom')"">
             <div class='mode-head'>
-              <div class='mode-title'>🎛️ 3. ติดตั้งเป็นเครื่องแม่ข่าย + เลือกนำข้อมูลบางส่วนมาด้วย (Server: Custom Migration)</div>
-              <span class='mode-tag' style='background:rgba(168,85,247,0.2);color:#e9d5ff;border-color:#a855f7;'>เซิร์ฟเวอร์เลือกข้อมูลได้</span>
+              <div class='mode-title'>🎛️ 3. ติดตั้งเครื่องแม่ข่ายใหม่ + นำ User &amp; รายการกล้อง/หมุดแผนที่ไปด้วย (แนะนำสำหรับย้ายเครื่อง)</div>
+              <span class='mode-tag' style='background:rgba(168,85,247,0.2);color:#e9d5ff;border-color:#a855f7;'>ย้ายเครื่อง + ตั้งชื่อ/โลโก้ใหม่ได้</span>
             </div>
-            <div class='mode-sub'>ติดตั้งเป็นเครื่องแม่ข่าย พร้อมเลือกรายการข้อมูลจากเครื่องต้นทางที่ต้องการนำติดไปใช้บนเซิร์ฟเวอร์เครื่องนี้:</div>
+            <div class='mode-sub'>ติดตั้งเป็นเครื่องแม่ข่ายเครื่องใหม่ พร้อมนำบัญชีผู้ใช้ รายการกล้อง และหมุดกล้องบนแผนที่ไปด้วย และตั้งโลโก้/ชื่อ/URL/บอทใหม่ด้านล่างได้ทันที:</div>
             <div class='sub-panel' onclick='event.stopPropagation()'>
-              <label class='chk-row'><input type='checkbox' id='chkCam' checked /> 📹 นำ <b>รายการกล้อง CCTV, รหัสเชื่อมต่อ, กลุ่ม NVR และช่องสัญญาณทั้งหมด</b> ไปด้วย</label>
-              <label class='chk-row'><input type='checkbox' id='chkUsr' checked /> 👥 นำ <b>บัญชีผู้ใช้งาน รหัสผ่าน และระดับสิทธิ์ (User Accounts & Roles)</b> ไปด้วย</label>
+              <label class='chk-row'><input type='checkbox' id='chkCam' checked /> 📹 นำ <b>รายการกล้อง CCTV, หมุดกล้องบนแผนที่ (Map Pins), กลุ่ม NVR และช่องสัญญาณทั้งหมด</b> ไปด้วย</label>
+              <label class='chk-row'><input type='checkbox' id='chkUsr' checked /> 👥 นำ <b>บัญชีผู้ใช้งาน (49 บัญชี), กลุ่มผู้ใช้ และระดับสิทธิ์ (Users &amp; Groups)</b> ไปด้วย</label>
+              <label class='chk-row'><input type='checkbox' id='chkLpr' checked /> 🚨 นำ <b>บัญชีดำป้ายทะเบียนเฝ้าระวัง, ฐานข้อมูลใบหน้าหมายจับ และโซน AI</b> ไปด้วย</label>
               <label class='chk-row'><input type='checkbox' id='chkGps' /> 🛰️ นำ <b>อุปกรณ์ติดตามพิกัด GPS และประวัติเส้นทางย้อนหลัง (GPSOne Trackers)</b> ไปด้วย</label>
-              <label class='chk-row'><input type='checkbox' id='chkLpr' checked /> 🚨 นำ <b>บัญชีดำป้ายทะเบียนเฝ้าระวัง, ฐานข้อมูลใบหน้าหมายจับ (187 แฟ้ม) และโซน AI</b> ไปด้วย</label>
-              <label class='chk-row'><input type='checkbox' id='chkBrd' checked /> 🎨 นำ <b>ชื่อหน่วยงานและโลโก้เดิมของเครื่องต้นทาง (Branding & Logo)</b> ไปด้วย</label>
+              <label class='chk-row'><input type='checkbox' id='chkBrd' /> 🎨 ใช้ชื่อหน่วยงานและโลโก้เดิมของเครื่องต้นทาง (ไม่ติ๊ก = ใช้ชื่อและโลโก้ที่ตั้งด้านล่าง)</label>
             </div>
           </div>
 
@@ -586,7 +612,53 @@ namespace BppVmsSetup
               <div class='mode-title'>📦 4. ติดตั้งเป็นเครื่องแม่ข่ายโคลน 100% (Server: Full System Clone)</div>
               <span class='mode-tag' style='background:rgba(56,189,248,0.18);color:#7dd3fc;border-color:#38bdf8;'>โคลนเซิร์ฟเวอร์ 100%</span>
             </div>
-            <div class='mode-sub'>ยกการตั้งค่าเซิร์ฟเวอร์ทุกอย่างจากเครื่องเดิมมาทั้งหมด (กล้อง 36 ตัว + บัญชีผู้ใช้ทั้งหมด + อุปกรณ์ GPS + ทะเบียนเฝ้าระวัง + โลโก้หน่วยงาน)</div>
+            <div class='mode-sub'>ยกการตั้งค่าเซิร์ฟเวอร์ทุกอย่างจากเครื่องเดิมมาทั้งหมด 100% (กล้อง + หมุดแผนที่ + ผู้ใช้ + GPS + ทะเบียนเฝ้าระวัง + Telegram Bot)</div>
+          </div>
+        </div>
+
+        <!-- Server Machine Identity, Logo, URL, Token & Telegram Bot Panel (shown when Clean/Custom/Full Server is selected) -->
+        <div id='serverIdentityBox' style='display:none; background:rgba(15,23,42,0.82); border:1px solid rgba(56,189,248,0.35); border-radius:11px; padding:12px 14px; flex-direction:column; gap:8px;'>
+          <div style='font-size:12.5px; font-weight:700; color:#38bdf8;'>🏢 ตั้งค่าประจำเครื่องแม่ข่าย (โลโก้ · ชื่อหน่วยงาน · URL · Token · Telegram Bot &amp; AI สกัดข้อมูล) — เปลี่ยนภายหลังในหน้าเว็บได้ตลอดเวลา</div>
+          <div style='display:grid; grid-template-columns:1fr 1fr 1.4fr; gap:8px;'>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>ชื่อหลักระบบ (มุมบนซ้าย)</label>
+              <input type='text' id='inpSystemTitle' class='inp-box' value='Sloth' placeholder='เช่น Sloth' />
+            </div>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>ชื่อหน่วยงาน / รหัสหน่วย</label>
+              <input type='text' id='inpSystemSub' class='inp-box' value='BPP 215' placeholder='เช่น BPP 215' />
+            </div>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>โลโก้มุมบน (เว้นว่าง = ใช้โลโก้มาตรฐาน)</label>
+              <div style='display:flex;gap:6px;'>
+                <input type='text' id='inpLogoPath' class='inp-box' readonly placeholder='มาตรฐาน (BPP215.png)' />
+                <button type='button' class='btn' style='padding:6px 10px;font-size:11.5px;white-space:nowrap;border-color:#38bdf8;color:#38bdf8;' onclick=""window.chrome.webview.postMessage('PICK_LOGO')"">📁 เลือกรูป</button>
+              </div>
+            </div>
+          </div>
+          <div style='display:grid; grid-template-columns:1fr 1.2fr; gap:8px;'>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>โดเมน / URL เครื่องนี้ (เว้นว่าง = ใช้ค่าเดิม)</label>
+              <input type='text' id='inpPublicDomain' class='inp-box' placeholder='เช่น sloth.bpp215.com' />
+            </div>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>Cloudflare Tunnel Token (เว้นว่าง = ใช้ค่าเดิม)</label>
+              <input type='password' id='inpCfToken' class='inp-box' placeholder='eyJhIjoi... (เฉพาะกรณีเปลี่ยนโดเมนใหม่)' />
+            </div>
+          </div>
+          <div style='display:grid; grid-template-columns:1.2fr 0.8fr 1fr; gap:8px;'>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>Telegram Bot Token (เว้นว่าง = ใช้บอทเดิม)</label>
+              <input type='text' id='inpTgToken' class='inp-box' placeholder='123456:AAH...' />
+            </div>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>Telegram Chat ID แจ้งเตือนหลัก</label>
+              <input type='text' id='inpTgChatId' class='inp-box' placeholder='เช่น 6926293936' />
+            </div>
+            <div>
+              <label style='font-size:11px;color:#cbd5e1;'>Gemini API Key (AI สกัดภาพ/เชื่อมโยง i2)</label>
+              <input type='password' id='inpGeminiKey' class='inp-box' placeholder='เว้นว่าง = ใช้คีย์เดิม' />
+            </div>
           </div>
         </div>
 
@@ -645,7 +717,14 @@ namespace BppVmsSetup
     document.getElementById('cardClean').classList.toggle('selected', m === 'clean');
     document.getElementById('cardCustom').classList.toggle('selected', m === 'custom');
     document.getElementById('cardFull').classList.toggle('selected', m === 'full');
+    var sbox = document.getElementById('serverIdentityBox');
+    if (sbox) sbox.style.display = (m === 'client') ? 'none' : 'flex';
   }
+
+  window.onLogoPicked = function(path) {
+    var inp = document.getElementById('inpLogoPath');
+    if (inp) inp.value = path || '';
+  };
 
   function setServerPreset(url) {
     document.getElementById('inpServerUrl').value = url;
@@ -684,12 +763,21 @@ namespace BppVmsSetup
     var dsk = document.getElementById('chkDesktop').checked ? '1' : '0';
     var stm = document.getElementById('chkStartMenu').checked ? '1' : '0';
     var aut = document.getElementById('chkAutoStart').checked ? '1' : '0';
-    var title = (document.getElementById('inpSystemTitle').value || 'SLOTH BPP-VMS').replace(/\|/g, ' ');
+    var title = (document.getElementById('inpSystemTitle').value || 'Sloth').replace(/\|/g, ' ');
+    var sub = (document.getElementById('inpSystemSub').value || 'BPP 215').replace(/\|/g, ' ');
+    var logo = (document.getElementById('inpLogoPath').value || '').replace(/\|/g, '');
+    var dom = (document.getElementById('inpPublicDomain').value || '').replace(/\|/g, '');
+    var cf = (document.getElementById('inpCfToken').value || '').replace(/\|/g, '');
+    var tg = (document.getElementById('inpTgToken').value || '').replace(/\|/g, '');
+    var chat = (document.getElementById('inpTgChatId').value || '').replace(/\|/g, '');
+    var gem = (document.getElementById('inpGeminiKey').value || '').replace(/\|/g, '');
     var srv = (document.getElementById('inpServerUrl').value || 'https://sloth.bpp215.com').replace(/\|/g, '');
 
     var payload = 'INSTALL:mode=' + currentMode +
                   '|cam=' + cam + '|usr=' + usr + '|gps=' + gps + '|lpr=' + lpr + '|brd=' + brd +
-                  '|dsk=' + dsk + '|stm=' + stm + '|aut=' + aut + '|title=' + title + '|srv=' + srv;
+                  '|dsk=' + dsk + '|stm=' + stm + '|aut=' + aut +
+                  '|title=' + title + '|sub=' + sub + '|logo=' + logo +
+                  '|dom=' + dom + '|cf=' + cf + '|tg=' + tg + '|chat=' + chat + '|gem=' + gem + '|srv=' + srv;
     window.chrome.webview.postMessage(payload);
   }
 

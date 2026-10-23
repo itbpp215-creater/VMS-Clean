@@ -194,6 +194,7 @@ async def sync_to_chat_service(
         logger.debug(f"Could not spawn n8n mirror task: {e}")
 
     chat_service_urls = [
+        "http://127.0.0.1:8443/api/chat/send",
         "http://chat-service:5007/api/chat/send",
         "http://localhost:5007/api/chat/send",
         "http://127.0.0.1:5007/api/chat/send"
@@ -311,6 +312,7 @@ async def submit_plain_text_report(
     # Use the same endpoint fallback order as document/image synchronization while
     # preserving the original report instead of decorating it with NAS metadata.
     chat_service_urls = [
+        "http://127.0.0.1:8443/api/chat/send",
         "http://chat-service:5007/api/chat/send",
         "http://localhost:5007/api/chat/send",
         "http://127.0.0.1:5007/api/chat/send",
@@ -522,7 +524,7 @@ async def execute_telegram_search(client, url: str, chat_id: Any, q_term: str, u
         matched = []
         try:
             c_resp = await client.get(
-                "http://chat-service:5007/api/chat/events",
+                (os.environ.get("CHAT_SERVICE_URL", "http://127.0.0.1:8443").rstrip("/") + "/api/chat/events"),
                 headers={"X-User": username or "admin", "X-Role": "admin"},
                 timeout=5.0
             )
@@ -1740,11 +1742,10 @@ async def handle_intelligence_text(
 
 
 async def telegram_polling_loop():
-
-    if not TELEGRAM_TOKEN:
-        logger.warning("TELEGRAM_BOT_TOKEN not set. Telegram polling disabled.")
-        return
-        
+    global TELEGRAM_TOKEN
+    while not (os.getenv("TELEGRAM_BOT_TOKEN") or TELEGRAM_TOKEN):
+        await asyncio.sleep(5.0)
+    TELEGRAM_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or TELEGRAM_TOKEN or "").strip()
     offset = 0
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     file_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/"
@@ -1769,6 +1770,14 @@ async def telegram_polling_loop():
     async with httpx.AsyncClient(timeout=60.0) as client:
         while True:
             try:
+                cur_tok = (os.getenv("TELEGRAM_BOT_TOKEN") or TELEGRAM_TOKEN or "").strip()
+                if not cur_tok:
+                    await asyncio.sleep(5.0)
+                    continue
+                if cur_tok != TELEGRAM_TOKEN:
+                    TELEGRAM_TOKEN = cur_tok
+                    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+                    file_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/"
                 resp = await client.get(f"{url}/getUpdates", params={"offset": offset, "timeout": 30})
                 if resp.status_code == 200:
                     data = resp.json()
@@ -2182,7 +2191,7 @@ async def telegram_polling_loop():
                         if text:
                             if text.startswith("/list") or text.startswith("/รายการ"):
                                 try:
-                                    chat_service_url = "http://chat-service:5007/api/chat/events"
+                                    chat_service_url = (os.environ.get("CHAT_SERVICE_URL", "http://127.0.0.1:8443").rstrip("/") + "/api/chat/events")
                                     events_resp = await client.get(
                                         chat_service_url,
                                         headers={"X-User": username, "X-Role": user_role},
@@ -2221,7 +2230,7 @@ async def telegram_polling_loop():
                                 else:
                                     try:
                                         clear_resp = await client.delete(
-                                            "http://chat-service:5007/api/chat/clear",
+                                            (os.environ.get("CHAT_SERVICE_URL", "http://127.0.0.1:8443").rstrip("/") + "/api/chat/clear"),
                                             headers={"X-User": username, "X-Role": "admin"},
                                             timeout=10.0
                                         )
@@ -3744,7 +3753,7 @@ async def get_admin_user_subscriptions(
     auth_urls = [
         os.environ.get("AUTH_SERVICE_URL", "http://auth-service:5002"),
         "http://auth-service:5002",
-        "http://localhost:5002"
+        "http://127.0.0.1:8443", "http://localhost:5002"
     ]
     for b_url in auth_urls:
         try:
@@ -3857,6 +3866,9 @@ async def dispatch_multi_user_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
         user_roles_fn=get_user_role
     )
 
+    default_alert_chat = (os.getenv("LPR_TELEGRAM_CHAT_ID") or "").strip()
+    if default_alert_chat and default_alert_chat not in [str(c) for c in target_chats]:
+        target_chats.append(default_alert_chat)
     if not target_chats:
         return {"status": "skipped", "reason": "No user accounts subscribed for this camera and object"}
 
@@ -3871,20 +3883,25 @@ async def dispatch_multi_user_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not snapshot_bytes and event_id:
         try:
             async with httpx.AsyncClient(timeout=5.0) as img_client:
-                res = await img_client.get(f"http://frigate:5000/api/events/{event_id}/snapshot.jpg")
-                if res.status_code == 200 and len(res.content) > 1000:
-                    snapshot_bytes = res.content
-                elif camera:
-                    res2 = await img_client.get(f"http://frigate:5000/api/{camera}/latest.jpg")
-                    if res2.status_code == 200 and len(res2.content) > 1000:
-                        snapshot_bytes = res2.content
+                for snap_u in [
+                    f"http://127.0.0.1:8443/api/events/{event_id}/snapshot.jpg",
+                    f"http://frigate:5000/api/events/{event_id}/snapshot.jpg",
+                ] + ([f"http://127.0.0.1:1984/api/frame.jpeg?src={camera}", f"http://frigate:5000/api/{camera}/latest.jpg"] if camera else []):
+                    try:
+                        res = await img_client.get(snap_u)
+                        if res.status_code == 200 and len(res.content) > 1000:
+                            snapshot_bytes = res.content
+                            break
+                    except Exception:
+                        continue
         except Exception as img_err:
             logger.debug(f"Failed to fetch event snapshot: {img_err}")
 
     logger.info(f"Dispatching alert for {camera}/{label}: snapshot_bytes={len(snapshot_bytes) if snapshot_bytes else 0} bytes to {len(target_chats)} chats: {target_chats}")
 
     sent_count = 0
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    active_tok = (os.getenv("TELEGRAM_BOT_TOKEN") or TELEGRAM_TOKEN or "").strip()
+    url = f"https://api.telegram.org/bot{active_tok}"
     async with httpx.AsyncClient(timeout=20.0) as client:
         for chat_id in target_chats:
             try:
